@@ -39,7 +39,6 @@ export default function BrandTextType() {
   return (
     <span className="brand-type" aria-hidden="true">
       <span>{names[nameIndex].slice(0, length)}</span>
-      <i className="brand-type-cursor" />
     </span>
   );
 }

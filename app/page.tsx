@@ -23,7 +23,16 @@ export default function Home() {
             <a href="#why">Why RailSetu</a>
             <a href="#how">How it works</a>
           </div>
-          <a className="nav-cta" href="/about">About RailSetu <span>↗</span></a>
+          <TactileGlareLink
+            className="nav-cta"
+            wrapperClassName="nav-about-wrap"
+            href="/about"
+            baseColor="#aebfdf"
+            depth={4}
+            glareOpacity={0.2}
+          >
+            About RailSetu <span>↗</span>
+          </TactileGlareLink>
         </nav>
 
         <div className="hero-copy">
@@ -45,7 +54,7 @@ export default function Home() {
             >
               Find my route <span>→</span>
             </TactileGlareLink>
-            <a className="text-link" href="#how"><span className="play">▶</span> See how it works</a>
+            <a className="text-link" href="#how"><span className="play">▶</span><span className="shiny-text">See how it works</span></a>
           </div>
         </div>
 
