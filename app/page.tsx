@@ -1,5 +1,6 @@
 import TactileGlareLink from './components/tactile-glare-link';
 import BrandTextType from './components/brand-text-type';
+import TicketPixelSwap from './components/ticket-pixel-swap';
 
 const journeyStops = [
   { code: 'PUNE', time: '18:35', state: 'Board', active: true },
@@ -57,6 +58,8 @@ export default function Home() {
             <a className="text-link" href="#how"><span className="play">▶</span><span className="shiny-text">See how it works</span></a>
           </div>
         </div>
+
+        <TicketPixelSwap />
 
         <div className="product-stage" id="preview" aria-label="RailSetu journey preview">
           <div className="stage-glow" />

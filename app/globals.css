@@ -232,7 +232,23 @@ html.railsetu-cursor-enabled [role='button'] {
 .shiny-text { display:inline-block; color:#454d60; background:linear-gradient(115deg,#454d60 20%,#454d60 39%,#fff 50%,#69758e 61%,#454d60 80%); background-size:220% auto; background-position:150% center; background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent; animation:shiny-copy 4.8s linear infinite; }
 .play { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid rgba(23,32,59,.22); border-radius: 50%; font-size: 8px; padding-left: 2px; }
 
-.product-stage { position: relative; z-index: 2; width: min(990px, 94vw); margin: 94px auto 52px; padding: 24px; border: 1px solid rgba(255,255,255,.7); border-radius: 42px; background: rgba(215,231,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.72); }
+.ticket-story-wrap { position:relative; z-index:3; width:min(940px,94vw); margin:clamp(82px,10vw,132px) auto 0; }
+.ticket-story-copy { display:flex; justify-content:space-between; align-items:end; gap:30px; margin:0 16px 20px; }
+.ticket-story-copy h2 { margin:5px 0 0; font-size:clamp(24px,3vw,38px); letter-spacing:-.045em; font-weight:520; }
+.ticket-story-copy p { display:flex; align-items:center; gap:8px; margin:0 0 3px; color:#657086; font-size:11px; }.ticket-story-copy p span { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; color:#6074d7; background:rgba(255,255,255,.55); }
+.ticket-pixel-swap { position:relative; width:100%; aspect-ratio:16/9; margin:0; overflow:hidden; border:1px solid rgba(255,255,255,.78); border-radius:30px; outline:none; background:rgba(255,255,255,.28); box-shadow:0 30px 78px rgba(50,69,128,.18); isolation:isolate; cursor:pointer; }
+.ticket-pixel-swap:focus-visible { outline:3px solid rgba(255,255,255,.95); outline-offset:5px; box-shadow:0 0 0 8px rgba(68,96,207,.28),0 30px 78px rgba(50,69,128,.18); }
+.ticket-image { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.ticket-image-waitlist { z-index:1; }
+.ticket-pixel-grid { position:absolute; inset:0; z-index:2; display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(6,1fr); pointer-events:none; }
+.ticket-pixel { display:block; opacity:0; transform:scale(.32) rotate(3deg); border-radius:18%; background-repeat:no-repeat; transition:opacity .38s ease var(--pixel-delay),transform .52s cubic-bezier(.22,1,.36,1) var(--pixel-delay),border-radius .46s ease var(--pixel-delay); }
+.ticket-pixel-swap:is(:hover,:focus-visible) .ticket-pixel { opacity:1; transform:scale(1.035) rotate(0); border-radius:0; }
+.ticket-state { position:absolute; z-index:4; left:24px; bottom:22px; padding:9px 13px; border:1px solid rgba(255,255,255,.78); border-radius:999px; color:#626b7e; background:rgba(255,255,255,.78); backdrop-filter:blur(12px); box-shadow:0 10px 28px rgba(36,50,92,.12); font-size:9px; text-transform:uppercase; letter-spacing:.12em; transition:opacity .3s ease,transform .4s ease; }
+.ticket-state-after { color:#2c713b; opacity:0; transform:translateY(7px); }
+.ticket-pixel-swap:is(:hover,:focus-visible) .ticket-state-before { opacity:0; transform:translateY(-7px); }
+.ticket-pixel-swap:is(:hover,:focus-visible) .ticket-state-after { opacity:1; transform:translateY(0); transition-delay:.62s; }
+
+.product-stage { position: relative; z-index: 2; width: min(990px, 94vw); margin: clamp(76px,9vw,118px) auto 52px; padding: 24px; border: 1px solid rgba(255,255,255,.7); border-radius: 42px; background: rgba(215,231,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.72); }
 .stage-glow { position: absolute; inset: -20%; z-index: -1; pointer-events: none; background: radial-gradient(circle, rgba(255,255,255,.58), transparent 55%); filter: blur(10px); }
 .journey-card { position: relative; min-height: 420px; padding: 34px 38px 28px; border: 1px solid rgba(255,255,255,.82); border-radius: 30px; background: rgba(255,255,255,.89); box-shadow: 0 32px 90px rgba(73,92,157,.16); backdrop-filter: blur(24px); }
 .card-topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
@@ -295,6 +311,7 @@ html.railsetu-cursor-enabled [role='button'] {
   .hero-shell { padding-inline:18px; }
   .nav-wrap { height:76px; grid-template-columns:1fr auto; }.nav-links { display:none; }.nav-cta { padding:10px 13px; font-size:11px; }
   .hero-copy { margin-top:58px; }.hero-copy h1 { font-size:clamp(50px,15vw,72px); }.hero-copy p { max-width:92%; }.hero-actions { flex-direction:column; gap:18px; }
+  .ticket-story-wrap { width:100%; margin-top:76px; }.ticket-story-copy { align-items:flex-start; flex-direction:column; gap:13px; margin-inline:4px; }.ticket-story-copy p { align-self:flex-start; }.ticket-pixel-swap { border-radius:20px; }.ticket-state { left:12px; bottom:11px; padding:7px 9px; font-size:7px; }
   .product-stage { width:100%; margin-top:70px; padding:10px; border-radius:28px; }.journey-card { min-height:510px; padding:24px 18px; border-radius:22px; }.card-topline { flex-direction:column; }.card-topline h2 { font-size:23px; }.confirmed { align-self:flex-start; }.traveller-mode { width:100%; }.mode-tag { margin-left:auto; }
   .route-line { margin:68px 0 40px; }.seat-pop { font-size:8px; }.card-footer { grid-template-columns:1fr 1fr; }.choose-journey-wrap { grid-column:1/-1; width:100%; }.choose-journey { width:100%; justify-content:center; text-align:center; }
   .status-pill { display:none; }.floating-note { display:none; }.hero-footnote span:first-child,.hero-footnote span:last-child { display:none; }.hero-footnote { justify-content:center; margin-top:16px; }
