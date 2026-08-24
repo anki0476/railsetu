@@ -1,4 +1,5 @@
 import TactileGlareLink from './components/tactile-glare-link';
+import BrandTextType from './components/brand-text-type';
 
 const journeyStops = [
   { code: 'PUNE', time: '18:35', state: 'Board', active: true },
@@ -16,17 +17,17 @@ export default function Home() {
         <nav className="nav-wrap" aria-label="Primary navigation">
           <a className="brand" href="#top" aria-label="RailSetu home">
             <span className="brand-mark" aria-hidden="true"><i /><i /></span>
-            <span>RailSetu</span>
+            <BrandTextType />
           </a>
           <div className="nav-links">
             <a href="#why">Why RailSetu</a>
             <a href="#how">How it works</a>
           </div>
-          <a className="nav-cta" href="#preview">Explore routes <span>↗</span></a>
+          <a className="nav-cta" href="/about">About RailSetu <span>↗</span></a>
         </nav>
 
         <div className="hero-copy">
-          <div className="eyebrow"><span /> A calmer way through the waitlist</div>
+          <div className="eyebrow"><span /> A precise way through the waitlist</div>
           <h1>
             One train.<br />
             <span className="soft-word">A better way</span> through.
