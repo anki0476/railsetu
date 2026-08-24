@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
+import GlobalInteractionEffects from './components/global-interaction-effects';
 import './globals.css';
 
 const geist = Geist({
@@ -26,7 +27,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-IN">
-      <body className={`${geist.variable} antialiased`}>{children}</body>
+      <body className={`${geist.variable} antialiased`}>
+        {children}
+        <GlobalInteractionEffects />
+      </body>
     </html>
   );
 }

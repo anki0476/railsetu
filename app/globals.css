@@ -13,6 +13,100 @@ body { margin: 0; color: var(--ink); background: #f7f9ff; font-family: var(--fon
 a { color: inherit; text-decoration: none; }
 button { font: inherit; }
 
+html.railsetu-cursor-enabled,
+html.railsetu-cursor-enabled a,
+html.railsetu-cursor-enabled button,
+html.railsetu-cursor-enabled [role='button'] {
+  cursor: none !important;
+}
+
+.interaction-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.spin-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform-origin: 0 0;
+  filter: drop-shadow(0 2px 3px rgba(25, 36, 69, .22));
+  transition: opacity .18s ease;
+  will-change: transform;
+}
+
+.spin-cursor svg { display: block; overflow: visible; }
+.spin-cursor path { fill: #17203b; stroke: rgba(255, 255, 255, .88); stroke-width: .75px; stroke-linejoin: round; }
+
+.click-burst {
+  --effect-color: #4f69d9;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+}
+
+.burst-ring,
+.burst-line,
+.burst-particle {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.burst-ring {
+  left: -16px;
+  top: -16px;
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid var(--effect-color);
+  border-radius: 50%;
+  animation: click-ring .62s cubic-bezier(.15, .78, .24, 1) both;
+}
+
+.burst-line {
+  left: -1px;
+  top: -24px;
+  width: 2px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--effect-color);
+  transform-origin: 1px 24px;
+  animation: click-line .58s cubic-bezier(.15, .78, .24, 1) both;
+}
+
+.burst-line-1 { transform: rotate(90deg); }
+.burst-line-2 { transform: rotate(180deg); }
+.burst-line-3 { transform: rotate(270deg); }
+
+.burst-particle {
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--effect-color);
+  animation: click-particle .64s cubic-bezier(.15, .78, .24, 1) both;
+}
+
+@keyframes click-ring {
+  0% { opacity: .9; transform: scale(.35); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+
+@keyframes click-line {
+  0% { opacity: 1; scale: 1 .55; }
+  100% { opacity: 0; translate: 0 -15px; scale: 1 .1; }
+}
+
+@keyframes click-particle {
+  0% { opacity: 1; transform: rotate(var(--burst-angle)) translateX(8px) scale(1); }
+  100% { opacity: 0; transform: rotate(var(--burst-angle)) translateX(33px) scale(.1); }
+}
+
 .hero-shell {
   position: relative;
   min-height: 100svh;
@@ -106,7 +200,12 @@ button { font: inherit; }
   .why-section { padding-inline:18px; }.principles { grid-template-columns:1fr; }.principles article { min-height:210px; }.principles h3 { margin-top:52px; }
 }
 
+@media (pointer: coarse) {
+  .interaction-layer { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior:auto; }
   *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  .interaction-layer { display:none; }
 }
