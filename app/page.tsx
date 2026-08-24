@@ -1,3 +1,5 @@
+import TactileGlareLink from './components/tactile-glare-link';
+
 const journeyStops = [
   { code: 'PUNE', time: '18:35', state: 'Board', active: true },
   { code: 'SUR', time: '22:10', state: 'Seat change', active: true },
@@ -34,7 +36,14 @@ export default function Home() {
             into one clear, comfortable journey—built around the traveller.
           </p>
           <div className="hero-actions">
-            <a className="primary-btn" href="#preview">Find my route <span>→</span></a>
+            <TactileGlareLink
+              className="primary-btn"
+              href="#preview"
+              baseColor="#0b1229"
+              depth={8}
+            >
+              Find my route <span>→</span>
+            </TactileGlareLink>
             <a className="text-link" href="#how"><span className="play">▶</span> See how it works</a>
           </div>
         </div>
@@ -75,7 +84,16 @@ export default function Home() {
             <div className="card-footer">
               <div className="metric"><small>Changes</small><strong>1 seat · same coach</strong></div>
               <div className="metric"><small>Total fare</small><strong>₹1,420</strong></div>
-              <a className="choose-journey" href="#how">Choose journey <span>→</span></a>
+              <TactileGlareLink
+                className="choose-journey"
+                wrapperClassName="choose-journey-wrap"
+                href="#how"
+                baseColor="#28429a"
+                depth={6}
+                glareOpacity={0.28}
+              >
+                Choose journey <span>→</span>
+              </TactileGlareLink>
             </div>
           </div>
 
