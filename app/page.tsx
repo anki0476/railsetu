@@ -2,6 +2,7 @@ import TactileGlareLink from './components/tactile-glare-link';
 import BrandTextType from './components/brand-text-type';
 import TicketPixelSwap from './components/ticket-pixel-swap';
 import ChooseJourneyCueLink from './components/choose-journey-cue-link';
+import LandingFaq from './components/landing-faq';
 
 const journeyStops = [
   { code: 'PUNE', time: '18:35', state: 'Board', active: true },
@@ -124,6 +125,8 @@ export default function Home() {
           <article><span>03</span><h3>Make it one journey</h3><p>Multiple reservations become one calm itinerary that is easy to follow.</p></article>
         </div>
       </section>
+
+      <LandingFaq />
     </main>
   );
 }
