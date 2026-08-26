@@ -30,6 +30,12 @@ const submitStyle = {
   '--glare-opacity': 0.3,
 } as CSSProperties;
 
+const choiceStyle = {
+  '--tactile-depth': '6px',
+  '--tactile-base': '#294cb9',
+  '--glare-opacity': 0.28,
+} as CSSProperties;
+
 const money = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
@@ -195,7 +201,16 @@ export default function JourneyPlanner() {
                     <div className="planner-solution-footer">
                       <div className="planner-highlights">{solution.highlights.map((highlight) => <span key={highlight}>✓ {highlight}</span>)}</div>
                       <div className="planner-fare"><small>Total fare</small><strong>{money.format(solution.fare)}</strong></div>
-                      <button type="button" onClick={() => setSelectedJourney(selected ? null : solution.id)}>{selected ? 'Selected ✓' : 'Choose journey'} <span>→</span></button>
+                      <span className="tactile-wrap planner-choice-wrap" style={choiceStyle}>
+                        <span className="tactile-base" aria-hidden="true" />
+                        <button
+                          className="tactile-cap glare-surface"
+                          type="button"
+                          onClick={() => setSelectedJourney(selected ? null : solution.id)}
+                        >
+                          {selected ? 'Selected ✓' : 'Choose journey'} <span>→</span>
+                        </button>
+                      </span>
                     </div>
                   </article>
                 );
