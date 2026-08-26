@@ -48,7 +48,7 @@ export default function Home() {
             <TactileGlareLink
               className="primary-btn"
               wrapperClassName="primary-btn-wrap"
-              href="/prepare"
+              href="/planner"
               baseColor="#0b1229"
               depth={8}
             >
