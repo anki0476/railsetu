@@ -49,7 +49,7 @@ export default function Home() {
           <div className="hero-actions">
             <TactileGlareLink
               className="primary-btn"
-              href="#preview"
+              href="/planner"
               baseColor="#0b1229"
               depth={8}
             >
