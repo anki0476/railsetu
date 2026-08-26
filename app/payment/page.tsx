@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import BrandTextType from '../components/brand-text-type';
 import PaymentCard from '../components/payment-card';
+import TactileGlareLink from '../components/tactile-glare-link';
 
 export const metadata: Metadata = {
   title: 'RailSetu Prototype Checkout',
@@ -19,7 +20,16 @@ export default function PaymentPage() {
           <BrandTextType />
         </a>
         <span className="payment-nav-context"><i /> Prototype checkout</span>
-        <a className="nav-cta" href="/planner">Back to journey <span>↙</span></a>
+        <TactileGlareLink
+          className="nav-cta"
+          wrapperClassName="nav-about-wrap"
+          href="/planner"
+          baseColor="#aebfdf"
+          depth={4}
+          glareOpacity={0.2}
+        >
+          Back to journey <span>↙</span>
+        </TactileGlareLink>
       </nav>
       <section className="payment-stage">
         <header className="payment-heading">
