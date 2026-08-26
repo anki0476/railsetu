@@ -526,12 +526,23 @@ export default function JourneyPlanner() {
         <div className="planner-speech-backdrop" role="presentation">
           <section className="planner-speech-modal" role="dialog" aria-modal="true" aria-labelledby="speech-dialog-title">
             <button className="planner-speech-close" type="button" onClick={closeSpeech} aria-label="Cancel dictation">×</button>
-            <div className={`planner-speech-animation ${speechStatus === 'listening' ? 'is-listening' : ''}`} aria-hidden="true">
-              <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8.8 20v-4.1l1.9.2a2.3 2.3 0 0 0 2.164-2.1V8.3A5.37 5.37 0 0 0 2 8.25c0 2.8.656 3.054 1 4.55a5.77 5.77 0 0 1 .029 2.758L2 20" />
-                <path d="M17 15a3.5 3.5 0 0 0-.025-4.975" className="planner-speech-level planner-speech-line-one" />
-                <path d="M19.8 17.8a7.5 7.5 0 0 0 .003-10.603" className="planner-speech-level planner-speech-line-two" />
-              </svg>
+            <div className={`planner-speech-animation ${speechStatus === 'error' || speechStatus === 'unsupported' ? 'is-mic-off' : 'is-speaking'}`} aria-hidden="true">
+              {speechStatus === 'error' || speechStatus === 'unsupported' ? (
+                <svg className="planner-mic-off-icon" width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="2" x2="22" y1="2" y2="22" />
+                  <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2" />
+                  <path d="M5 10v2a7 7 0 0 0 12 5" />
+                  <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
+                  <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+                  <line x1="12" x2="12" y1="19" y2="22" />
+                </svg>
+              ) : (
+                <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8.8 20v-4.1l1.9.2a2.3 2.3 0 0 0 2.164-2.1V8.3A5.37 5.37 0 0 0 2 8.25c0 2.8.656 3.054 1 4.55a5.77 5.77 0 0 1 .029 2.758L2 20" />
+                  <path d="M17 15a3.5 3.5 0 0 0-.025-4.975" className="planner-speech-level planner-speech-line-one" />
+                  <path d="M19.8 17.8a7.5 7.5 0 0 0 .003-10.603" className="planner-speech-level planner-speech-line-two" />
+                </svg>
+              )}
             </div>
             <span className="mini-label">Voice preferences</span>
             <h2 id="speech-dialog-title">{speechStatus === 'listening' ? 'Listening…' : speechStatus === 'unsupported' ? 'Voice input unavailable' : speechStatus === 'error' ? 'Could not access the microphone' : 'Dictation paused'}</h2>
