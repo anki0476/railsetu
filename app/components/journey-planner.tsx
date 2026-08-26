@@ -205,7 +205,6 @@ function StationSwapButton({ onSwap }: { onSwap: () => void }) {
 export default function JourneyPlanner() {
   const [form, setForm] = useState<PlannerForm>(initialForm);
   const [submitted, setSubmitted] = useState<PlannerForm>(initialForm);
-  const [selectedJourney, setSelectedJourney] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [presets, setPresets] = useState<SavedPreset[]>([]);
@@ -627,9 +626,8 @@ export default function JourneyPlanner() {
 
             <div className="planner-solution-list">
               {outcome.solutions.map((solution, solutionIndex) => {
-                const selected = selectedJourney === solution.id;
                 return (
-                  <article className={`planner-solution ${selected ? 'is-selected' : ''}`} key={solution.id}>
+                  <article className="planner-solution" key={solution.id}>
                     <div className="planner-solution-topline">
                       <div>
                         <span className="planner-rank">{solutionIndex === 0 ? 'Best fit' : `Option ${solutionIndex + 1}`}</span>
@@ -660,9 +658,9 @@ export default function JourneyPlanner() {
                         <button
                           className="tactile-cap glare-surface"
                           type="button"
-                          onClick={() => setSelectedJourney(selected ? null : solution.id)}
+                          onClick={() => window.location.assign(`/payment?fare=${solution.fare}&train=${encodeURIComponent(`${solution.trainNumber} · ${solution.trainName}`)}&from=${submitted.from}&to=${submitted.to}`)}
                         >
-                          {selected ? 'Selected ✓' : 'Choose journey'} <span>→</span>
+                          Continue <span>→</span>
                         </button>
                       </span>
                     </div>
