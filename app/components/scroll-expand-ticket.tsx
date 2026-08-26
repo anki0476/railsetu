@@ -3,6 +3,7 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import TactileGlareLink from './tactile-glare-link';
 
 type TicketLeg = {
   from: string;
@@ -89,6 +90,7 @@ export default function ScrollExpandTicket() {
     const qr = qrRef.current;
     const ticket = ticketRef.current;
     if (!stage || !frame || !qr || !ticket) return;
+    const ticketCard = ticket.firstElementChild as HTMLElement | null;
 
     const eased = smoothstep(0, 1, progress);
     const width = stage.clientWidth;
@@ -96,14 +98,14 @@ export default function ScrollExpandTicket() {
     const compactSize = clamp(Math.min(width * 0.48, height * 0.45), 218, 318);
     const compactHorizontal = Math.max(0, (width - compactSize) / 2);
     const compactVertical = Math.max(0, (height - compactSize) / 2);
-    const expandedHorizontal = width < 760 ? 14 : Math.max(34, width * 0.045);
-    const expandedVertical = width < 760 ? 28 : Math.max(42, height * 0.075);
+    const expandedHorizontal = 0;
+    const expandedVertical = 0;
     const horizontalInset = compactHorizontal + (expandedHorizontal - compactHorizontal) * eased;
     const verticalInset = compactVertical + (expandedVertical - compactVertical) * eased;
-    const radius = 30 + (22 - 30) * eased;
+    const radius = 30 * (1 - eased);
 
     frame.style.clipPath = `inset(${verticalInset}px ${horizontalInset}px round ${radius}px)`;
-    frame.style.boxShadow = `0 ${18 + 24 * eased}px ${55 + 65 * eased}px rgba(42, 61, 126, ${0.16 + 0.08 * eased})`;
+    frame.style.boxShadow = `0 ${18 + 18 * eased}px ${55 + 45 * eased}px rgba(42, 61, 126, ${0.16 * (1 - eased)})`;
 
     const qrOut = smoothstep(0.07, 0.43, progress);
     qr.style.opacity = String(1 - qrOut);
@@ -112,6 +114,12 @@ export default function ScrollExpandTicket() {
     const ticketIn = smoothstep(0.34, 0.94, progress);
     ticket.style.opacity = String(ticketIn);
     ticket.style.transform = `translate3d(0, ${24 * (1 - ticketIn)}px, 0) scale(${0.985 + 0.015 * ticketIn})`;
+    ticket.style.padding = `${(width < 760 ? 14 : clamp(width * 0.04, 16, 54)) * (1 - eased)}px`;
+    if (ticketCard) {
+      ticketCard.style.borderRadius = `${(width < 760 ? 19 : 25) * (1 - eased)}px`;
+      ticketCard.style.borderColor = `rgba(255, 255, 255, ${0.98 * (1 - eased)})`;
+      ticketCard.style.boxShadow = `0 ${30 * (1 - eased)}px ${85 * (1 - eased)}px rgba(42, 61, 126, ${0.16 * (1 - eased)})`;
+    }
 
     if (hintRef.current) {
       const hintOut = smoothstep(0, 0.18, progress);
@@ -179,6 +187,16 @@ export default function ScrollExpandTicket() {
         <div ref={stageRef} className="ticket-scroll-stage">
           <span className="ticket-reveal-ambient ticket-reveal-ambient-one" aria-hidden="true" />
           <span className="ticket-reveal-ambient ticket-reveal-ambient-two" aria-hidden="true" />
+          <TactileGlareLink
+            className="ticket-back-home"
+            wrapperClassName="ticket-back-wrap"
+            href="/planner"
+            baseColor="#aebfdf"
+            depth={4}
+            glareOpacity={0.2}
+          >
+            Back home <span>↙</span>
+          </TactileGlareLink>
 
           <div ref={frameRef} className="ticket-expand-frame">
             <div ref={qrRef} className="ticket-qr-layer">
@@ -236,7 +254,7 @@ export default function ScrollExpandTicket() {
                   <div><span>Ticket ID</span><strong id="rail-ticket-title">{ticketId}</strong></div>
                   <div><span>Traveller plan</span><strong>{profile === 'elderly' ? 'Limited mobility' : profile}</strong></div>
                   <div><span>Mock payment</span><strong>{paymentLabel(mode)}</strong></div>
-                  <a href={downloadPath} download>Download mock ticket <span>↓</span></a>
+                  <a href={downloadPath} download>Download Ticket <span>↓</span></a>
                 </footer>
               </article>
             </div>
