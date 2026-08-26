@@ -12,6 +12,30 @@ import {
 
 type PlannerForm = JourneyQuery & { date: string; note: string };
 type SearchPhase = 'idle' | 'searching' | 'found' | 'empty';
+type SpeechStatus = 'listening' | 'ready' | 'unsupported' | 'error';
+type SpeechResultEvent = Event & {
+  resultIndex: number;
+  results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
+};
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((event: SpeechResultEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
 type PresetMode = 'journey-preferences' | 'preferences' | 'journey';
 type JourneyPreset = Pick<PlannerForm, 'from' | 'to' | 'date' | 'travelClass'>;
 type PreferencePreset = Pick<PlannerForm, 'profile' | 'coachPreference' | 'luggage' | 'maxChanges' | 'lowerBerth' | 'note'>;
@@ -183,8 +207,13 @@ export default function JourneyPlanner() {
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [presets, setPresets] = useState<SavedPreset[]>([]);
   const [searchPhase, setSearchPhase] = useState<SearchPhase>('idle');
+  const [speechOpen, setSpeechOpen] = useState(false);
+  const [speechDraft, setSpeechDraft] = useState('');
+  const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('ready');
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const resultsAnchor = useRef<HTMLDivElement>(null);
+  const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
+  const speechBase = useRef('');
   const outcome = useMemo(() => solveJourney(submitted), [submitted]);
   const best = outcome.solutions[0];
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
@@ -202,6 +231,7 @@ export default function JourneyPlanner() {
 
   useEffect(() => () => {
     searchTimers.current.forEach(clearTimeout);
+    speechRecognition.current?.abort();
   }, []);
 
   const persistPresets = (next: SavedPreset[]) => {
@@ -242,6 +272,54 @@ export default function JourneyPlanner() {
   };
 
   const removePreset = (id: string) => persistPresets(presets.filter((preset) => preset.id !== id));
+
+  const closeSpeech = () => {
+    speechRecognition.current?.abort();
+    speechRecognition.current = null;
+    setSpeechOpen(false);
+  };
+
+  const openSpeech = () => {
+    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    const initialNote = form.note.trim();
+    speechBase.current = initialNote;
+    setSpeechDraft(initialNote);
+    setSpeechOpen(true);
+    setNoteOpen(true);
+
+    if (!Recognition) {
+      setSpeechStatus('unsupported');
+      return;
+    }
+
+    const recognition = new Recognition();
+    speechRecognition.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-IN';
+    recognition.onresult = (event) => {
+      let dictated = '';
+      for (let index = 0; index < event.results.length; index += 1) dictated += event.results[index][0].transcript;
+      setSpeechDraft([speechBase.current, dictated.trim()].filter(Boolean).join(' ').slice(0, 180));
+    };
+    recognition.onerror = () => setSpeechStatus('error');
+    recognition.onend = () => setSpeechStatus((current) => current === 'listening' ? 'ready' : current);
+
+    try {
+      recognition.start();
+      setSpeechStatus('listening');
+    } catch {
+      setSpeechStatus('error');
+    }
+  };
+
+  const applySpeech = () => {
+    speechRecognition.current?.stop();
+    speechRecognition.current = null;
+    setForm((current) => ({ ...current, note: speechDraft.trim().slice(0, 180) }));
+    setNoteOpen(true);
+    setSpeechOpen(false);
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -404,16 +482,26 @@ export default function JourneyPlanner() {
                   <strong>Anything else we should know?</strong>
                   <small>Add mobility, family, luggage, or transition preferences in your own words.</small>
                 </div>
-                <button
-                  className="planner-note-action"
-                  type="button"
-                  aria-expanded={noteOpen}
-                  aria-controls="planner-note-field"
-                  onClick={() => setNoteOpen((current) => !current)}
-                >
-                  {noteOpen ? 'Done' : form.note ? 'Edit note' : 'Add note'}
-                  <span aria-hidden="true">{noteOpen ? '✓' : '+'}</span>
-                </button>
+                <div className="planner-note-actions">
+                  <button className="planner-mic-action" type="button" onClick={openSpeech} aria-label="Dictate journey preferences">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M8.8 20v-4.1l1.9.2a2.3 2.3 0 0 0 2.164-2.1V8.3A5.37 5.37 0 0 0 2 8.25c0 2.8.656 3.054 1 4.55a5.77 5.77 0 0 1 .029 2.758L2 20" />
+                      <path d="M17 15a3.5 3.5 0 0 0-.025-4.975" />
+                      <path d="M19.8 17.8a7.5 7.5 0 0 0 .003-10.603" />
+                    </svg>
+                    <span>Dictate</span>
+                  </button>
+                  <button
+                    className="planner-note-action"
+                    type="button"
+                    aria-expanded={noteOpen}
+                    aria-controls="planner-note-field"
+                    onClick={() => setNoteOpen((current) => !current)}
+                  >
+                    {noteOpen ? 'Done' : form.note ? 'Edit note' : 'Add note'}
+                    <span aria-hidden="true">{noteOpen ? '✓' : '+'}</span>
+                  </button>
+                </div>
               </div>
               <div className="planner-note-reveal" id="planner-note-field" aria-hidden={!noteOpen}>
                 <div>
@@ -433,6 +521,29 @@ export default function JourneyPlanner() {
           </div>
         </div>
       </form>
+
+      {speechOpen ? (
+        <div className="planner-speech-backdrop" role="presentation">
+          <section className="planner-speech-modal" role="dialog" aria-modal="true" aria-labelledby="speech-dialog-title">
+            <button className="planner-speech-close" type="button" onClick={closeSpeech} aria-label="Cancel dictation">×</button>
+            <div className={`planner-speech-animation ${speechStatus === 'listening' ? 'is-listening' : ''}`} aria-hidden="true">
+              <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8.8 20v-4.1l1.9.2a2.3 2.3 0 0 0 2.164-2.1V8.3A5.37 5.37 0 0 0 2 8.25c0 2.8.656 3.054 1 4.55a5.77 5.77 0 0 1 .029 2.758L2 20" />
+                <path d="M17 15a3.5 3.5 0 0 0-.025-4.975" className="planner-speech-level planner-speech-line-one" />
+                <path d="M19.8 17.8a7.5 7.5 0 0 0 .003-10.603" className="planner-speech-level planner-speech-line-two" />
+              </svg>
+            </div>
+            <span className="mini-label">Voice preferences</span>
+            <h2 id="speech-dialog-title">{speechStatus === 'listening' ? 'Listening…' : speechStatus === 'unsupported' ? 'Voice input unavailable' : speechStatus === 'error' ? 'Could not access the microphone' : 'Dictation paused'}</h2>
+            <p className={`planner-speech-transcript ${speechDraft ? 'has-text' : ''}`}>
+              {speechDraft || (speechStatus === 'unsupported' ? 'This browser does not support voice dictation. You can continue typing in the note field.' : speechStatus === 'error' ? 'Check your microphone permission, then try again.' : 'Start speaking about mobility, luggage, family, or transition preferences.')}
+            </p>
+            <button className="planner-speech-apply" type="button" onClick={applySpeech} aria-label="Finish dictation and use these preferences">
+              <span>Use preference</span><i aria-hidden="true">✓</i>
+            </button>
+          </section>
+        </div>
+      ) : null}
 
       <div ref={resultsAnchor} className="planner-results-anchor" aria-hidden="true" />
       {searchPhase !== 'idle' ? <RouteSearchStatus phase={searchPhase} /> : null}
