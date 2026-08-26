@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { JourneySolution } from '../lib/journey-engine';
 
 type JourneyMapModalProps = { open: boolean; onClose: () => void; solution: JourneySolution };
-type MapPoint = { code: string; name: string; time: string; latitude: number; longitude: number; x: number; y: number };
+type MapPoint = { code: string; name: string; time: string; latitude: number; longitude: number };
+type RenderedPoint = MapPoint & { x: number; y: number };
 type MapStyle = CSSProperties & {
   '--map-x'?: string;
   '--map-y'?: string;
@@ -14,6 +15,9 @@ type MapStyle = CSSProperties & {
   '--map-delay'?: string;
 };
 
+const TILE_SIZE = 256;
+const MIN_ZOOM = 4;
+const MAX_ZOOM = 10;
 const stationCoordinates: Record<string, { latitude: number; longitude: number }> = {
   NDLS: { latitude: 28.6428, longitude: 77.2197 },
   ALJN: { latitude: 27.8815, longitude: 78.0746 },
@@ -33,46 +37,142 @@ const stationCoordinates: Record<string, { latitude: number; longitude: number }
 };
 const segmentColors = ['#4f6fe7', '#9a63e8', '#2d9d73', '#e78b4f'];
 
-function mercatorY(latitude: number) {
-  const radians = latitude * Math.PI / 180;
-  return Math.log(Math.tan(Math.PI / 4 + radians / 2));
+function project(latitude: number, longitude: number, zoom: number) {
+  const worldSize = TILE_SIZE * 2 ** zoom;
+  const boundedLatitude = Math.max(-85.0511, Math.min(85.0511, latitude));
+  const sine = Math.sin(boundedLatitude * Math.PI / 180);
+  return {
+    x: ((longitude + 180) / 360) * worldSize,
+    y: (0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI)) * worldSize,
+  };
+}
+
+function fitZoom(points: MapPoint[], width: number, height: number) {
+  const availableWidth = Math.max(180, width - 170);
+  const availableHeight = Math.max(150, height - 160);
+  for (let zoom = MAX_ZOOM; zoom >= MIN_ZOOM; zoom -= 1) {
+    const projected = points.map((point) => project(point.latitude, point.longitude, zoom));
+    const xs = projected.map((point) => point.x);
+    const ys = projected.map((point) => point.y);
+    if (Math.max(...xs) - Math.min(...xs) <= availableWidth && Math.max(...ys) - Math.min(...ys) <= availableHeight) return zoom;
+  }
+  return MIN_ZOOM;
+}
+
+function RouteMap({ points }: { points: MapPoint[] }) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
+  const [viewport, setViewport] = useState({ width: 760, height: 520 });
+  const [zoomOffset, setZoomOffset] = useState(0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const fittedZoom = useMemo(() => fitZoom(points, viewport.width, viewport.height), [points, viewport]);
+  const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fittedZoom + zoomOffset));
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const measure = () => setViewport({ width: canvas.clientWidth, height: canvas.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setZoomOffset(0);
+    setPan({ x: 0, y: 0 });
+  }, [points]);
+
+  useEffect(() => setMapLoaded(false), [zoom]);
+
+  const map = useMemo(() => {
+    const worldPoints = points.map((point) => ({ ...point, ...project(point.latitude, point.longitude, zoom) }));
+    const xs = worldPoints.map((point) => point.x);
+    const ys = worldPoints.map((point) => point.y);
+    const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const originX = centerX - viewport.width / 2 - pan.x;
+    const originY = centerY - viewport.height / 2 - pan.y;
+    const renderedPoints: RenderedPoint[] = worldPoints.map((point) => ({ ...point, x: point.x - originX, y: point.y - originY }));
+    const tiles: Array<{ id: string; url: string; left: number; top: number }> = [];
+    const tileCount = 2 ** zoom;
+    const startX = Math.floor(originX / TILE_SIZE) - 1;
+    const endX = Math.ceil((originX + viewport.width) / TILE_SIZE) + 1;
+    const startY = Math.max(0, Math.floor(originY / TILE_SIZE) - 1);
+    const endY = Math.min(tileCount - 1, Math.ceil((originY + viewport.height) / TILE_SIZE) + 1);
+    for (let tileY = startY; tileY <= endY; tileY += 1) {
+      for (let tileX = startX; tileX <= endX; tileX += 1) {
+        const wrappedX = ((tileX % tileCount) + tileCount) % tileCount;
+        tiles.push({ id: `${zoom}-${tileX}-${tileY}`, url: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${tileY}.png`, left: tileX * TILE_SIZE - originX, top: tileY * TILE_SIZE - originY });
+      }
+    }
+    return { points: renderedPoints, tiles };
+  }, [pan, points, viewport, zoom]);
+
+  const changeZoom = (change: number) => {
+    setZoomOffset((current) => Math.max(MIN_ZOOM - fittedZoom, Math.min(MAX_ZOOM - fittedZoom, current + change)));
+    setPan({ x: 0, y: 0 });
+  };
+
+  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button,a')) return;
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
+  };
+  const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y });
+  };
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  return (
+    <div ref={canvasRef} className={`journey-map-canvas ${mapLoaded ? 'is-loaded' : ''} ${dragging ? 'is-dragging' : ''}`} role="group" aria-label="Interactive map of the selected RailSetu journey" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+      <div className="journey-map-tiles" aria-hidden="true">
+        {map.tiles.map((tile) => <img key={tile.id} src={tile.url} alt="" draggable={false} decoding="async" onLoad={() => setMapLoaded(true)} style={{ left: tile.left, top: tile.top }} />)}
+      </div>
+      <div className="journey-map-wash" aria-hidden="true" />
+      {!mapLoaded ? <div className="journey-map-loading" role="status"><i /> Loading route map…</div> : null}
+      <div className="journey-map-route" aria-hidden="true">
+        {map.points.slice(0, -1).map((point, index) => {
+          const nextPoint = map.points[index + 1];
+          return <span className="journey-map-segment" key={`${point.code}-${nextPoint.code}-${zoom}`} style={{ '--map-x': `${point.x}px`, '--map-y': `${point.y}px`, '--map-next-x': `${nextPoint.x}px`, '--map-next-y': `${nextPoint.y}px`, '--map-color': segmentColors[index % segmentColors.length], '--map-delay': `${index * 0.16}s` } as MapStyle} />;
+        })}
+        {map.points.map((point, index) => (
+          <span className={`journey-map-stop ${index > 0 && index < map.points.length - 1 ? 'is-change' : ''}`} key={point.code} style={{ '--map-x': `${point.x}px`, '--map-y': `${point.y}px`, '--map-color': segmentColors[Math.max(0, index - 1) % segmentColors.length] } as MapStyle}>
+            <i /><b>{point.code}</b><small>{index === 0 ? 'Board' : index === map.points.length - 1 ? 'Arrive' : 'Seat change'}</small>
+          </span>
+        ))}
+      </div>
+      <div className="journey-map-controls" aria-label="Map zoom controls">
+        <button type="button" onClick={() => changeZoom(1)} disabled={zoom === MAX_ZOOM} aria-label="Zoom in">+</button>
+        <button type="button" onClick={() => changeZoom(-1)} disabled={zoom === MIN_ZOOM} aria-label="Zoom out">−</button>
+      </div>
+      <a className="journey-map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+    </div>
+  );
 }
 
 export default function JourneyMapModal({ open, onClose, solution }: JourneyMapModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const mapData = useMemo(() => {
+  const mapPoints = useMemo(() => {
     const rawStops = solution.legs.length ? [solution.legs[0].from, ...solution.legs.map((leg) => leg.to)] : [];
-    const locatedStops = rawStops.flatMap((stop) => {
+    return rawStops.flatMap((stop) => {
       const coordinate = stationCoordinates[stop.code];
       return coordinate ? [{ ...stop, ...coordinate }] : [];
     });
-    if (!locatedStops.length) return null;
-
-    const latitudes = locatedStops.map((stop) => stop.latitude);
-    const longitudes = locatedStops.map((stop) => stop.longitude);
-    const latitudeSpan = Math.max(1.2, Math.max(...latitudes) - Math.min(...latitudes));
-    const longitudeSpan = Math.max(1.6, Math.max(...longitudes) - Math.min(...longitudes));
-    const minLatitude = Math.min(...latitudes) - latitudeSpan * 0.28;
-    const maxLatitude = Math.max(...latitudes) + latitudeSpan * 0.28;
-    const minLongitude = Math.min(...longitudes) - longitudeSpan * 0.18;
-    const maxLongitude = Math.max(...longitudes) + longitudeSpan * 0.18;
-    const minMercator = mercatorY(minLatitude);
-    const maxMercator = mercatorY(maxLatitude);
-    const points: MapPoint[] = locatedStops.map((stop) => ({
-      ...stop,
-      x: ((stop.longitude - minLongitude) / (maxLongitude - minLongitude)) * 100,
-      y: (1 - (mercatorY(stop.latitude) - minMercator) / (maxMercator - minMercator)) * 100,
-    }));
-    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(`${minLongitude},${minLatitude},${maxLongitude},${maxLatitude}`)}&layer=mapnik`;
-    return { points, mapUrl };
   }, [solution]);
 
   useEffect(() => {
-    if (!open) {
-      setMapLoaded(false);
-      return;
-    }
+    if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -85,7 +185,7 @@ export default function JourneyMapModal({ open, onClose, solution }: JourneyMapM
     };
   }, [open, onClose]);
 
-  if (!open || !mapData) return null;
+  if (!open || !mapPoints.length) return null;
 
   return (
     <div className="journey-map-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -96,23 +196,7 @@ export default function JourneyMapModal({ open, onClose, solution }: JourneyMapM
         </header>
 
         <div className="journey-map-body">
-          <div className={`journey-map-canvas ${mapLoaded ? 'is-loaded' : ''}`}>
-            <iframe title="Map of the selected RailSetu journey" src={mapData.mapUrl} loading="lazy" onLoad={() => setMapLoaded(true)} />
-            <div className="journey-map-wash" aria-hidden="true" />
-            {!mapLoaded ? <div className="journey-map-loading" role="status"><i /> Loading route map…</div> : null}
-            <div className="journey-map-route" aria-hidden="true">
-              {mapData.points.slice(0, -1).map((point, index) => {
-                const nextPoint = mapData.points[index + 1];
-                return <span className="journey-map-segment" key={`${point.code}-${nextPoint.code}`} style={{ '--map-x': `${point.x}%`, '--map-y': `${point.y}%`, '--map-next-x': `${nextPoint.x}%`, '--map-next-y': `${nextPoint.y}%`, '--map-color': segmentColors[index % segmentColors.length], '--map-delay': `${index * 0.16}s` } as MapStyle} />;
-              })}
-              {mapData.points.map((point, index) => (
-                <span className={`journey-map-stop ${index > 0 && index < mapData.points.length - 1 ? 'is-change' : ''}`} key={point.code} style={{ '--map-x': `${point.x}%`, '--map-y': `${point.y}%`, '--map-color': segmentColors[Math.max(0, index - 1) % segmentColors.length] } as MapStyle}>
-                  <i /><b>{point.code}</b><small>{index === 0 ? 'Board' : index === mapData.points.length - 1 ? 'Arrive' : 'Seat change'}</small>
-                </span>
-              ))}
-            </div>
-          </div>
-
+          <RouteMap points={mapPoints} />
           <aside className="journey-map-legend" aria-label="Seat segments">
             <span className="mini-label">Seat segments</span>
             <h3>One train. {solution.legs.length} confirmed seats.</h3>
