@@ -462,7 +462,13 @@ export default function JourneyPlanner() {
                 <strong>{outcome.direct?.label ?? 'Unavailable'}</strong>
                 <small>{outcome.direct ? `${money.format(outcome.direct.fare)} · confirmation uncertain` : 'No continuous berth found'}</small>
               </article>
-              <span className="planner-bridge" aria-hidden="true">→</span>
+              <span className="planner-bridge" aria-hidden="true">
+                <svg className="planner-bridge-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m5 12 7 7 7-7" className="planner-bridge-head" />
+                  <path d="M12 14v5" className="planner-bridge-head" />
+                  <path d="M12 5v9" />
+                </svg>
+              </span>
               <article className="planner-found-card">
                 <span>RailSetu path</span>
                 <strong>Confirmed throughout</strong>
