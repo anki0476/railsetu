@@ -182,9 +182,18 @@ export default function ScrollExpandTicket() {
 
           <div ref={frameRef} className="ticket-expand-frame">
             <div ref={qrRef} className="ticket-qr-layer">
-              <a href={downloadPath} download aria-label="Download your RailSetu mock ticket">
-                <QRCodeSVG value={qrValue} size={236} level="M" marginSize={2} bgColor="#ffffff" fgColor="#11172d" title="Scan to download your RailSetu mock ticket" />
-              </a>
+              <div className="ticket-qr-content">
+                <div className="ticket-scan-label">
+                  <span className="ticket-scan-icon" aria-hidden="true"><i /></span>
+                  <span className="ticket-shiny-text">Scan to download ticket</span>
+                </div>
+                <a href={downloadPath} download aria-label="Download your RailSetu mock ticket">
+                  <QRCodeSVG value={qrValue} size={236} level="M" marginSize={2} bgColor="#ffffff" fgColor="#11172d" title="Scan to download your RailSetu mock ticket" />
+                </a>
+                <div ref={hintRef} className="ticket-scroll-hint" aria-hidden="true">
+                  <span className="ticket-shiny-text">Scroll to reveal your ticket</span><i>↓</i>
+                </div>
+              </div>
             </div>
 
             <div ref={ticketRef} className="ticket-detail-layer">
@@ -233,9 +242,6 @@ export default function ScrollExpandTicket() {
             </div>
           </div>
 
-          <div ref={hintRef} className="ticket-scroll-hint" aria-hidden="true">
-            <span>Scroll to reveal your ticket</span><i>↓</i>
-          </div>
         </div>
       </div>
     </div>
