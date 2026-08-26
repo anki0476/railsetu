@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import {
   solveJourney,
   stationOptions,
@@ -47,6 +47,46 @@ function stationName(code: string) {
   return stationOptions.find((station) => station.code === code)?.name ?? code;
 }
 
+function StationSwapButton({ onSwap }: { onSwap: () => void }) {
+  const [animating, setAnimating] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+  }, []);
+
+  const playAnimation = () => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    setAnimationKey((value) => value + 1);
+    setAnimating(true);
+    resetTimer.current = setTimeout(() => setAnimating(false), 500);
+  };
+
+  const handleClick = () => {
+    playAnimation();
+    onSwap();
+  };
+
+  return (
+    <button
+      className={`planner-direction ${animating ? 'is-animating' : ''}`}
+      type="button"
+      aria-label="Swap departure and arrival stations"
+      title="Swap stations"
+      onMouseEnter={() => { if (!animating) playAnimation(); }}
+      onClick={handleClick}
+    >
+      <svg key={animationKey} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M16 3l4 4-4 4" className="swap-right-arrow" />
+        <path d="M20 7H4" className="swap-right-arrow" />
+        <path d="M8 21l-4-4 4-4" className="swap-left-arrow" />
+        <path d="M4 17h16" className="swap-left-arrow" />
+      </svg>
+    </button>
+  );
+}
+
 export default function JourneyPlanner() {
   const [form, setForm] = useState<PlannerForm>(initialForm);
   const [submitted, setSubmitted] = useState<PlannerForm>(initialForm);
@@ -80,7 +120,7 @@ export default function JourneyPlanner() {
               {stationOptions.map((station) => <option key={station.code} value={station.code}>{station.name} · {station.code}</option>)}
             </select>
           </label>
-          <span className="planner-direction" aria-hidden="true">→</span>
+          <StationSwapButton onSwap={() => setForm((value) => ({ ...value, from: value.to, to: value.from }))} />
           <label className="planner-field planner-station-field">
             <span>To</span>
             <select value={form.to} onChange={(event) => setForm((value) => ({ ...value, to: event.target.value }))}>
