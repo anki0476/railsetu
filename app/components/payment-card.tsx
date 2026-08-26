@@ -18,6 +18,7 @@ export default function PaymentCard() {
   const [selectedMode, setSelectedMode] = useState<PaymentMode>('upi');
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const paymentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fareValue = Number(params.get('fare'));
   const fare = Number.isFinite(fareValue) && fareValue > 0 ? fareValue : 1440;
   const train = params.get('train') ?? '12310 · Magadh Express';
@@ -26,12 +27,20 @@ export default function PaymentCard() {
 
   useEffect(() => () => {
     if (paymentTimer.current) clearTimeout(paymentTimer.current);
+    if (handoffTimer.current) clearTimeout(handoffTimer.current);
   }, []);
 
   const proceed = () => {
     if (paymentState !== 'idle') return;
     setPaymentState('processing');
-    paymentTimer.current = setTimeout(() => setPaymentState('done'), 1450);
+    paymentTimer.current = setTimeout(() => {
+      setPaymentState('done');
+      const ticketParams = new URLSearchParams(params.toString());
+      ticketParams.set('mode', selectedMode);
+      handoffTimer.current = setTimeout(() => {
+        window.location.assign(`/ticket?${ticketParams.toString()}`);
+      }, 850);
+    }, 1450);
   };
 
   return (

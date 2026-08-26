@@ -348,7 +348,6 @@ export default function JourneyPlanner() {
     searchTimers.current = [];
     const nextSubmission = { ...form };
     const hasResults = solveJourney(nextSubmission).solutions.length > 0;
-    setSelectedJourney(null);
     setSearchPhase('searching');
     requestAnimationFrame(() => resultsAnchor.current?.scrollIntoView({ behavior: 'auto', block: 'start' }));
     searchTimers.current.push(setTimeout(() => setSearchPhase(hasResults ? 'found' : 'empty'), 1200));
@@ -356,6 +355,31 @@ export default function JourneyPlanner() {
       setSubmitted(nextSubmission);
       setSearchPhase('idle');
     }, hasResults ? 2300 : 2500));
+  };
+
+  const continueToPayment = (solution: NonNullable<typeof best>) => {
+    const paymentParams = new URLSearchParams({
+      fare: String(solution.fare),
+      train: `${solution.trainNumber} · ${solution.trainName}`,
+      from: submitted.from,
+      fromName: stationName(submitted.from),
+      to: submitted.to,
+      toName: stationName(submitted.to),
+      date: submitted.date,
+      class: submitted.travelClass,
+      comfort: String(solution.comfort),
+      profile: submitted.profile,
+      legs: solution.legs.map((leg) => [
+        leg.from.code,
+        leg.from.time,
+        leg.to.code,
+        leg.to.time,
+        leg.coach,
+        leg.seat,
+        leg.berth,
+      ].join('~')).join('|'),
+    });
+    window.location.assign(`/payment?${paymentParams.toString()}`);
   };
 
   return (
@@ -658,7 +682,7 @@ export default function JourneyPlanner() {
                         <button
                           className="tactile-cap glare-surface"
                           type="button"
-                          onClick={() => window.location.assign(`/payment?fare=${solution.fare}&train=${encodeURIComponent(`${solution.trainNumber} · ${solution.trainName}`)}&from=${submitted.from}&to=${submitted.to}`)}
+                          onClick={() => continueToPayment(solution)}
                         >
                           Continue <span>→</span>
                         </button>
