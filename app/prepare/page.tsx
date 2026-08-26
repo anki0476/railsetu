@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-type PreparePhase = 'wheels' | 'routes' | 'leaving';
+type PreparePhase = 'wheels' | 'routes';
 
 function PinwheelIcon() {
   return (
@@ -33,13 +33,12 @@ export default function PrepareJourneyPage() {
   const [phase, setPhase] = useState<PreparePhase>('wheels');
 
   useEffect(() => {
+    router.prefetch('/planner');
     const routeTimer = window.setTimeout(() => setPhase('routes'), 1500);
-    const leaveTimer = window.setTimeout(() => setPhase('leaving'), 3100);
-    const navigateTimer = window.setTimeout(() => router.replace('/planner'), 3450);
+    const navigateTimer = window.setTimeout(() => router.replace('/planner'), 3200);
 
     return () => {
       window.clearTimeout(routeTimer);
-      window.clearTimeout(leaveTimer);
       window.clearTimeout(navigateTimer);
     };
   }, [router]);
@@ -50,19 +49,13 @@ export default function PrepareJourneyPage() {
     <main className={`prepare-page is-${phase}`} aria-live="polite" aria-label="Preparing the RailSetu journey planner">
       <span className="prepare-ambient prepare-ambient-one" aria-hidden="true" />
       <span className="prepare-ambient prepare-ambient-two" aria-hidden="true" />
-      <section className="prepare-card">
-        <div className="prepare-brand" aria-label="RailSetu">
-          <span className="brand-mark" aria-hidden="true"><i /><i /></span>
-          <strong>RailSetu</strong>
-        </div>
+      <section className="prepare-content">
         <div className="prepare-icon-stage" key={showingWheels ? 'wheels' : 'routes'}>
           {showingWheels ? <PinwheelIcon /> : <LightbulbIcon />}
         </div>
-        <p className="prepare-kicker">Preparing your journey</p>
         <h1 className="prepare-shimmer-text">
           {showingWheels ? 'Spinning the train wheels' : 'Ideating the routes'}
         </h1>
-        <div className="prepare-progress" aria-hidden="true"><span /><span /></div>
       </section>
     </main>
   );
