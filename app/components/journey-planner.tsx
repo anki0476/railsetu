@@ -184,6 +184,7 @@ export default function JourneyPlanner() {
   const [presets, setPresets] = useState<SavedPreset[]>([]);
   const [searchPhase, setSearchPhase] = useState<SearchPhase>('idle');
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const resultsAnchor = useRef<HTMLDivElement>(null);
   const outcome = useMemo(() => solveJourney(submitted), [submitted]);
   const best = outcome.solutions[0];
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
@@ -250,6 +251,7 @@ export default function JourneyPlanner() {
     const hasResults = solveJourney(nextSubmission).solutions.length > 0;
     setSelectedJourney(null);
     setSearchPhase('searching');
+    requestAnimationFrame(() => resultsAnchor.current?.scrollIntoView({ behavior: 'auto', block: 'start' }));
     searchTimers.current.push(setTimeout(() => setSearchPhase(hasResults ? 'found' : 'empty'), 1200));
     searchTimers.current.push(setTimeout(() => {
       setSubmitted(nextSubmission);
@@ -432,6 +434,7 @@ export default function JourneyPlanner() {
         </div>
       </form>
 
+      <div ref={resultsAnchor} className="planner-results-anchor" aria-hidden="true" />
       {searchPhase !== 'idle' ? <RouteSearchStatus phase={searchPhase} /> : null}
 
       <div className={`planner-results ${searchPhase !== 'idle' ? 'is-searching' : ''}`} aria-live="polite" aria-hidden={searchPhase !== 'idle'}>
