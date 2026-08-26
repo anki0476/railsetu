@@ -15,15 +15,11 @@ export default function Home() {
         <div className="ambient ambient-one" />
         <div className="ambient ambient-two" />
 
-        <nav className="nav-wrap" aria-label="Primary navigation">
+        <nav className="nav-wrap landing-nav" aria-label="Primary navigation">
           <a className="brand" href="#top" aria-label="RailSetu home">
             <span className="brand-mark" aria-hidden="true"><i /><i /></span>
             <BrandTextType />
           </a>
-          <div className="nav-links">
-            <a href="#why">Why RailSetu</a>
-            <a href="#how">How it works</a>
-          </div>
           <TactileGlareLink
             className="nav-cta"
             wrapperClassName="nav-about-wrap"
@@ -49,6 +45,7 @@ export default function Home() {
           <div className="hero-actions">
             <TactileGlareLink
               className="primary-btn"
+              wrapperClassName="primary-btn-wrap"
               href="/planner"
               baseColor="#0b1229"
               depth={8}
@@ -100,7 +97,7 @@ export default function Home() {
               <TactileGlareLink
                 className="choose-journey"
                 wrapperClassName="choose-journey-wrap"
-                href="#how"
+                href="#top"
                 baseColor="#28429a"
                 depth={6}
                 glareOpacity={0.28}
