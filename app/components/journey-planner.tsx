@@ -12,10 +12,13 @@ import {
 
 type PlannerForm = JourneyQuery & { date: string; note: string };
 type SearchPhase = 'idle' | 'searching' | 'found' | 'empty';
-type SpeechStatus = 'listening' | 'ready' | 'unsupported' | 'error';
+type SpeechStatus = 'listening' | 'ready' | 'unsupported' | 'denied' | 'unavailable';
 type SpeechResultEvent = Event & {
   resultIndex: number;
   results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
+};
+type SpeechErrorEvent = Event & {
+  error: 'aborted' | 'audio-capture' | 'bad-grammar' | 'language-not-supported' | 'network' | 'no-speech' | 'not-allowed' | 'service-not-allowed';
 };
 type SpeechRecognitionInstance = {
   continuous: boolean;
@@ -25,7 +28,7 @@ type SpeechRecognitionInstance = {
   stop: () => void;
   abort: () => void;
   onresult: ((event: SpeechResultEvent) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechErrorEvent) => void) | null;
   onend: (() => void) | null;
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
@@ -279,7 +282,7 @@ export default function JourneyPlanner() {
     setSpeechOpen(false);
   };
 
-  const openSpeech = () => {
+  const openSpeech = async () => {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     const initialNote = form.note.trim();
     speechBase.current = initialNote;
@@ -292,6 +295,18 @@ export default function JourneyPlanner() {
       return;
     }
 
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (error) {
+        const permissionDenied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+        console.warn('[voice-dictation] microphone check failed', { name: error instanceof DOMException ? error.name : 'unknown' });
+        setSpeechStatus(permissionDenied ? 'denied' : 'unavailable');
+        return;
+      }
+    }
+
     const recognition = new Recognition();
     speechRecognition.current = recognition;
     recognition.continuous = true;
@@ -302,14 +317,21 @@ export default function JourneyPlanner() {
       for (let index = 0; index < event.results.length; index += 1) dictated += event.results[index][0].transcript;
       setSpeechDraft([speechBase.current, dictated.trim()].filter(Boolean).join(' ').slice(0, 180));
     };
-    recognition.onerror = () => setSpeechStatus('error');
+    recognition.onerror = (event) => {
+      console.warn('[voice-dictation] recognition failed', { error: event.error });
+      if (event.error === 'aborted' || event.error === 'no-speech') {
+        setSpeechStatus('ready');
+        return;
+      }
+      setSpeechStatus(event.error === 'not-allowed' ? 'denied' : 'unavailable');
+    };
     recognition.onend = () => setSpeechStatus((current) => current === 'listening' ? 'ready' : current);
 
     try {
       recognition.start();
       setSpeechStatus('listening');
     } catch {
-      setSpeechStatus('error');
+      setSpeechStatus('unavailable');
     }
   };
 
@@ -526,8 +548,8 @@ export default function JourneyPlanner() {
         <div className="planner-speech-backdrop" role="presentation">
           <section className="planner-speech-modal" role="dialog" aria-modal="true" aria-labelledby="speech-dialog-title">
             <button className="planner-speech-close" type="button" onClick={closeSpeech} aria-label="Cancel dictation">×</button>
-            <div className={`planner-speech-animation ${speechStatus === 'error' || speechStatus === 'unsupported' ? 'is-mic-off' : 'is-speaking'}`} aria-hidden="true">
-              {speechStatus === 'error' || speechStatus === 'unsupported' ? (
+            <div className={`planner-speech-animation ${speechStatus === 'denied' || speechStatus === 'unavailable' || speechStatus === 'unsupported' ? 'is-mic-off' : 'is-speaking'}`} aria-hidden="true">
+              {speechStatus === 'denied' || speechStatus === 'unavailable' || speechStatus === 'unsupported' ? (
                 <svg className="planner-mic-off-icon" width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="2" x2="22" y1="2" y2="22" />
                   <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2" />
@@ -545,12 +567,17 @@ export default function JourneyPlanner() {
               )}
             </div>
             <span className="mini-label">Voice preferences</span>
-            <h2 id="speech-dialog-title">{speechStatus === 'listening' ? 'Listening…' : speechStatus === 'unsupported' ? 'Voice input unavailable' : speechStatus === 'error' ? 'Could not access the microphone' : 'Dictation paused'}</h2>
+            <h2 id="speech-dialog-title">{speechStatus === 'listening' ? 'Listening…' : speechStatus === 'denied' ? 'Microphone access is blocked' : speechStatus === 'unavailable' ? 'Voice recognition is unavailable' : speechStatus === 'unsupported' ? 'Voice input is not supported' : 'Dictation paused'}</h2>
             <p className={`planner-speech-transcript ${speechDraft ? 'has-text' : ''}`}>
-              {speechDraft || (speechStatus === 'unsupported' ? 'This browser does not support voice dictation. You can continue typing in the note field.' : speechStatus === 'error' ? 'Check your microphone permission, then try again.' : 'Start speaking about mobility, luggage, family, or transition preferences.')}
+              {speechDraft || (speechStatus === 'denied' ? 'Allow microphone access in your browser, then open Dictate again.' : speechStatus === 'unavailable' ? 'Your microphone is available, but this browser could not start its speech service. Try Chrome or continue typing below.' : speechStatus === 'unsupported' ? 'This browser does not support voice dictation. You can continue typing in the note field.' : speechStatus === 'ready' ? 'No speech was detected. Close this window and tap Dictate to try again.' : 'Start speaking about mobility, luggage, family, or transition preferences.')}
             </p>
-            <button className="planner-speech-apply" type="button" onClick={applySpeech} aria-label="Finish dictation and use these preferences">
-              <span>Use preference</span><i aria-hidden="true">✓</i>
+            <button
+              className="planner-speech-apply"
+              type="button"
+              onClick={speechStatus === 'denied' || speechStatus === 'unavailable' ? openSpeech : applySpeech}
+              aria-label={speechStatus === 'denied' || speechStatus === 'unavailable' ? 'Try voice dictation again' : 'Finish dictation and use these preferences'}
+            >
+              <span>{speechStatus === 'denied' || speechStatus === 'unavailable' ? 'Try again' : 'Use preference'}</span><i aria-hidden="true">{speechStatus === 'denied' || speechStatus === 'unavailable' ? '↻' : '✓'}</i>
             </button>
           </section>
         </div>
