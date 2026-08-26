@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import {
   solveJourney,
   stationOptions,
@@ -9,6 +9,7 @@ import {
   type LuggageLevel,
   type TravellerProfile,
 } from '../lib/journey-engine';
+import JourneyMapModal from './journey-map-modal';
 
 type PlannerForm = JourneyQuery & { date: string; note: string };
 type SearchPhase = 'idle' | 'searching' | 'found' | 'empty';
@@ -212,13 +213,19 @@ export default function JourneyPlanner() {
   const [speechOpen, setSpeechOpen] = useState(false);
   const [speechDraft, setSpeechDraft] = useState('');
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('ready');
+  const [mapOpen, setMapOpen] = useState(false);
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const resultsAnchor = useRef<HTMLDivElement>(null);
+  const mapTrigger = useRef<HTMLButtonElement>(null);
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
   const outcome = useMemo(() => solveJourney(submitted), [submitted]);
   const best = outcome.solutions[0];
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
+  const closeMap = useCallback(() => {
+    setMapOpen(false);
+    requestAnimationFrame(() => mapTrigger.current?.focus());
+  }, []);
 
   useEffect(() => {
     try {
@@ -645,8 +652,11 @@ export default function JourneyPlanner() {
                 <span>RailSetu path</span>
                 <strong>Confirmed throughout</strong>
                 <small>{best.legs.length} tickets · {best.changes} seat change · {best.highlights[0].toLowerCase()}</small>
+                <button ref={mapTrigger} className="planner-view-map" type="button" onClick={() => setMapOpen(true)}><i aria-hidden="true">⌖</i> View on map</button>
               </article>
             </div>
+
+            <JourneyMapModal open={mapOpen} onClose={closeMap} solution={best} />
 
             <div className="planner-solution-list">
               {outcome.solutions.map((solution, solutionIndex) => {
