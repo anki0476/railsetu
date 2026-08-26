@@ -1,6 +1,7 @@
 import TactileGlareLink from './components/tactile-glare-link';
 import BrandTextType from './components/brand-text-type';
 import TicketPixelSwap from './components/ticket-pixel-swap';
+import ChooseJourneyCueLink from './components/choose-journey-cue-link';
 
 const journeyStops = [
   { code: 'PUNE', time: '18:35', state: 'Board', active: true },
@@ -94,16 +95,7 @@ export default function Home() {
             <div className="card-footer">
               <div className="metric"><small>Changes</small><strong>1 seat · same coach</strong></div>
               <div className="metric"><small>Total fare</small><strong>₹1,420</strong></div>
-              <TactileGlareLink
-                className="choose-journey"
-                wrapperClassName="choose-journey-wrap"
-                href="#top"
-                baseColor="#28429a"
-                depth={6}
-                glareOpacity={0.28}
-              >
-                Choose journey <span>→</span>
-              </TactileGlareLink>
+              <ChooseJourneyCueLink />
             </div>
           </div>
 

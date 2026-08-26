@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, MouseEventHandler, ReactNode } from 'react';
 
 type TactileGlareLinkProps = {
   href: string;
@@ -8,6 +8,7 @@ type TactileGlareLinkProps = {
   baseColor: string;
   depth?: number;
   glareOpacity?: number;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
 };
 
 type EffectVariables = CSSProperties & {
@@ -24,6 +25,7 @@ export default function TactileGlareLink({
   baseColor,
   depth = 7,
   glareOpacity = 0.32,
+  onClick,
 }: TactileGlareLinkProps) {
   const style: EffectVariables = {
     '--tactile-depth': `${depth}px`,
@@ -34,7 +36,7 @@ export default function TactileGlareLink({
   return (
     <span className={`tactile-wrap ${wrapperClassName}`} style={style}>
       <span className="tactile-base" aria-hidden="true" />
-      <a className={`tactile-cap glare-surface ${className}`} href={href}>
+      <a className={`tactile-cap glare-surface ${className}`} href={href} onClick={onClick}>
         {children}
       </a>
     </span>

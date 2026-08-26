@@ -230,8 +230,8 @@ html.railsetu-cursor-enabled [role='button'] {
 .primary-btn span { display: grid; place-items: center; width: 27px; height: 27px; margin: -7px -8px -7px 0; border-radius: 50%; background: rgba(255,255,255,.14); }
 .primary-btn:hover { box-shadow: 0 20px 42px rgba(28,41,79,.28); }
 .primary-btn-wrap::after { content:''; position:absolute; z-index:3; inset:-8px; border:1px solid rgba(89,116,225,0); border-radius:999px; pointer-events:none; }
-.hero-shell:target .primary-btn { animation:route-cta-cue 1.25s cubic-bezier(.2,.75,.2,1) .18s 2; }
-.hero-shell:target .primary-btn-wrap::after { animation:route-cta-ring 1.25s cubic-bezier(.18,.74,.2,1) .18s 2; }
+.hero-shell.route-cta-active .primary-btn { animation:route-cta-cue 1.75s cubic-bezier(.2,.75,.2,1) .12s 2; }
+.hero-shell.route-cta-active .primary-btn-wrap::after { animation:route-cta-ring 1.75s cubic-bezier(.18,.74,.2,1) .12s 2; }
 .text-link { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #454d60; }
 .shiny-text { display:inline-block; color:#454d60; background:linear-gradient(115deg,#454d60 20%,#454d60 39%,#fff 50%,#69758e 61%,#454d60 80%); background-size:220% auto; background-position:150% center; background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent; animation:shiny-copy 4.8s linear infinite; }
 .play { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid rgba(23,32,59,.22); border-radius: 50%; font-size: 8px; padding-left: 2px; }
