@@ -10,7 +10,7 @@ import {
   type TravellerProfile,
 } from '../lib/journey-engine';
 
-type PlannerForm = JourneyQuery & { date: string };
+type PlannerForm = JourneyQuery & { date: string; note: string };
 
 const initialForm: PlannerForm = {
   from: 'NDLS',
@@ -22,6 +22,7 @@ const initialForm: PlannerForm = {
   luggage: 'light',
   maxChanges: 1,
   lowerBerth: true,
+  note: '',
 };
 
 const submitStyle = {
@@ -50,6 +51,7 @@ export default function JourneyPlanner() {
   const [form, setForm] = useState<PlannerForm>(initialForm);
   const [submitted, setSubmitted] = useState<PlannerForm>(initialForm);
   const [selectedJourney, setSelectedJourney] = useState<string | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
   const outcome = useMemo(() => solveJourney(submitted), [submitted]);
   const best = outcome.solutions[0];
 
@@ -142,6 +144,43 @@ export default function JourneyPlanner() {
             <span className="tactile-base" aria-hidden="true" />
             <button className="tactile-cap glare-surface planner-submit" type="submit">Find confirmed paths <span>→</span></button>
           </span>
+
+          <div className={`planner-note-card ${noteOpen ? 'is-open' : ''}`}>
+            <span className="planner-note-glow" aria-hidden="true" />
+            <div className="planner-note-surface">
+              <div className="planner-note-head">
+                <span className="planner-note-icon" aria-hidden="true">✦</span>
+                <div>
+                  <strong>Anything else we should know?</strong>
+                  <small>Add mobility, family, luggage, or transition preferences in your own words.</small>
+                </div>
+                <button
+                  className="planner-note-action"
+                  type="button"
+                  aria-expanded={noteOpen}
+                  aria-controls="planner-note-field"
+                  onClick={() => setNoteOpen((current) => !current)}
+                >
+                  {noteOpen ? 'Done' : form.note ? 'Edit note' : 'Add note'}
+                  <span aria-hidden="true">{noteOpen ? '✓' : '+'}</span>
+                </button>
+              </div>
+              <div className="planner-note-reveal" id="planner-note-field" aria-hidden={!noteOpen}>
+                <div>
+                  <label>
+                    <span>Additional journey context</span>
+                    <textarea
+                      value={form.note}
+                      maxLength={180}
+                      placeholder="For example: My mother uses a walking stick, so please avoid rushed platform or coach changes."
+                      onChange={(event) => setForm((value) => ({ ...value, note: event.target.value }))}
+                    />
+                    <small>{form.note.length} / 180</small>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </form>
 
@@ -154,6 +193,13 @@ export default function JourneyPlanner() {
           </div>
           <span className={`planner-result-count ${outcome.solutions.length ? 'has-results' : ''}`}>{outcome.solutions.length} confirmed path{outcome.solutions.length === 1 ? '' : 's'}</span>
         </div>
+
+        {submitted.note.trim() ? (
+          <div className="planner-submitted-note">
+            <span>Added context</span>
+            <p>“{submitted.note.trim()}”</p>
+          </div>
+        ) : null}
 
         {best ? (
           <>
