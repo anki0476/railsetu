@@ -43,6 +43,15 @@ const money = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
+const calendarDots = [
+  { cx: 8, cy: 14 },
+  { cx: 12, cy: 14 },
+  { cx: 16, cy: 14 },
+  { cx: 8, cy: 18 },
+  { cx: 12, cy: 18 },
+  { cx: 16, cy: 18 },
+];
+
 function stationName(code: string) {
   return stationOptions.find((station) => station.code === code)?.name ?? code;
 }
@@ -127,9 +136,22 @@ export default function JourneyPlanner() {
               {stationOptions.map((station) => <option key={station.code} value={station.code}>{station.name} · {station.code}</option>)}
             </select>
           </label>
-          <label className="planner-field">
+          <label className="planner-field planner-date-field">
             <span>Journey date</span>
-            <input type="date" min="2026-08-26" value={form.date} onChange={(event) => setForm((value) => ({ ...value, date: event.target.value }))} />
+            <div className="planner-date-input">
+              <input type="date" min="2026-08-26" value={form.date} onChange={(event) => setForm((value) => ({ ...value, date: event.target.value }))} />
+              <span className="planner-calendar-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 2v4" />
+                  <path d="M16 2v4" />
+                  <rect width="18" height="18" x="3" y="4" rx="2" />
+                  <path d="M3 10h18" />
+                  {calendarDots.map((dot, index) => (
+                    <circle key={`${dot.cx}-${dot.cy}`} cx={dot.cx} cy={dot.cy} r="1" fill="currentColor" stroke="none" className="calendar-dot" style={{ animationDelay: `${index * 0.17}s` }} />
+                  ))}
+                </svg>
+              </span>
+            </div>
           </label>
           <label className="planner-field">
             <span>Class</span>
