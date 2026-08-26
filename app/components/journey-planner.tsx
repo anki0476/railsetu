@@ -623,7 +623,10 @@ export default function JourneyPlanner() {
             <h2>{stationName(submitted.from)} <span>→</span> {stationName(submitted.to)}</h2>
             <p>{submitted.date} · {submitted.travelClass} · ranked for {submitted.profile === 'elderly' ? 'limited mobility' : submitted.profile}</p>
           </div>
-          <span className={`planner-result-count ${outcome.solutions.length ? 'has-results' : ''}`}>{outcome.solutions.length} confirmed path{outcome.solutions.length === 1 ? '' : 's'}</span>
+          <div className="planner-results-actions">
+            {best ? <button ref={mapTrigger} className="planner-view-map" type="button" onClick={() => setMapOpen(true)}><i aria-hidden="true">⌖</i> View on map</button> : null}
+            <span className={`planner-result-count ${outcome.solutions.length ? 'has-results' : ''}`}>{outcome.solutions.length} confirmed path{outcome.solutions.length === 1 ? '' : 's'}</span>
+          </div>
         </div>
 
         {submitted.note.trim() ? (
@@ -652,7 +655,6 @@ export default function JourneyPlanner() {
                 <span>RailSetu path</span>
                 <strong>Confirmed throughout</strong>
                 <small>{best.legs.length} tickets · {best.changes} seat change · {best.highlights[0].toLowerCase()}</small>
-                <button ref={mapTrigger} className="planner-view-map" type="button" onClick={() => setMapOpen(true)}><i aria-hidden="true">⌖</i> View on map</button>
               </article>
             </div>
 
