@@ -11,6 +11,7 @@ import {
 } from '../lib/journey-engine';
 
 type PlannerForm = JourneyQuery & { date: string; note: string };
+type SearchPhase = 'idle' | 'searching' | 'found' | 'empty';
 type PresetMode = 'journey-preferences' | 'preferences' | 'journey';
 type JourneyPreset = Pick<PlannerForm, 'from' | 'to' | 'date' | 'travelClass'>;
 type PreferencePreset = Pick<PlannerForm, 'profile' | 'coachPreference' | 'luggage' | 'maxChanges' | 'lowerBerth' | 'note'>;
@@ -74,6 +75,45 @@ function BookmarkIcon({ checked = false }: { checked?: boolean }) {
       <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" className="preset-bookmark-path" />
       {checked ? <path d="m9 10 2 2 4-4" className="preset-check-path" /> : null}
     </svg>
+  );
+}
+
+function RouteSearchStatus({ phase }: { phase: Exclude<SearchPhase, 'idle'> }) {
+  const searching = phase === 'searching';
+  const found = phase === 'found';
+
+  return (
+    <div className={`planner-search-status is-${phase}`} role="status" aria-live="polite">
+      <span className="planner-search-status-icon" aria-hidden="true">
+        {searching ? (
+          <svg className="search-status-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+        ) : found ? (
+          <svg className="route-status-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="6" cy="19" r="3" className="route-status-circle" />
+            <circle cx="18" cy="5" r="3" className="route-status-circle" />
+            <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" className="route-status-line" />
+          </svg>
+        ) : (
+          <svg className="route-off-status-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="6" cy="19" r="3" />
+            <path d="M9 19h8.5c.4 0 .9-.1 1.3-.2" />
+            <path d="M5.2 5.2A3.5 3.53 0 0 0 6.5 12H12" />
+            <path d="m2 2 20 20" />
+            <path d="M21 15.3a3.5 3.5 0 0 0-3.3-3.3" />
+            <path d="M15 5h-4.3" />
+            <circle cx="18" cy="5" r="3" />
+          </svg>
+        )}
+      </span>
+      <div>
+        <span>{searching ? 'Searching the train' : found ? 'Confirmed path found' : 'No qualifying path found'}</span>
+        <strong>{searching ? 'Checking seat segments…' : found ? 'Building your clearest journey…' : 'Try relaxing one preference.'}</strong>
+      </div>
+      <i aria-hidden="true" />
+    </div>
   );
 }
 
@@ -142,6 +182,8 @@ export default function JourneyPlanner() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [presets, setPresets] = useState<SavedPreset[]>([]);
+  const [searchPhase, setSearchPhase] = useState<SearchPhase>('idle');
+  const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const outcome = useMemo(() => solveJourney(submitted), [submitted]);
   const best = outcome.solutions[0];
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
@@ -155,6 +197,10 @@ export default function JourneyPlanner() {
     } catch {
       // Ignore unavailable or malformed device-local storage.
     }
+  }, []);
+
+  useEffect(() => () => {
+    searchTimers.current.forEach(clearTimeout);
   }, []);
 
   const persistPresets = (next: SavedPreset[]) => {
@@ -198,8 +244,17 @@ export default function JourneyPlanner() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitted({ ...form });
+    searchTimers.current.forEach(clearTimeout);
+    searchTimers.current = [];
+    const nextSubmission = { ...form };
+    const hasResults = solveJourney(nextSubmission).solutions.length > 0;
     setSelectedJourney(null);
+    setSearchPhase('searching');
+    searchTimers.current.push(setTimeout(() => setSearchPhase(hasResults ? 'found' : 'empty'), 1200));
+    searchTimers.current.push(setTimeout(() => {
+      setSubmitted(nextSubmission);
+      setSearchPhase('idle');
+    }, hasResults ? 2300 : 2500));
   };
 
   return (
@@ -333,7 +388,9 @@ export default function JourneyPlanner() {
           </label>
           <span className="tactile-wrap planner-submit-wrap" style={submitStyle}>
             <span className="tactile-base" aria-hidden="true" />
-            <button className="tactile-cap glare-surface planner-submit" type="submit">Find confirmed paths <span>→</span></button>
+            <button className="tactile-cap glare-surface planner-submit" type="submit" disabled={searchPhase !== 'idle'}>
+              {searchPhase === 'idle' ? 'Find confirmed paths' : 'Searching routes'} <span>{searchPhase === 'idle' ? '→' : '⌁'}</span>
+            </button>
           </span>
 
           <div className={`planner-note-card ${noteOpen ? 'is-open' : ''}`}>
@@ -375,7 +432,9 @@ export default function JourneyPlanner() {
         </div>
       </form>
 
-      <div className="planner-results" aria-live="polite">
+      {searchPhase !== 'idle' ? <RouteSearchStatus phase={searchPhase} /> : null}
+
+      <div className={`planner-results ${searchPhase !== 'idle' ? 'is-searching' : ''}`} aria-live="polite" aria-hidden={searchPhase !== 'idle'}>
         <div className="planner-results-heading">
           <div>
             <span className="mini-label">Route intelligence</span>
