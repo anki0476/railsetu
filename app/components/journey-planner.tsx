@@ -64,6 +64,7 @@ export default function JourneyPlanner() {
   return (
     <section className="planner-workspace" aria-label="RailSetu journey planner">
       <form className="planner-search-panel" onSubmit={submit}>
+        <span className="planner-panel-trail" aria-hidden="true" />
         <div className="planner-panel-topline">
           <div>
             <span className="mini-label">Journey details</span>
