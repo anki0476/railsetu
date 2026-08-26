@@ -316,6 +316,7 @@ html.railsetu-cursor-enabled [role='button'] {
 .prepare-content { position:relative; z-index:1; display:flex; width:min(620px,calc(100vw - 42px)); flex-direction:column; align-items:center; justify-content:center; }
 .prepare-icon-stage { display:grid; width:64px; height:64px; place-items:center; color:#536ed7; filter:drop-shadow(0 12px 24px rgba(73,98,185,.2)); animation:prepare-stage-in .4s cubic-bezier(.2,.9,.2,1) both; }.prepare-icon-stage svg { display:block; width:46px; height:46px; overflow:visible; }.prepare-pinwheel { transform-origin:center; animation:prepare-pinwheel-spin .6s ease-in-out infinite; }
 .prepare-lightbulb-icon .prepare-bulb-path-one { transform-origin:bottom center; transform-box:fill-box; fill:currentColor; fill-opacity:0; animation:prepare-bulb-rotate-one .8s ease-in-out infinite,prepare-bulb-flash .8s ease-in-out infinite; }.prepare-lightbulb-icon .prepare-bulb-path-two { transform-origin:bottom center; transform-box:fill-box; animation:prepare-bulb-rotate-two .8s ease-in-out infinite; }
+.prepare-route-line { stroke-dasharray:50; animation:prepare-route-draw .8s ease-out both; }.prepare-route-circle { animation:prepare-route-circle .4s ease-out both; }
 .prepare-shimmer-text { margin:14px 0 0; color:transparent; background:linear-gradient(100deg,#536078 20%,#536078 38%,#fff 50%,#536078 62%,#536078 80%); background-size:220% 100%; background-clip:text; -webkit-background-clip:text; font-size:clamp(21px,3vw,31px); line-height:1.15; letter-spacing:-.045em; font-weight:520; text-align:center; animation:prepare-text-shimmer 1s linear infinite; }
 
 .planner-page { position:relative; min-height:100svh; overflow:hidden; padding:0 clamp(22px,4.4vw,76px) 38px; background:linear-gradient(135deg,#ccddff 0%,#ecfaff 39%,#cbd5ff 74%,#afc0ff 100%); }
@@ -391,6 +392,8 @@ html.railsetu-cursor-enabled [role='button'] {
 @keyframes prepare-bulb-rotate-one { 0%,100% { transform:rotate(0deg); } 40% { transform:rotate(-20deg); } 60% { transform:rotate(15deg); } 80% { transform:rotate(-7deg); } }
 @keyframes prepare-bulb-flash { 0%,100% { fill-opacity:0; } 40%,80% { fill-opacity:.18; } 60% { fill-opacity:0; } }
 @keyframes prepare-bulb-rotate-two { 0%,40%,100% { transform:rotate(0deg); } 60% { transform:rotate(10deg); } 80% { transform:rotate(-5deg); } }
+@keyframes prepare-route-draw { 0%,15% { stroke-dashoffset:50; } 100% { stroke-dashoffset:0; } }
+@keyframes prepare-route-circle { 0%,50% { opacity:0; transform:scale(.7); } 100% { opacity:1; transform:scale(1); } }
 @keyframes prepare-text-shimmer { from { background-position:130% center; } to { background-position:-90% center; } }
 @keyframes precise-pulse { 0%,100% { opacity:.5; transform:scale(.78); box-shadow:0 0 0 4px rgba(71,112,231,.08),0 0 5px rgba(71,112,231,.12); } 50% { opacity:1; transform:scale(1.08); box-shadow:0 0 0 7px rgba(71,112,231,.14),0 0 15px rgba(71,112,231,.44); } }
 @keyframes shiny-copy { 0% { background-position:150% center; } 48%,100% { background-position:-55% center; } }
