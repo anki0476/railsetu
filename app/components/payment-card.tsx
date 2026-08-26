@@ -67,11 +67,14 @@ export default function PaymentCard() {
         </div>
       </fieldset>
 
-      <button className={`payment-proceed glare-surface is-${paymentState}`} type="button" onClick={proceed} disabled={paymentState !== 'idle'}>
-        {paymentState === 'processing' ? <span className="payment-progress" aria-hidden="true" /> : null}
-        <span>{paymentState === 'done' ? 'Payment simulated' : paymentState === 'processing' ? 'Processing…' : 'Proceed to pay'}</span>
-        <i aria-hidden="true">{paymentState === 'done' ? '✓' : '→'}</i>
-      </button>
+      <span className="tactile-wrap payment-proceed-wrap">
+        <span className="tactile-base" aria-hidden="true" />
+        <button className={`tactile-cap payment-proceed glare-surface is-${paymentState}`} type="button" onClick={proceed} disabled={paymentState !== 'idle'}>
+          {paymentState === 'processing' ? <span className="payment-progress" aria-hidden="true" /> : null}
+          <span>{paymentState === 'done' ? 'Payment simulated' : paymentState === 'processing' ? 'Processing…' : 'Proceed to pay'}</span>
+          <i aria-hidden="true">{paymentState === 'done' ? '✓' : '→'}</i>
+        </button>
+      </span>
       <p className="payment-prototype-note">Prototype checkout · no payment will be collected</p>
     </section>
   );
