@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import BrandTextType from '../components/brand-text-type';
+import TactileGlareLink from '../components/tactile-glare-link';
 
 export const metadata: Metadata = {
   title: 'About RailSetu — A precise way through the waitlist',
@@ -20,7 +21,16 @@ export default function AboutPage() {
           <span className="brand-mark" aria-hidden="true"><i /><i /></span>
           <BrandTextType />
         </a>
-        <a className="nav-cta" href="/">Back home <span>↙</span></a>
+        <TactileGlareLink
+          className="nav-cta"
+          wrapperClassName="nav-about-wrap"
+          href="/"
+          baseColor="#aebfdf"
+          depth={4}
+          glareOpacity={0.2}
+        >
+          Back home <span>↙</span>
+        </TactileGlareLink>
       </nav>
 
       <section className="about-hero">
@@ -77,7 +87,16 @@ export default function AboutPage() {
           <span>Prototype scope</span>
           <p>RailSetu is an independent civic-tech concept and is not affiliated with Indian Railways or IRCTC.</p>
         </div>
-        <a className="nav-cta" href="/#preview">View journey preview <span>→</span></a>
+        <TactileGlareLink
+          className="nav-cta"
+          wrapperClassName="about-preview-wrap"
+          href="/#preview"
+          baseColor="#9daed8"
+          depth={5}
+          glareOpacity={0.24}
+        >
+          View journey preview <span>→</span>
+        </TactileGlareLink>
       </footer>
     </main>
   );
