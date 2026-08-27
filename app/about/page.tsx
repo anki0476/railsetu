@@ -14,11 +14,39 @@ const process = [
   ['03', 'Rank for the person', 'Filter by mobility, luggage, family needs and comfortable interchange time before showing the clearest route.'],
 ];
 
+const buildQuestions = [
+  {
+    question: 'Who is facing the problem?',
+    answer: 'Indian train travellers whose direct option is waitlisted—especially elderly passengers, families, people with limited mobility and anyone carrying luggage who cannot treat every seat or coach change as equally easy.',
+  },
+  {
+    question: 'What is difficult about the current experience?',
+    answer: 'Availability is usually checked as one origin-to-destination request. Confirmed berths across consecutive portions of the same train remain hidden, leaving travellers to repeat searches, compare stations and verify continuity manually.',
+  },
+  {
+    question: 'What did RailSetu change?',
+    answer: 'RailSetu treats a train route as a chain of bookable segments. It joins confirmed segments on the same train, filters them against traveller constraints and explains the station, time, coach and seat involved in every change.',
+  },
+  {
+    question: 'Why is this version better?',
+    answer: 'It turns fragmented availability into one understandable journey. Travellers can compare confirmed paths by effort—not only fare—using an explainable Comfort Score, visible transitions, a route map and saved preferences.',
+  },
+  {
+    question: 'What works today, and what is still mocked?',
+    answer: 'The end-to-end experience, segmentation logic, traveller-aware filtering, Comfort Score, saved presets, map, checkout handoff and downloadable ticket work in the prototype. Live inventory, reservation locking, payment and official ticket issuance currently use representative data or simulated integrations.',
+  },
+  {
+    question: 'How could the idea work safely at a larger scale?',
+    answer: 'Use authorised railway APIs, revalidate every segment before payment and reserve every leg atomically—or charge nothing. Minimise and encrypt personal data, audit ranking decisions, monitor availability and keep RailSetu clearly labelled as a planner until official booking integration is approved.',
+  },
+];
+
 const aboutTopics = [
   { id: 'about-introduction', title: 'About RailSetu' },
   { id: 'about-overview', title: 'The problem and the idea' },
   { id: 'about-process', title: 'How the engine thinks' },
   { id: 'about-traveller', title: 'Built around the traveller' },
+  { id: 'about-build-clarity', title: 'What the build makes clear' },
   { id: 'about-scope', title: 'Prototype scope' },
 ];
 
@@ -91,6 +119,25 @@ export default function AboutPage() {
           <li><span>02</span>Reduce changes for families, children and heavier luggage.</li>
           <li><span>03</span>Explain every transition with station, time, coach and seat details.</li>
         </ul>
+      </section>
+
+      <section className="about-clarity" id="about-build-clarity">
+        <div className="about-clarity-heading">
+          <p className="section-kicker">What the build makes obvious</p>
+          <h2>Six questions.<br /><span>Clear answers.</span></h2>
+          <p>RailSetu is designed so the problem, the intervention and the prototype&apos;s limits are visible without a pitch.</p>
+        </div>
+        <div className="about-clarity-list">
+          {buildQuestions.map(({ question, answer }, index) => (
+            <article key={question}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <div>
+                <h3>{question}</h3>
+                <p>{answer}</p>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       <footer className="about-footer" id="about-scope">
