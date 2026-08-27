@@ -2,7 +2,7 @@ import { calculateComfortScore, type ComfortScoreDetails } from './comfort-score
 
 export type TravellerProfile = 'standard' | 'elderly' | 'family';
 export type CoachPreference = 'same' | 'nearby' | 'any';
-export type LuggageLevel = 'light' | 'heavy';
+export type LuggageLevel = 'none' | 'light' | 'heavy';
 
 export type JourneyQuery = {
   from: string;

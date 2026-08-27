@@ -21,7 +21,7 @@ type ScoringLeg = {
 
 type ScoringQuery = {
   profile: 'standard' | 'elderly' | 'family';
-  luggage: 'light' | 'heavy';
+  luggage: 'none' | 'light' | 'heavy';
   lowerBerth: boolean;
 };
 
@@ -48,7 +48,7 @@ export function calculateComfortScore(legs: ScoringLeg[], coachDistances: number
   const factors: ComfortFactor[] = [];
   const changes = Math.max(0, legs.length - 1);
   const profileMultiplier = profileMultipliers[query.profile];
-  const luggageMultiplier = query.luggage === 'heavy' ? 1.25 : 1;
+  const luggageMultiplier = query.luggage === 'none' ? 0.85 : query.luggage === 'heavy' ? 1.25 : 1;
   const transitionMultiplier = profileMultiplier * luggageMultiplier;
 
   if (changes > 0) {
@@ -57,7 +57,7 @@ export function calculateComfortScore(legs: ScoringLeg[], coachDistances: number
       id: 'seat-transitions',
       label: changes + ' seat change' + (changes === 1 ? '' : 's'),
       impact,
-      explanation: 'Each seat transition starts at −4 and is adjusted for the traveller profile' + (query.luggage === 'heavy' ? ' and heavy luggage' : '') + '.',
+      explanation: 'Each seat transition starts at −4 and is adjusted for the traveller profile and luggage load.',
     });
 
     factors.push({
@@ -65,6 +65,15 @@ export function calculateComfortScore(legs: ScoringLeg[], coachDistances: number
       label: legs.length + ' confirmed tickets',
       impact: -(changes * 2),
       explanation: 'Every additional ticket adds a small coordination burden.',
+    });
+  }
+
+  if (query.luggage === 'none' && changes > 0) {
+    factors.push({
+      id: 'no-luggage',
+      label: 'No luggage to manage',
+      impact: 1,
+      explanation: 'Travelling without luggage makes each station transition easier.',
     });
   }
 

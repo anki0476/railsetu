@@ -11,7 +11,13 @@ import {
 } from '../lib/journey-engine';
 import JourneyMapModal from './journey-map-modal';
 
-type PlannerForm = JourneyQuery & { date: string; note: string };
+type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
+type PlannerForm = Omit<JourneyQuery, 'maxChanges'> & {
+  date: string;
+  note: string;
+  changeLimit: ChangeLimit;
+  customMaxChanges: number;
+};
 type SearchPhase = 'idle' | 'searching' | 'found' | 'empty';
 type SpeechStatus = 'listening' | 'ready' | 'unsupported' | 'denied' | 'unavailable';
 type SpeechResultEvent = Event & {
@@ -42,7 +48,7 @@ declare global {
 }
 type PresetMode = 'journey-preferences' | 'preferences' | 'journey';
 type JourneyPreset = Pick<PlannerForm, 'from' | 'to' | 'date' | 'travelClass'>;
-type PreferencePreset = Pick<PlannerForm, 'profile' | 'coachPreference' | 'luggage' | 'maxChanges' | 'lowerBerth' | 'note'>;
+type PreferencePreset = Pick<PlannerForm, 'profile' | 'coachPreference' | 'luggage' | 'changeLimit' | 'customMaxChanges' | 'lowerBerth' | 'note'>;
 type SavedPreset = {
   id: string;
   mode: PresetMode;
@@ -61,7 +67,8 @@ const initialForm: PlannerForm = {
   profile: 'elderly',
   coachPreference: 'same',
   luggage: 'light',
-  maxChanges: 1,
+  changeLimit: 'one',
+  customMaxChanges: 3,
   lowerBerth: true,
   note: '',
 };
@@ -95,6 +102,23 @@ const calendarDots = [
 
 function stationName(code: string) {
   return stationOptions.find((station) => station.code === code)?.name ?? code;
+}
+
+function changeLimitValue(form: PlannerForm) {
+  if (form.changeLimit === 'any') return Number.MAX_SAFE_INTEGER;
+  if (form.changeLimit === 'custom') return Math.max(0, Math.min(99, Math.round(form.customMaxChanges)));
+  return form.changeLimit === 'two' ? 2 : 1;
+}
+
+function journeyQuery(form: PlannerForm): JourneyQuery {
+  const { date: _date, note: _note, changeLimit: _changeLimit, customMaxChanges: _customMaxChanges, ...query } = form;
+  return { ...query, maxChanges: changeLimitValue(form) };
+}
+
+function changeLimitLabel(form: Pick<PlannerForm, 'changeLimit' | 'customMaxChanges'>) {
+  if (form.changeLimit === 'any') return 'any number of changes';
+  if (form.changeLimit === 'custom') return 'up to ' + form.customMaxChanges + ' changes';
+  return form.changeLimit === 'two' ? 'up to 2 changes' : '1 change';
 }
 
 function BookmarkIcon({ checked = false }: { checked?: boolean }) {
@@ -156,7 +180,8 @@ function presetMatchesForm(preset: SavedPreset, form: PlannerForm) {
     preset.preferences.profile === form.profile &&
     preset.preferences.coachPreference === form.coachPreference &&
     preset.preferences.luggage === form.luggage &&
-    preset.preferences.maxChanges === form.maxChanges &&
+    preset.preferences.changeLimit === form.changeLimit &&
+    preset.preferences.customMaxChanges === form.customMaxChanges &&
     preset.preferences.lowerBerth === form.lowerBerth &&
     preset.preferences.note === form.note
   );
@@ -219,7 +244,7 @@ export default function JourneyPlanner() {
   const mapTrigger = useRef<HTMLButtonElement>(null);
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
-  const outcome = useMemo(() => solveJourney(submitted), [submitted]);
+  const outcome = useMemo(() => solveJourney(journeyQuery(submitted)), [submitted]);
   const best = outcome.solutions[0];
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
   const closeMap = useCallback(() => {
@@ -258,7 +283,8 @@ export default function JourneyPlanner() {
       profile: form.profile,
       coachPreference: form.coachPreference,
       luggage: form.luggage,
-      maxChanges: form.maxChanges,
+      changeLimit: form.changeLimit,
+      customMaxChanges: form.customMaxChanges,
       lowerBerth: form.lowerBerth,
       note: form.note,
     };
@@ -354,7 +380,7 @@ export default function JourneyPlanner() {
     searchTimers.current.forEach(clearTimeout);
     searchTimers.current = [];
     const nextSubmission = { ...form };
-    const hasResults = solveJourney(nextSubmission).solutions.length > 0;
+    const hasResults = solveJourney(journeyQuery(nextSubmission)).solutions.length > 0;
     setSearchPhase('searching');
     requestAnimationFrame(() => resultsAnchor.current?.scrollIntoView({ behavior: 'auto', block: 'start' }));
     searchTimers.current.push(setTimeout(() => setSearchPhase(hasResults ? 'found' : 'empty'), 1200));
@@ -471,8 +497,12 @@ export default function JourneyPlanner() {
           <label className="planner-field">
             <span>Class</span>
             <select value={form.travelClass} onChange={(event) => setForm((value) => ({ ...value, travelClass: event.target.value }))}>
+              <option value="1A">AC First Class · 1A</option>
               <option value="3A">AC 3 Tier · 3A</option>
+              <option value="3E">AC 3 Economy · 3E</option>
               <option value="2A">AC 2 Tier · 2A</option>
+              <option value="CC">AC Chair Car · CC</option>
+              <option value="EC">Executive Chair Car · EC</option>
               <option value="SL">Sleeper · SL</option>
             </select>
           </label>
@@ -502,14 +532,29 @@ export default function JourneyPlanner() {
           </label>
           <label className="planner-field">
             <span>Maximum changes</span>
-            <select value={form.maxChanges} onChange={(event) => setForm((value) => ({ ...value, maxChanges: Number(event.target.value) }))}>
-              <option value={1}>One seat change</option>
-              <option value={2}>Up to two changes</option>
+            <select value={form.changeLimit} onChange={(event) => setForm((value) => ({ ...value, changeLimit: event.target.value as ChangeLimit }))}>
+              <option value="one">One seat change</option>
+              <option value="two">Up to two changes</option>
+              <option value="any">Any number of changes</option>
+              <option value="custom">Custom</option>
             </select>
+            {form.changeLimit === 'custom' ? (
+              <input
+                className="planner-custom-change-input"
+                type="number"
+                min={0}
+                max={99}
+                inputMode="numeric"
+                value={form.customMaxChanges}
+                onChange={(event) => setForm((value) => ({ ...value, customMaxChanges: Math.max(0, Math.min(99, Number(event.target.value))) }))}
+                aria-label="Custom maximum number of seat changes"
+              />
+            ) : null}
           </label>
           <label className="planner-field">
             <span>Luggage</span>
             <select value={form.luggage} onChange={(event) => setForm((value) => ({ ...value, luggage: event.target.value as LuggageLevel }))}>
+              <option value="none">No luggage</option>
               <option value="light">Light / manageable</option>
               <option value="heavy">Heavy luggage</option>
             </select>
@@ -678,7 +723,7 @@ export default function JourneyPlanner() {
                           <span className="planner-comfort-tooltip" role="tooltip">
                             <b>{solution.comfortDetails.label}</b>
                             <small>{solution.comfortDetails.summary}</small>
-                            <em>See how it is calculated →</em>
+                            <span className="planner-comfort-learn">Learn more →</span>
                           </span>
                         </a>
                       </div>
@@ -753,7 +798,7 @@ export default function JourneyPlanner() {
                 </h3>
                 <p>
                   {preset.journey ? `${preset.journey.date} · ${preset.journey.travelClass}` : 'Use with any pair of stations'}
-                  {preset.preferences ? ` · ${preset.preferences.profile} · ${preset.preferences.maxChanges} change${preset.preferences.maxChanges === 1 ? '' : 's'}` : ''}
+                  {preset.preferences ? ` · ${preset.preferences.profile} · ${changeLimitLabel(preset.preferences)}` : ''}
                 </p>
                 <button className="planner-use-preset" type="button" onClick={() => loadPreset(preset)}>Use preset <span>↗</span></button>
               </article>

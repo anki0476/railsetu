@@ -46,6 +46,7 @@ export default function ComfortScorePage() {
             <li><b>−4</b><span>Each seat change before traveller adjustments</span></li>
             <li><b>−10</b><span>Each coach change, plus coach distance</span></li>
             <li><b>−2</b><span>Each additional confirmed ticket</span></li>
+            <li><b>0.85×</b><span>Transition burden when travelling without luggage</span></li>
           </ul>
         </article>
         <article className="about-feature about-feature-blue">
