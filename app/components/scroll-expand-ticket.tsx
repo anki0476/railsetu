@@ -3,7 +3,7 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { ColorPanels } from '@paper-design/shaders-react';
 import { useSearchParams } from 'next/navigation';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import TactileGlareLink from './tactile-glare-link';
 
 type TicketLeg = {
@@ -106,7 +106,7 @@ export default function ScrollExpandTicket() {
   const downloadPath = `/api/ticket?${downloadParams}`;
   const qrValue = `${canonicalOrigin}${downloadPath}`;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const revealAfter = reducedMotion ? 450 : 2350;
     const finishAfter = reducedMotion ? 650 : 2950;
@@ -114,16 +114,19 @@ export default function ScrollExpandTicket() {
 
     window.scrollTo(0, 0);
     document.body.style.overflow = 'hidden';
+    document.documentElement.classList.add('railsetu-ticket-loading');
     const revealTimer = window.setTimeout(() => setTicketLoadPhase('revealing'), revealAfter);
     const finishTimer = window.setTimeout(() => {
       setTicketLoadPhase('ready');
       document.body.style.overflow = previousOverflow;
+      document.documentElement.classList.remove('railsetu-ticket-loading');
     }, finishAfter);
 
     return () => {
       window.clearTimeout(revealTimer);
       window.clearTimeout(finishTimer);
       document.body.style.overflow = previousOverflow;
+      document.documentElement.classList.remove('railsetu-ticket-loading');
     };
   }, []);
 
@@ -236,8 +239,11 @@ export default function ScrollExpandTicket() {
               role="status"
               aria-label="Preparing your confirmed RailSetu ticket"
             >
-              <div className="ticket-color-panels" aria-hidden="true">
-                <MemoizedColorPanels {...ticketLoaderShaderProps} />
+              <div className="ticket-color-loader-content">
+                <div className="ticket-color-panels" aria-hidden="true">
+                  <MemoizedColorPanels {...ticketLoaderShaderProps} />
+                </div>
+                <span className="ticket-loader-shimmer">Loading your ticket</span>
               </div>
             </div>
           ) : null}
