@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 type ClickBurst = {
   id: number;
@@ -21,10 +22,16 @@ function shortestAngle(from: number, to: number) {
 }
 
 export default function GlobalInteractionEffects() {
+  const pathname = usePathname();
+  const router = useRouter();
   const cursorRef = useRef<HTMLDivElement>(null);
   const [bursts, setBursts] = useState<ClickBurst[]>([]);
   const nextId = useRef(0);
   const timeoutIds = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    requestAnimationFrame(() => document.documentElement.classList.remove('railsetu-page-leaving'));
+  }, [pathname]);
 
   useEffect(() => {
     const onPageLinkClick = (event: MouseEvent) => {
@@ -42,7 +49,9 @@ export default function GlobalInteractionEffects() {
 
       event.preventDefault();
       document.documentElement.classList.add('railsetu-page-leaving');
-      window.setTimeout(() => window.location.assign(destination.href), 360);
+      window.setTimeout(() => {
+        router.push(`${destination.pathname}${destination.search}${destination.hash}`);
+      }, 280);
     };
 
     const onPageShow = () => document.documentElement.classList.remove('railsetu-page-leaving');
@@ -54,7 +63,7 @@ export default function GlobalInteractionEffects() {
       window.removeEventListener('pageshow', onPageShow);
       document.documentElement.classList.remove('railsetu-page-leaving');
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     const cursor = cursorRef.current;

@@ -19,11 +19,13 @@ button { font: inherit; }
   inset:0;
   pointer-events:none;
   opacity:0;
-  background:radial-gradient(circle at 32% 34%,#effbff 0,#ddecff 44%,#c7caff 100%);
+  background:rgba(218,232,255,.52);
+  backdrop-filter:blur(10px) saturate(.86);
+  -webkit-backdrop-filter:blur(10px) saturate(.86);
   animation:railsetu-page-enter .48s cubic-bezier(.22,.75,.26,1) both;
-  transition:opacity .36s cubic-bezier(.55,0,.45,1),background-color .55s ease;
+  transition:opacity .3s cubic-bezier(.55,0,.45,1),background-color .55s ease;
 }
-.railsetu-dark .page-transition-layer { background:radial-gradient(circle at 34% 30%,#17213c 0,#0e162a 46%,#080d1b 100%); }
+.railsetu-dark .page-transition-layer { background:rgba(7,12,27,.55); }
 .railsetu-page-leaving .page-transition-layer { animation:none; opacity:1; }
 
 html.railsetu-cursor-enabled,
@@ -192,7 +194,7 @@ html.railsetu-cursor-enabled [role='button'] {
 }
 
 @keyframes railsetu-page-enter {
-  from { opacity:1; }
+  from { opacity:.88; }
   to { opacity:0; }
 }
 
