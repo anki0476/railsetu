@@ -112,6 +112,8 @@ export default function Home() {
         </div>
       </section>
 
+      <IntroCarousel />
+
       <section className="why-section" id="why">
         <p className="section-kicker">The missing connection</p>
         <h2>A waitlist shouldn&apos;t be<br />the end of the journey.</h2>
@@ -126,8 +128,6 @@ export default function Home() {
           <article><span>03</span><h3>Make it one journey</h3><p>Multiple reservations become one calm itinerary that is easy to follow.</p></article>
         </div>
       </section>
-
-      <IntroCarousel />
 
       <LandingFaq />
     </main>
