@@ -46,6 +46,11 @@ export type JourneySolution = {
   highlights: string[];
 };
 
+export type JourneyOutcome = {
+  direct: { label: string; fare: number } | null;
+  solutions: JourneySolution[];
+};
+
 type InventoryLeg = Omit<JourneyLeg, 'from' | 'to'> & {
   from: string;
   to: string;
@@ -128,6 +133,16 @@ const trains: TrainInventory[] = [
   },
 ];
 
+// Keep work per request predictable when the representative inventory is
+// replaced by a much larger live feed. The Worker can then scale horizontally
+// without any single search monopolising an isolate.
+export const JOURNEY_ENGINE_LIMITS = Object.freeze({
+  maxChanges: 8,
+  maxPathExpansions: 512,
+  maxCandidateSolutions: 64,
+  maxReturnedSolutions: 4,
+});
+
 export const stationOptions = Array.from(
   new Map(trains.flatMap((train) => train.stations.map((station) => [station.code, station]))).values(),
 );
@@ -176,9 +191,10 @@ function buildSolution(train: TrainInventory, legs: JourneyLeg[], query: Journey
   };
 }
 
-export function solveJourney(query: JourneyQuery) {
+export function solveJourney(query: JourneyQuery): JourneyOutcome {
   const solutions: JourneySolution[] = [];
   let direct: { label: string; fare: number } | null = null;
+  let pathExpansions = 0;
 
   trains.forEach((train) => {
     const fromIndex = train.stations.findIndex((station) => station.code === query.from);
@@ -189,9 +205,17 @@ export function solveJourney(query: JourneyQuery) {
     const stationByCode = new Map(train.stations.map((station) => [station.code, station]));
     const indexByCode = new Map(train.stations.map((station, index) => [station.code, index]));
     const inventory = train.inventory.filter((leg) => leg.travelClass === query.travelClass);
-    const maxLegs = query.maxChanges + 1;
+    const maxLegs = Math.min(
+      JOURNEY_ENGINE_LIMITS.maxChanges,
+      Math.max(0, Number.isFinite(query.maxChanges) ? Math.floor(query.maxChanges) : 0),
+    ) + 1;
 
     const walk = (currentCode: string, path: JourneyLeg[]) => {
+      if (
+        pathExpansions >= JOURNEY_ENGINE_LIMITS.maxPathExpansions ||
+        solutions.length >= JOURNEY_ENGINE_LIMITS.maxCandidateSolutions
+      ) return;
+      pathExpansions += 1;
       const currentIndex = indexByCode.get(currentCode) ?? -1;
       if (currentCode === query.to) {
         const solution = buildSolution(train, path, query);
@@ -201,6 +225,10 @@ export function solveJourney(query: JourneyQuery) {
       if (path.length >= maxLegs) return;
 
       inventory.forEach((leg) => {
+        if (
+          pathExpansions >= JOURNEY_ENGINE_LIMITS.maxPathExpansions ||
+          solutions.length >= JOURNEY_ENGINE_LIMITS.maxCandidateSolutions
+        ) return;
         const legToIndex = indexByCode.get(leg.to) ?? -1;
         if (leg.from !== currentCode || legToIndex <= currentIndex || legToIndex > toIndex) return;
         const from = stationByCode.get(leg.from);
@@ -216,5 +244,5 @@ export function solveJourney(query: JourneyQuery) {
   const unique = Array.from(new Map(solutions.map((solution) => [solution.id, solution])).values());
   unique.sort((first, second) => second.comfort - first.comfort || first.fare - second.fare);
 
-  return { direct, solutions: unique.slice(0, 4) };
+  return { direct, solutions: unique.slice(0, JOURNEY_ENGINE_LIMITS.maxReturnedSolutions) };
 }

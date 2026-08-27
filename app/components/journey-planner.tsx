@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import {
+  JOURNEY_ENGINE_LIMITS,
   solveJourney,
   stationOptions,
   type CoachPreference,
@@ -9,6 +10,7 @@ import {
   type LuggageLevel,
   type TravellerProfile,
 } from '../lib/journey-engine';
+import { searchJourney } from '../lib/journey-client';
 import JourneyMapModal from './journey-map-modal';
 
 type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
@@ -105,7 +107,7 @@ function stationName(code: string) {
 }
 
 function changeLimitValue(form: PlannerForm) {
-  if (form.changeLimit === 'any') return Number.MAX_SAFE_INTEGER;
+  if (form.changeLimit === 'any') return JOURNEY_ENGINE_LIMITS.maxChanges;
   if (form.changeLimit === 'custom') return Math.max(0, Math.min(99, Math.round(form.customMaxChanges)));
   return form.changeLimit === 'two' ? 2 : 1;
 }
@@ -239,13 +241,15 @@ export default function JourneyPlanner() {
   const [speechDraft, setSpeechDraft] = useState('');
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('ready');
   const [mapOpen, setMapOpen] = useState(false);
+  const [outcome, setOutcome] = useState(() => solveJourney(journeyQuery(initialForm)));
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const searchSequence = useRef(0);
+  const searchRequest = useRef<AbortController | null>(null);
   const resultsAnchor = useRef<HTMLDivElement>(null);
   const dateInput = useRef<HTMLInputElement>(null);
   const mapTrigger = useRef<HTMLButtonElement>(null);
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
-  const outcome = useMemo(() => solveJourney(journeyQuery(submitted)), [submitted]);
   const best = outcome.solutions[0];
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
   const closeMap = useCallback(() => {
@@ -265,6 +269,8 @@ export default function JourneyPlanner() {
   }, []);
 
   useEffect(() => () => {
+    searchSequence.current += 1;
+    searchRequest.current?.abort();
     searchTimers.current.forEach(clearTimeout);
     speechRecognition.current?.abort();
   }, []);
@@ -378,17 +384,42 @@ export default function JourneyPlanner() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    searchSequence.current += 1;
+    const sequence = searchSequence.current;
+    searchRequest.current?.abort();
     searchTimers.current.forEach(clearTimeout);
     searchTimers.current = [];
     const nextSubmission = { ...form };
-    const hasResults = solveJourney(journeyQuery(nextSubmission)).solutions.length > 0;
+    const query = journeyQuery(nextSubmission);
+    const controller = new AbortController();
+    searchRequest.current = controller;
+    const startedAt = Date.now();
     setSearchPhase('searching');
     requestAnimationFrame(() => resultsAnchor.current?.scrollIntoView({ behavior: 'auto', block: 'start' }));
-    searchTimers.current.push(setTimeout(() => setSearchPhase(hasResults ? 'found' : 'empty'), 1200));
-    searchTimers.current.push(setTimeout(() => {
-      setSubmitted(nextSubmission);
-      setSearchPhase('idle');
-    }, hasResults ? 2300 : 2500));
+
+    const requestTimeout = setTimeout(() => controller.abort(), 7_000);
+    searchTimers.current.push(requestTimeout);
+
+    void searchJourney(query, controller.signal)
+      .catch(() => solveJourney(query))
+      .then((nextOutcome) => {
+        clearTimeout(requestTimeout);
+        if (sequence !== searchSequence.current) return;
+        searchRequest.current = null;
+        const hasResults = nextOutcome.solutions.length > 0;
+        const elapsed = Date.now() - startedAt;
+        const phaseDelay = Math.max(0, 1_200 - elapsed);
+        const completionDelay = Math.max(phaseDelay, (hasResults ? 2_300 : 2_500) - elapsed);
+        searchTimers.current.push(setTimeout(() => {
+          if (sequence === searchSequence.current) setSearchPhase(hasResults ? 'found' : 'empty');
+        }, phaseDelay));
+        searchTimers.current.push(setTimeout(() => {
+          if (sequence !== searchSequence.current) return;
+          setSubmitted(nextSubmission);
+          setOutcome(nextOutcome);
+          setSearchPhase('idle');
+        }, completionDelay));
+      });
   };
 
   const continueToPayment = (solution: NonNullable<typeof best>) => {

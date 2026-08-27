@@ -12,6 +12,16 @@ function safe(value: string | null, fallback: string, maximum = 90) {
   return (value?.trim() || fallback).slice(0, maximum);
 }
 
+function stationCode(value: string | null, fallback: string) {
+  const candidate = safe(value, fallback, 8).toUpperCase();
+  return /^[A-Z0-9]{2,8}$/.test(candidate) ? candidate : fallback;
+}
+
+function boundedNumber(value: string | null, fallback: number, minimum: number, maximum: number) {
+  const candidate = Number(value);
+  return Number.isFinite(candidate) ? Math.max(minimum, Math.min(maximum, candidate)) : fallback;
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;',
@@ -32,19 +42,26 @@ function parseLegs(value: string | null): TicketLeg[] {
 }
 
 export async function GET(request: Request) {
+  if (request.url.length > 8_192) {
+    return new Response('Ticket request is too large.', {
+      status: 414,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
+  }
   const { searchParams } = new URL(request.url);
-  const fareValue = Number(searchParams.get('fare'));
-  const fare = Number.isFinite(fareValue) && fareValue > 0 ? fareValue : 1440;
+  const fare = boundedNumber(searchParams.get('fare'), 1440, 1, 1_000_000);
   const fareLabel = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(fare);
   const train = safe(searchParams.get('train'), '12310 · Magadh Express');
-  const from = safe(searchParams.get('from'), 'NDLS', 8);
+  const from = stationCode(searchParams.get('from'), 'NDLS');
   const fromName = safe(searchParams.get('fromName'), 'New Delhi');
-  const to = safe(searchParams.get('to'), 'PNBE', 8);
+  const to = stationCode(searchParams.get('to'), 'PNBE');
   const toName = safe(searchParams.get('toName'), 'Patna Junction');
-  const date = safe(searchParams.get('date'), '2026-08-30', 12);
+  const requestedDate = safe(searchParams.get('date'), '2026-08-30', 12);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : '2026-08-30';
   const travelClass = safe(searchParams.get('class'), '3A', 8);
-  const comfort = safe(searchParams.get('comfort'), '89', 3);
-  const mode = safe(searchParams.get('mode'), 'UPI', 20).toUpperCase();
+  const comfort = String(Math.round(boundedNumber(searchParams.get('comfort'), 89, 0, 100)));
+  const requestedMode = safe(searchParams.get('mode'), 'UPI', 20).toUpperCase();
+  const mode = ['UPI', 'CARD', 'VISA', 'MASTERCARD'].includes(requestedMode) ? requestedMode : 'UPI';
   const legs = parseLegs(searchParams.get('legs'));
   const shownLegs = legs.length ? legs : [
     { from: 'NDLS', departure: '20:10', to: 'CNB', arrival: '01:05', coach: 'B2', seat: '34', berth: 'LB' },
@@ -88,7 +105,11 @@ export async function GET(request: Request) {
       'Content-Type': 'text/html; charset=utf-8',
       'Content-Disposition': `attachment; filename="RailSetu-${from}-${to}-mock-ticket.html"`,
       'Cache-Control': 'private, no-store',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      'Cross-Origin-Resource-Policy': 'same-origin',
+      'Referrer-Policy': 'no-referrer',
       'X-Content-Type-Options': 'nosniff',
+      'X-Robots-Tag': 'noindex, nofollow',
     },
   });
 }
