@@ -65,7 +65,11 @@ export default function AboutScrollIsland({ topics }: { topics: AboutScrollTopic
             aria-hidden="true"
           ><i /></span>
           <strong>Index</strong>
-          <span className="about-scroll-island-chevron" aria-hidden="true">⌄</span>
+          <span className="about-scroll-island-chevron" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
           <b>{Math.round(progress)}%</b>
         </button>
 
