@@ -590,6 +590,21 @@ html.railsetu-dark body { color:#eef2ff; background:#070b17; }
 .railsetu-dark .rail-ticket-section-title { color:#9ba7bd; background-color:#17213a; }
 .railsetu-dark .rail-ticket-leg>span { color:#b1c0ff; background-color:#202c4c; }
 
+.planner-speech-modal,.planner-speech-close,.planner-speech-animation,.planner-speech-transcript,.planner-speech-apply,.planner-speech-apply i {
+  transition-property:color,background-color,border-color,box-shadow;
+  transition-duration:.55s;
+  transition-timing-function:ease;
+}
+.railsetu-dark .planner-speech-backdrop { background-color:rgba(3,7,17,.56); }
+.railsetu-dark .planner-speech-modal { color:#eef2ff; border-color:rgba(158,181,244,.22); background:linear-gradient(145deg,rgba(14,23,43,.98),rgba(22,30,57,.98)); box-shadow:0 36px 100px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.05); }
+.railsetu-dark .planner-speech-close { color:#aeb9d0; border-color:#34415f; background-color:#1a2540; }
+.railsetu-dark .planner-speech-close:hover { color:#eef2ff; background-color:#253251; }
+.railsetu-dark .planner-speech-animation { color:#9db1ff; border-color:#374873; background-color:#182442; box-shadow:0 17px 42px rgba(0,0,0,.3); }
+.railsetu-dark .planner-speech-animation.is-mic-off { color:#d4a8ba; border-color:#554252; background-color:#291e2c; }
+.railsetu-dark .planner-speech-transcript { color:#9ca8c0; border-color:#303e60; background-color:#10192e; }
+.railsetu-dark .planner-speech-transcript.has-text { color:#e3e9f7; }
+.railsetu-dark .planner-speech-apply i { color:#b6c3ff; background-color:#1a2541; }
+
 @media (max-width:760px) {
   .planner-settings { top:20px; right:145px; }
 }
