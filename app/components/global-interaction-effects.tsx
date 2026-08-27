@@ -27,6 +27,36 @@ export default function GlobalInteractionEffects() {
   const timeoutIds = useRef<Set<number>>(new Set());
 
   useEffect(() => {
+    const onPageLinkClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+      const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href]');
+      if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+
+      const destination = new URL(anchor.href, window.location.href);
+      if (destination.origin !== window.location.origin) return;
+
+      const currentPage = `${window.location.pathname}${window.location.search}`;
+      const nextPage = `${destination.pathname}${destination.search}`;
+      if (currentPage === nextPage) return;
+
+      event.preventDefault();
+      document.documentElement.classList.add('railsetu-page-leaving');
+      window.setTimeout(() => window.location.assign(destination.href), 360);
+    };
+
+    const onPageShow = () => document.documentElement.classList.remove('railsetu-page-leaving');
+    document.addEventListener('click', onPageLinkClick);
+    window.addEventListener('pageshow', onPageShow);
+
+    return () => {
+      document.removeEventListener('click', onPageLinkClick);
+      window.removeEventListener('pageshow', onPageShow);
+      document.documentElement.classList.remove('railsetu-page-leaving');
+    };
+  }, []);
+
+  useEffect(() => {
     const cursor = cursorRef.current;
     const canUseCursor = window.matchMedia('(pointer: fine)').matches;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -110,32 +140,35 @@ export default function GlobalInteractionEffects() {
   }, []);
 
   return (
-    <div className="interaction-layer" aria-hidden="true">
-      <div className="spin-cursor" ref={cursorRef}>
-        <svg width="18" height="21" viewBox="0 0 18 21">
-          <path d={ARROW_PATH} />
-        </svg>
-      </div>
-
-      {bursts.map((burst) => (
-        <div
-          className="click-burst"
-          key={burst.id}
-          style={{ left: burst.x, top: burst.y }}
-        >
-          <span className="burst-ring" />
-          {BURST_LINES.map((line) => (
-            <span className={`burst-line burst-line-${line}`} key={line} />
-          ))}
-          {BURST_PARTICLES.map((particle) => (
-            <span
-              className="burst-particle"
-              key={particle}
-              style={{ '--burst-angle': `${particle * 45}deg` } as CSSProperties}
-            />
-          ))}
+    <>
+      <div className="page-transition-layer" aria-hidden="true" />
+      <div className="interaction-layer" aria-hidden="true">
+        <div className="spin-cursor" ref={cursorRef}>
+          <svg width="18" height="21" viewBox="0 0 18 21">
+            <path d={ARROW_PATH} />
+          </svg>
         </div>
-      ))}
-    </div>
+
+        {bursts.map((burst) => (
+          <div
+            className="click-burst"
+            key={burst.id}
+            style={{ left: burst.x, top: burst.y }}
+          >
+            <span className="burst-ring" />
+            {BURST_LINES.map((line) => (
+              <span className={`burst-line burst-line-${line}`} key={line} />
+            ))}
+            {BURST_PARTICLES.map((particle) => (
+              <span
+                className="burst-particle"
+                key={particle}
+                style={{ '--burst-angle': `${particle * 45}deg` } as CSSProperties}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

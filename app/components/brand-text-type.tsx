@@ -40,7 +40,7 @@ export default function BrandTextType() {
   }, [deleting, length, nameIndex]);
 
   return (
-    <span className={`brand-type ${fontClasses[fontIndex]}`} aria-hidden="true">
+    <span className={`brand-type ${fontClasses[fontIndex]} ${nameIndex === 0 ? 'is-english' : 'is-hindi'}`} aria-hidden="true">
       <span>{names[nameIndex].slice(0, length)}</span>
     </span>
   );

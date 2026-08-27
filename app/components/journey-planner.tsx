@@ -241,6 +241,7 @@ export default function JourneyPlanner() {
   const [mapOpen, setMapOpen] = useState(false);
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const resultsAnchor = useRef<HTMLDivElement>(null);
+  const dateInput = useRef<HTMLInputElement>(null);
   const mapTrigger = useRef<HTMLButtonElement>(null);
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
@@ -479,8 +480,8 @@ export default function JourneyPlanner() {
           </label>
           <label className="planner-field planner-date-field">
             <span>Journey date</span>
-            <div className="planner-date-input">
-              <input type="date" min="2026-08-26" value={form.date} onChange={(event) => setForm((value) => ({ ...value, date: event.target.value }))} />
+            <div className="planner-date-input" onClick={() => dateInput.current?.showPicker?.()}>
+              <input ref={dateInput} type="date" min="2026-08-26" value={form.date} onChange={(event) => setForm((value) => ({ ...value, date: event.target.value }))} />
               <span className="planner-calendar-icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 2v4" />

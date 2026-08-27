@@ -13,6 +13,19 @@ body { margin: 0; color: var(--ink); background: #f7f9ff; font-family: var(--fon
 a { color: inherit; text-decoration: none; }
 button { font: inherit; }
 
+.page-transition-layer {
+  position:fixed;
+  z-index:9998;
+  inset:0;
+  pointer-events:none;
+  opacity:0;
+  background:radial-gradient(circle at 32% 34%,#effbff 0,#ddecff 44%,#c7caff 100%);
+  animation:railsetu-page-enter .48s cubic-bezier(.22,.75,.26,1) both;
+  transition:opacity .36s cubic-bezier(.55,0,.45,1),background-color .55s ease;
+}
+.railsetu-dark .page-transition-layer { background:radial-gradient(circle at 34% 30%,#17213c 0,#0e162a 46%,#080d1b 100%); }
+.railsetu-page-leaving .page-transition-layer { animation:none; opacity:1; }
+
 html.railsetu-cursor-enabled,
 html.railsetu-cursor-enabled a,
 html.railsetu-cursor-enabled button,
@@ -178,6 +191,11 @@ html.railsetu-cursor-enabled [role='button'] {
   100% { opacity: 0; transform: rotate(var(--burst-angle)) translateX(33px) scale(.1); }
 }
 
+@keyframes railsetu-page-enter {
+  from { opacity:1; }
+  to { opacity:0; }
+}
+
 .hero-shell {
   position: relative;
   min-height: 100svh;
@@ -209,7 +227,9 @@ html.railsetu-cursor-enabled [role='button'] {
 @font-face { font-family:'RailSetu Thenyodia'; src:url('/fonts/thenyodia.otf') format('opentype'); font-display:swap; }
 @font-face { font-family:'RailSetu Transcity'; src:url('/fonts/transcity-demo.otf') format('opentype'); font-display:swap; }
 @font-face { font-family:'RailSetu Silveridge'; src:url('/fonts/silveridge-free.otf') format('opentype'); font-display:swap; }
-.brand-type { display:inline-block; min-width:104px; line-height:1; transition:font-family .01s linear; }
+.brand-type { display:inline-block; min-width:112px; line-height:1; transition:font-family .01s linear; }
+.brand-type.is-english { font-size:1.07em; letter-spacing:.045em; }
+.brand-type.is-english.brand-font-transcity { letter-spacing:.075em; }
 .brand-font-thenyodia { font-family:'RailSetu Thenyodia',var(--font-geist),sans-serif; }
 .brand-font-transcity { font-family:'RailSetu Transcity',var(--font-geist),sans-serif; }
 .brand-font-silveridge { font-family:'RailSetu Silveridge',var(--font-geist),sans-serif; }
@@ -341,7 +361,7 @@ html.railsetu-cursor-enabled [role='button'] {
 .planner-field input,.planner-field select { width:100%; height:49px; min-width:0; border:1px solid #e0e4ee; border-radius:13px; outline:0; padding:0 13px; color:#1c2231; background:rgba(251,252,255,.92); font:inherit; font-size:12px; transition:border-color .2s ease,box-shadow .2s ease,background .2s ease; }
 .planner-field input:focus,.planner-field select:focus { border-color:#7f92df; background:white; box-shadow:0 0 0 4px rgba(92,116,214,.1); }
 .planner-field .planner-custom-change-input { height:36px; border-color:#d4dcf1; background:#f7f9ff; font-size:10px; }
-.planner-date-input { position:relative; width:100%; }.planner-date-input input { padding-right:42px; }.planner-date-input input::-webkit-calendar-picker-indicator { position:absolute; right:10px; width:24px; height:24px; opacity:0; cursor:pointer; }.planner-calendar-icon { position:absolute; right:14px; top:50%; display:grid; place-items:center; color:#596785; transform:translateY(-50%); pointer-events:none; }.calendar-dot { opacity:1; }.planner-date-input:hover .calendar-dot,.planner-date-input:focus-within .calendar-dot { animation:calendar-dot-pulse .8s ease; }
+.planner-date-input { position:relative; width:100%; cursor:pointer; }.planner-date-input input { padding-right:42px; cursor:pointer; }.planner-date-input input::-webkit-calendar-picker-indicator { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }.planner-calendar-icon { position:absolute; right:14px; top:50%; display:grid; place-items:center; color:#596785; transform:translateY(-50%); pointer-events:none; }.calendar-dot { opacity:1; }.planner-date-input:hover .calendar-dot,.planner-date-input:focus-within .calendar-dot { animation:calendar-dot-pulse .8s ease; }
 .planner-station-field select { font-size:13px; font-weight:540; }
 .planner-direction { display:grid; place-items:center; width:30px; height:30px; margin-bottom:9px; padding:0; border:1px solid #dde2ef; border-radius:50%; color:#6879ca; background:white; font:inherit; cursor:pointer; transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease; }.planner-direction:hover { border-color:#bfcaf0; box-shadow:0 7px 16px rgba(83,110,215,.16); transform:scale(1.05); }.planner-direction:active { transform:scale(.94); }.planner-direction:focus-visible { outline:3px solid rgba(96,117,223,.23); outline-offset:2px; }.planner-direction svg { overflow:visible; }.swap-left-arrow,.swap-right-arrow { transform-box:fill-box; transform-origin:center; }.planner-direction.is-animating .swap-left-arrow { animation:swap-arrow-left .5s cubic-bezier(.175,.885,.32,1.275); }.planner-direction.is-animating .swap-right-arrow { animation:swap-arrow-right .5s cubic-bezier(.175,.885,.32,1.275); }
 .planner-preferences-head { display:flex; justify-content:space-between; align-items:end; gap:30px; margin-top:30px; padding-top:24px; border-top:1px solid #e6e9f1; }.planner-preferences-head .mini-label { margin-bottom:5px; }.planner-preferences-head strong { font-size:14px; font-weight:560; }.planner-preferences-head p { margin:0; color:#858b99; font-size:10px; }
@@ -502,6 +522,7 @@ html.railsetu-dark .planner-page { color:#eef2ff; }.railsetu-dark .planner-page:
   html { scroll-behavior:auto; }
   *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
   .interaction-layer { display:none; }
+  .page-transition-layer { display:none; }
   .tactile-cap:hover,.tactile-cap:active { transform:none; }
   .glare-surface::before { display:none; }
 }
