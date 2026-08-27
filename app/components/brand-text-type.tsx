@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 
 const names = ['RailSetu', 'रेलसेतु'];
+const fontClasses = ['brand-font-thenyodia', 'brand-font-transcity', 'brand-font-silveridge'];
 
 export default function BrandTextType() {
   const [nameIndex, setNameIndex] = useState(0);
+  const [fontIndex, setFontIndex] = useState(0);
   const [length, setLength] = useState(names[0].length);
   const [deleting, setDeleting] = useState(false);
 
@@ -25,6 +27,7 @@ export default function BrandTextType() {
 
       if (empty && deleting) {
         setNameIndex((value) => (value + 1) % names.length);
+        setFontIndex((value) => (value + 1) % fontClasses.length);
         setDeleting(false);
         setLength(0);
         return;
@@ -37,7 +40,7 @@ export default function BrandTextType() {
   }, [deleting, length, nameIndex]);
 
   return (
-    <span className="brand-type" aria-hidden="true">
+    <span className={`brand-type ${fontClasses[fontIndex]}`} aria-hidden="true">
       <span>{names[nameIndex].slice(0, length)}</span>
     </span>
   );
