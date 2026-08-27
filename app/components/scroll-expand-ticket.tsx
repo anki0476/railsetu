@@ -5,6 +5,7 @@ import { ColorPanels } from '@paper-design/shaders-react';
 import { useSearchParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import TactileGlareLink from './tactile-glare-link';
+import { registerTicketInHistory } from '../lib/ticket-history';
 
 type TicketLeg = {
   from: string;
@@ -105,6 +106,22 @@ export default function ScrollExpandTicket() {
   }, [params]);
   const downloadPath = `/api/ticket?${downloadParams}`;
   const qrValue = `${canonicalOrigin}${downloadPath}`;
+
+  useEffect(() => {
+    if (ticketLoadPhase !== 'ready') return;
+    registerTicketInHistory({
+      id: ticketId,
+      train,
+      from,
+      fromName,
+      to,
+      toName,
+      journeyDate: date,
+      purchasedAt: Date.now(),
+      fare,
+      ticketUrl: `/ticket?${downloadParams}`,
+    });
+  }, [date, downloadParams, fare, from, fromName, ticketId, ticketLoadPhase, to, toName, train]);
 
   useLayoutEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

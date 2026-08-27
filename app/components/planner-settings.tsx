@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import PassengerProfile from './passenger-profile';
+import JourneyHistory from './journey-history';
 
 type SiteTheme = 'light' | 'dark';
-type SettingsSection = 'profile' | 'history' | null;
 
 const THEME_STORAGE_KEY = 'railsetu.theme.v1';
 const LEGACY_THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';
@@ -36,8 +36,8 @@ function HistorySettingsIcon() {
 export default function SiteSettings() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<SiteTheme>('light');
-  const [activeSection, setActiveSection] = useState<SettingsSection>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -110,28 +110,25 @@ export default function SiteSettings() {
 
           <div className="planner-settings-options">
             <button
-              className={`planner-settings-option ${activeSection === 'profile' ? 'is-active' : ''}`}
+              className="planner-settings-option"
               type="button"
               aria-haspopup="dialog"
-              onClick={() => { setOpen(false); setActiveSection(null); setProfileOpen(true); }}
+              onClick={() => { setOpen(false); setProfileOpen(true); }}
             >
               <span className="planner-settings-option-icon"><UserSettingsIcon /></span>
               <span className="planner-settings-option-copy"><strong>Profile</strong><small>Traveller preferences</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
             <button
-              className={`planner-settings-option ${activeSection === 'history' ? 'is-active' : ''}`}
+              className="planner-settings-option"
               type="button"
-              aria-expanded={activeSection === 'history'}
-              onClick={() => setActiveSection((current) => current === 'history' ? null : 'history')}
+              aria-haspopup="dialog"
+              onClick={() => { setOpen(false); setHistoryOpen(true); }}
             >
               <span className="planner-settings-option-icon"><HistorySettingsIcon /></span>
               <span className="planner-settings-option-copy"><strong>History</strong><small>Past journeys</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
-            {activeSection === 'history' ? (
-              <p className="planner-settings-option-detail">Completed RailSetu journeys will appear here as you use the planner.</p>
-            ) : null}
           </div>
 
           <div className="planner-theme-row">
@@ -157,6 +154,7 @@ export default function SiteSettings() {
         </section>
       ) : null}
       <PassengerProfile isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
+      <JourneyHistory isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />
     </div>
   );
 }
