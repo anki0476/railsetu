@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
 
 type ClickBurst = {
   id: number;
@@ -22,48 +21,10 @@ function shortestAngle(from: number, to: number) {
 }
 
 export default function GlobalInteractionEffects() {
-  const pathname = usePathname();
-  const router = useRouter();
   const cursorRef = useRef<HTMLDivElement>(null);
   const [bursts, setBursts] = useState<ClickBurst[]>([]);
   const nextId = useRef(0);
   const timeoutIds = useRef<Set<number>>(new Set());
-
-  useEffect(() => {
-    requestAnimationFrame(() => document.documentElement.classList.remove('railsetu-page-leaving'));
-  }, [pathname]);
-
-  useEffect(() => {
-    const onPageLinkClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
-      const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href]');
-      if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
-
-      const destination = new URL(anchor.href, window.location.href);
-      if (destination.origin !== window.location.origin) return;
-
-      const currentPage = `${window.location.pathname}${window.location.search}`;
-      const nextPage = `${destination.pathname}${destination.search}`;
-      if (currentPage === nextPage) return;
-
-      event.preventDefault();
-      document.documentElement.classList.add('railsetu-page-leaving');
-      window.setTimeout(() => {
-        router.push(`${destination.pathname}${destination.search}${destination.hash}`);
-      }, 280);
-    };
-
-    const onPageShow = () => document.documentElement.classList.remove('railsetu-page-leaving');
-    document.addEventListener('click', onPageLinkClick);
-    window.addEventListener('pageshow', onPageShow);
-
-    return () => {
-      document.removeEventListener('click', onPageLinkClick);
-      window.removeEventListener('pageshow', onPageShow);
-      document.documentElement.classList.remove('railsetu-page-leaving');
-    };
-  }, [router]);
 
   useEffect(() => {
     const cursor = cursorRef.current;
@@ -149,9 +110,7 @@ export default function GlobalInteractionEffects() {
   }, []);
 
   return (
-    <>
-      <div className="page-transition-layer" aria-hidden="true" />
-      <div className="interaction-layer" aria-hidden="true">
+    <div className="interaction-layer" aria-hidden="true">
         <div className="spin-cursor" ref={cursorRef}>
           <svg width="18" height="21" viewBox="0 0 18 21">
             <path d={ARROW_PATH} />
@@ -177,7 +136,6 @@ export default function GlobalInteractionEffects() {
             ))}
           </div>
         ))}
-      </div>
-    </>
+    </div>
   );
 }
