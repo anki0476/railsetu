@@ -2,32 +2,33 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-type PlannerTheme = 'light' | 'dark';
+type SiteTheme = 'light' | 'dark';
 
-const THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';
+const THEME_STORAGE_KEY = 'railsetu.theme.v1';
+const LEGACY_THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';
 
-function applyTheme(theme: PlannerTheme) {
-  document.documentElement.classList.toggle('railsetu-planner-dark', theme === 'dark');
+function applyTheme(theme: SiteTheme) {
+  document.documentElement.classList.toggle('railsetu-dark', theme === 'dark');
   document.documentElement.style.colorScheme = theme;
 }
 
-export default function PlannerSettings() {
+export default function SiteSettings() {
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState<PlannerTheme>('light');
+  const [theme, setTheme] = useState<SiteTheme>('light');
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let stored: string | null = null;
     try {
-      stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+      stored = window.localStorage.getItem(THEME_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
     } catch {
       // Use the light default if device storage is unavailable.
     }
-    const initialTheme: PlannerTheme = stored === 'dark' ? 'dark' : 'light';
+    const initialTheme: SiteTheme = stored === 'dark' ? 'dark' : 'light';
     setTheme(initialTheme);
     applyTheme(initialTheme);
     return () => {
-      document.documentElement.classList.remove('railsetu-planner-dark');
+      document.documentElement.classList.remove('railsetu-dark');
       document.documentElement.style.colorScheme = '';
     };
   }, []);
@@ -49,7 +50,7 @@ export default function PlannerSettings() {
   }, [open]);
 
   const toggleTheme = () => {
-    const nextTheme: PlannerTheme = theme === 'dark' ? 'light' : 'dark';
+    const nextTheme: SiteTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     applyTheme(nextTheme);
     try {
@@ -66,9 +67,9 @@ export default function PlannerSettings() {
       <button
         className="planner-settings-trigger"
         type="button"
-        aria-label="Open appearance settings"
+        aria-label="Open RailSetu appearance settings"
         aria-expanded={open}
-        aria-controls="planner-settings-panel"
+        aria-controls="site-settings-panel"
         onClick={() => setOpen((current) => !current)}
       >
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -78,7 +79,7 @@ export default function PlannerSettings() {
       </button>
 
       {open ? (
-        <section className="planner-settings-panel" id="planner-settings-panel" aria-label="Appearance settings">
+        <section className="planner-settings-panel" id="site-settings-panel" aria-label="Appearance settings">
           <div className="planner-settings-heading">
             <div><span>Settings</span><strong>Appearance</strong></div>
             <button type="button" aria-label="Close settings" onClick={() => setOpen(false)}>×</button>
@@ -102,7 +103,7 @@ export default function PlannerSettings() {
               <i aria-hidden="true" />
             </button>
           </div>
-          <p className="planner-theme-note">Your preference is saved on this device.</p>
+          <p className="planner-theme-note">Applied across RailSetu and saved on this device.</p>
         </section>
       ) : null}
     </div>

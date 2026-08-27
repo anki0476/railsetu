@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
 import GlobalInteractionEffects from './components/global-interaction-effects';
+import SiteSettings from './components/planner-settings';
 import './globals.css';
 
 const geist = Geist({
@@ -26,9 +27,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-IN">
+    <html lang="en-IN" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{var t=localStorage.getItem('railsetu.theme.v1')||localStorage.getItem('railsetu.planner-theme.v1');if(t==='dark'){document.documentElement.classList.add('railsetu-dark');document.documentElement.style.colorScheme='dark'}}catch(e){}",
+          }}
+        />
+      </head>
       <body className={`${geist.variable} antialiased`}>
         {children}
+        <SiteSettings />
         <GlobalInteractionEffects />
       </body>
     </html>

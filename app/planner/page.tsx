@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import BrandTextType from '../components/brand-text-type';
 import JourneyPlanner from '../components/journey-planner';
-import PlannerSettings from '../components/planner-settings';
 import TactileGlareLink from '../components/tactile-glare-link';
 
 export const metadata: Metadata = {
@@ -21,19 +20,16 @@ export default function PlannerPage() {
           <BrandTextType />
         </a>
         <span className="planner-nav-context"><i /> Journey planner</span>
-        <div className="planner-nav-actions">
-          <PlannerSettings />
-          <TactileGlareLink
-            className="nav-cta"
-            wrapperClassName="nav-about-wrap"
-            href="/about"
-            baseColor="#aebfdf"
-            depth={4}
-            glareOpacity={0.2}
-          >
-            About RailSetu <span>↗</span>
-          </TactileGlareLink>
-        </div>
+        <TactileGlareLink
+          className="nav-cta"
+          wrapperClassName="nav-about-wrap"
+          href="/about"
+          baseColor="#aebfdf"
+          depth={4}
+          glareOpacity={0.2}
+        >
+          About RailSetu <span>↗</span>
+        </TactileGlareLink>
       </nav>
 
       <header className="planner-hero">
