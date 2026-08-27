@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 type SiteTheme = 'light' | 'dark';
+type SettingsSection = 'profile' | 'history' | null;
 
 const THEME_STORAGE_KEY = 'railsetu.theme.v1';
 const LEGACY_THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';
@@ -12,9 +13,29 @@ function applyTheme(theme: SiteTheme) {
   document.documentElement.style.colorScheme = theme;
 }
 
+function UserSettingsIcon() {
+  return (
+    <svg className="planner-settings-user-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path className="planner-settings-user-body" d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" pathLength="1" />
+      <circle className="planner-settings-user-head" cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function HistorySettingsIcon() {
+  return (
+    <svg className="planner-settings-history-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path className="planner-settings-history-arc" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" pathLength="1" />
+      <path className="planner-settings-history-arc" d="M3 3v5h5" pathLength="1" />
+      <path className="planner-settings-history-hand" d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+
 export default function SiteSettings() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<SiteTheme>('light');
+  const [activeSection, setActiveSection] = useState<SettingsSection>(null);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,7 +88,7 @@ export default function SiteSettings() {
       <button
         className="planner-settings-trigger"
         type="button"
-        aria-label="Open RailSetu appearance settings"
+        aria-label="Open RailSetu settings"
         aria-expanded={open}
         aria-controls="site-settings-panel"
         onClick={() => setOpen((current) => !current)}
@@ -79,11 +100,42 @@ export default function SiteSettings() {
       </button>
 
       {open ? (
-        <section className="planner-settings-panel" id="site-settings-panel" aria-label="Appearance settings">
+        <section className="planner-settings-panel" id="site-settings-panel" aria-label="Settings">
           <div className="planner-settings-heading">
-            <div><span>Settings</span><strong>Appearance</strong></div>
+            <strong>Settings</strong>
             <button type="button" aria-label="Close settings" onClick={() => setOpen(false)}>×</button>
           </div>
+
+          <div className="planner-settings-options">
+            <button
+              className={`planner-settings-option ${activeSection === 'profile' ? 'is-active' : ''}`}
+              type="button"
+              aria-expanded={activeSection === 'profile'}
+              onClick={() => setActiveSection((current) => current === 'profile' ? null : 'profile')}
+            >
+              <span className="planner-settings-option-icon"><UserSettingsIcon /></span>
+              <span className="planner-settings-option-copy"><strong>Profile</strong><small>Traveller preferences</small></span>
+              <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
+            </button>
+            {activeSection === 'profile' ? (
+              <p className="planner-settings-option-detail">Your traveller defaults and accessibility preferences stay saved on this device.</p>
+            ) : null}
+
+            <button
+              className={`planner-settings-option ${activeSection === 'history' ? 'is-active' : ''}`}
+              type="button"
+              aria-expanded={activeSection === 'history'}
+              onClick={() => setActiveSection((current) => current === 'history' ? null : 'history')}
+            >
+              <span className="planner-settings-option-icon"><HistorySettingsIcon /></span>
+              <span className="planner-settings-option-copy"><strong>History</strong><small>Past journeys</small></span>
+              <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
+            </button>
+            {activeSection === 'history' ? (
+              <p className="planner-settings-option-detail">Completed RailSetu journeys will appear here as you use the planner.</p>
+            ) : null}
+          </div>
+
           <div className="planner-theme-row">
             <div><strong>Colour theme</strong><small>{isDark ? 'Midnight rail' : 'Daylight blue'}</small></div>
             <button
