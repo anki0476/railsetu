@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import PassengerProfile from './passenger-profile';
 
 type SiteTheme = 'light' | 'dark';
 type SettingsSection = 'profile' | 'history' | null;
@@ -36,6 +37,7 @@ export default function SiteSettings() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<SiteTheme>('light');
   const [activeSection, setActiveSection] = useState<SettingsSection>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -110,17 +112,13 @@ export default function SiteSettings() {
             <button
               className={`planner-settings-option ${activeSection === 'profile' ? 'is-active' : ''}`}
               type="button"
-              aria-expanded={activeSection === 'profile'}
-              onClick={() => setActiveSection((current) => current === 'profile' ? null : 'profile')}
+              aria-haspopup="dialog"
+              onClick={() => { setOpen(false); setActiveSection(null); setProfileOpen(true); }}
             >
               <span className="planner-settings-option-icon"><UserSettingsIcon /></span>
               <span className="planner-settings-option-copy"><strong>Profile</strong><small>Traveller preferences</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
-            {activeSection === 'profile' ? (
-              <p className="planner-settings-option-detail">Your traveller defaults and accessibility preferences stay saved on this device.</p>
-            ) : null}
-
             <button
               className={`planner-settings-option ${activeSection === 'history' ? 'is-active' : ''}`}
               type="button"
@@ -158,6 +156,7 @@ export default function SiteSettings() {
           <p className="planner-theme-note">Applied across RailSetu and saved on this device.</p>
         </section>
       ) : null}
+      <PassengerProfile isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }
