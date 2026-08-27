@@ -73,7 +73,7 @@ export default function ComfortScorePage() {
       <section className="about-care comfort-score-bands">
         <div>
           <p className="section-kicker">Reading the result</p>
-          <h2>A ranking, not a guarantee.</h2>
+          <h2>An algorithmic ranking, not a gimmick.</h2>
           <p>Hard preferences—such as “No coach changes”—filter journeys out before scoring. The score ranks only the confirmed paths that remain.</p>
         </div>
         <ul>
