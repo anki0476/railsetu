@@ -75,7 +75,7 @@ const initialForm: PlannerForm = {
 
 const submitStyle = {
   '--tactile-depth': '7px',
-  '--tactile-base': '#0b1229',
+  '--tactile-base': '#294cb9',
   '--glare-opacity': 0.3,
 } as CSSProperties;
 
