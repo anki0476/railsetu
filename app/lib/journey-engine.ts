@@ -1,3 +1,5 @@
+import { calculateComfortScore, type ComfortScoreDetails } from './comfort-score';
+
 export type TravellerProfile = 'standard' | 'elderly' | 'family';
 export type CoachPreference = 'same' | 'nearby' | 'any';
 export type LuggageLevel = 'light' | 'heavy';
@@ -40,6 +42,7 @@ export type JourneySolution = {
   walkingMetres: number;
   fare: number;
   comfort: number;
+  comfortDetails: ComfortScoreDetails;
   highlights: string[];
 };
 
@@ -149,11 +152,7 @@ function buildSolution(train: TrainInventory, legs: JourneyLeg[], query: Journey
   const changes = Math.max(0, legs.length - 1);
   const walkingMetres = transitions.reduce((total, distance) => total + (distance === 0 ? 0 : 14 + distance * 18), 0);
   const fare = legs.reduce((total, leg) => total + leg.fare, 0);
-  const nonLowerBerths = legs.filter((leg) => leg.berth !== 'LB').length;
-  const mobilityPenalty = query.profile === 'elderly' ? walkingMetres * 0.2 : query.profile === 'family' ? walkingMetres * 0.11 : walkingMetres * 0.06;
-  const luggagePenalty = query.luggage === 'heavy' ? changes * 5 + coachChanges * 8 : 0;
-  const berthPenalty = query.lowerBerth ? nonLowerBerths * 3 : 0;
-  const comfort = Math.max(52, Math.min(98, Math.round(99 - changes * 7 - coachChanges * 8 - mobilityPenalty - luggagePenalty - berthPenalty)));
+  const comfortDetails = calculateComfortScore(legs, transitions, query);
 
   const highlights = [
     coachChanges === 0 ? 'No coach change' : `${coachChanges} coach change${coachChanges > 1 ? 's' : ''}`,
@@ -171,7 +170,8 @@ function buildSolution(train: TrainInventory, legs: JourneyLeg[], query: Journey
     coachChanges,
     walkingMetres,
     fare,
-    comfort,
+    comfort: comfortDetails.score,
+    comfortDetails,
     highlights,
   };
 }

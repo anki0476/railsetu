@@ -670,7 +670,18 @@ export default function JourneyPlanner() {
                         <h3>{solution.trainNumber} · {solution.trainName}</h3>
                         <p>{solution.duration} total train journey</p>
                       </div>
-                      <div className="planner-comfort"><strong>{solution.comfort}</strong><span>Comfort<br />score</span></div>
+                      <div className="planner-comfort">
+                        <strong>{solution.comfort}</strong>
+                        <span>Comfort<br />score</span>
+                        <a className="planner-comfort-info" href="/comfort-score" aria-label={'Learn how the comfort score of ' + solution.comfort + ' is calculated'}>
+                          i
+                          <span className="planner-comfort-tooltip" role="tooltip">
+                            <b>{solution.comfortDetails.label}</b>
+                            <small>{solution.comfortDetails.summary}</small>
+                            <em>See how it is calculated →</em>
+                          </span>
+                        </a>
+                      </div>
                     </div>
 
                     <div className="planner-leg-list">
