@@ -1,8 +1,9 @@
 'use client';
 
 import { QRCodeSVG } from 'qrcode.react';
+import { ColorPanels } from '@paper-design/shaders-react';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TactileGlareLink from './tactile-glare-link';
 
 type TicketLeg = {
@@ -16,6 +17,26 @@ type TicketLeg = {
 };
 
 const canonicalOrigin = 'https://railsetu-waitlist.beatkingkrrish9500.chatgpt.site';
+const MemoizedColorPanels = memo(ColorPanels);
+
+const ticketLoaderShaderProps = {
+  width: 720,
+  height: 420,
+  colors: ['#5f7fe8', '#a58cf3', '#d9ebff', '#789fff'],
+  colorBack: '#070b1700',
+  density: 5.03,
+  angle1: 0.68,
+  angle2: 0.28,
+  length: 1.13,
+  edges: true,
+  blur: 0.25,
+  fadeIn: 0.85,
+  fadeOut: 0.3,
+  gradient: 0.56,
+  speed: 3.2,
+  scale: 0.96,
+  rotation: 180,
+};
 
 const clamp = (value: number, minimum = 0, maximum = 1) => Math.min(maximum, Math.max(minimum, value));
 
@@ -45,6 +66,7 @@ function paymentLabel(mode: string) {
 
 export default function ScrollExpandTicket() {
   const params = useSearchParams();
+  const [ticketLoadPhase, setTicketLoadPhase] = useState<'loading' | 'revealing' | 'ready'>('loading');
   const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -83,6 +105,27 @@ export default function ScrollExpandTicket() {
   }, [params]);
   const downloadPath = `/api/ticket?${downloadParams}`;
   const qrValue = `${canonicalOrigin}${downloadPath}`;
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const revealAfter = reducedMotion ? 450 : 2350;
+    const finishAfter = reducedMotion ? 650 : 2950;
+    const previousOverflow = document.body.style.overflow;
+
+    window.scrollTo(0, 0);
+    document.body.style.overflow = 'hidden';
+    const revealTimer = window.setTimeout(() => setTicketLoadPhase('revealing'), revealAfter);
+    const finishTimer = window.setTimeout(() => {
+      setTicketLoadPhase('ready');
+      document.body.style.overflow = previousOverflow;
+    }, finishAfter);
+
+    return () => {
+      window.clearTimeout(revealTimer);
+      window.clearTimeout(finishTimer);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
   const applyProgress = useCallback((progress: number) => {
     const stage = stageRef.current;
@@ -187,6 +230,17 @@ export default function ScrollExpandTicket() {
         <div ref={stageRef} className="ticket-scroll-stage">
           <span className="ticket-reveal-ambient ticket-reveal-ambient-one" aria-hidden="true" />
           <span className="ticket-reveal-ambient ticket-reveal-ambient-two" aria-hidden="true" />
+          {ticketLoadPhase !== 'ready' ? (
+            <div
+              className={`ticket-color-loader ${ticketLoadPhase === 'revealing' ? 'is-revealing' : ''}`}
+              role="status"
+              aria-label="Preparing your confirmed RailSetu ticket"
+            >
+              <div className="ticket-color-panels" aria-hidden="true">
+                <MemoizedColorPanels {...ticketLoaderShaderProps} />
+              </div>
+            </div>
+          ) : null}
           <TactileGlareLink
             className="ticket-back-home"
             wrapperClassName="ticket-back-wrap"
