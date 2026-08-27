@@ -3,6 +3,7 @@ import BrandTextType from './components/brand-text-type';
 import TicketPixelSwap from './components/ticket-pixel-swap';
 import ChooseJourneyCueLink from './components/choose-journey-cue-link';
 import LandingFaq from './components/landing-faq';
+import IntroCarousel from './components/intro-carousel';
 
 const journeyStops = [
   { code: 'PUNE', time: '18:35', state: 'Board', active: true },
@@ -54,7 +55,7 @@ export default function Home() {
             >
               Find my route <span>→</span>
             </TactileGlareLink>
-            <a className="text-link" href="#how"><span className="play">▶</span><span className="shiny-text">See how it works</span></a>
+            <a className="text-link" href="#how-it-works"><span className="play">▶</span><span className="shiny-text">See how it works</span></a>
           </div>
         </div>
 
@@ -125,6 +126,8 @@ export default function Home() {
           <article><span>03</span><h3>Make it one journey</h3><p>Multiple reservations become one calm itinerary that is easy to follow.</p></article>
         </div>
       </section>
+
+      <IntroCarousel />
 
       <LandingFaq />
     </main>
