@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import AboutScrollIsland from '../components/about-scroll-island';
 import BrandTextType from '../components/brand-text-type';
 import TactileGlareLink from '../components/tactile-glare-link';
 
@@ -11,6 +12,14 @@ const process = [
   ['01', 'Map the whole train', 'Read availability across the train’s route, not only the requested origin and destination.'],
   ['02', 'Join confirmed segments', 'Build continuous options that keep the traveller on the same train while seats or coaches change.'],
   ['03', 'Rank for the person', 'Filter by mobility, luggage, family needs and comfortable interchange time before showing the clearest route.'],
+];
+
+const aboutTopics = [
+  { id: 'about-introduction', title: 'About RailSetu' },
+  { id: 'about-overview', title: 'The problem and the idea' },
+  { id: 'about-process', title: 'How the engine thinks' },
+  { id: 'about-traveller', title: 'Built around the traveller' },
+  { id: 'about-scope', title: 'Prototype scope' },
 ];
 
 export default function AboutPage() {
@@ -33,7 +42,9 @@ export default function AboutPage() {
         </TactileGlareLink>
       </nav>
 
-      <section className="about-hero">
+      <AboutScrollIsland topics={aboutTopics} />
+
+      <section className="about-hero" id="about-introduction">
         <p className="section-kicker">About RailSetu</p>
         <h1>One waitlisted ticket.<br /><span>A route that still works.</span></h1>
         <p>
@@ -43,7 +54,7 @@ export default function AboutPage() {
         </p>
       </section>
 
-      <section className="about-grid" aria-label="Project overview">
+      <section className="about-grid" id="about-overview" aria-label="Project overview">
         <article className="about-feature">
           <span>The problem</span>
           <h2>Availability is fragmented. The journey should not be.</h2>
@@ -56,7 +67,7 @@ export default function AboutPage() {
         </article>
       </section>
 
-      <section className="about-process">
+      <section className="about-process" id="about-process">
         <p className="section-kicker">How the engine thinks</p>
         <h2>From scattered seats to one clear plan.</h2>
         <div className="about-steps">
@@ -70,7 +81,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="about-care">
+      <section className="about-care" id="about-traveller">
         <div>
           <p className="section-kicker">Built around the traveller</p>
           <h2>The shortest route is not always the right route.</h2>
@@ -82,7 +93,7 @@ export default function AboutPage() {
         </ul>
       </section>
 
-      <footer className="about-footer">
+      <footer className="about-footer" id="about-scope">
         <div>
           <span>Prototype scope</span>
           <p>RailSetu is an independent civic-tech concept and is not affiliated with Indian Railways or IRCTC.</p>
