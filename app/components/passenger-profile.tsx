@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface PassengerProfileData {
   fullName: string;
@@ -24,6 +24,8 @@ const defaultProfile: PassengerProfileData = {
   lastUpdated: 'Not saved yet',
 };
 
+type SaveStatus = 'idle' | 'loading' | 'success' | 'saved';
+
 function EditIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -45,6 +47,8 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
   const [profile, setProfile] = useState<PassengerProfileData>(defaultProfile);
   const [draft, setDraft] = useState<PassengerProfileData>(defaultProfile);
   const [editing, setEditing] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const saveTimers = useRef<number[]>([]);
 
   useEffect(() => {
     try {
@@ -73,7 +77,9 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen, onClose, profile]);
+  }, [isOpen, onClose]);
+
+  useEffect(() => () => saveTimers.current.forEach(window.clearTimeout), []);
 
   if (!isOpen) return null;
 
@@ -81,7 +87,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
     setDraft((current) => ({ ...current, [field]: value }));
   };
 
-  const saveProfile = () => {
+  const persistProfile = () => {
     const savedProfile = {
       ...draft,
       fullName: draft.fullName.trim() || defaultProfile.fullName,
@@ -89,12 +95,27 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
     };
     setProfile(savedProfile);
     setDraft(savedProfile);
-    setEditing(false);
     try {
       window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(savedProfile));
     } catch {
       // The profile remains available for this session when storage is unavailable.
     }
+  };
+
+  const saveProfile = () => {
+    if (saveStatus !== 'idle') return;
+    setSaveStatus('loading');
+    saveTimers.current.push(window.setTimeout(() => {
+      persistProfile();
+      setSaveStatus('success');
+      saveTimers.current.push(window.setTimeout(() => {
+        setSaveStatus('saved');
+        saveTimers.current.push(window.setTimeout(() => {
+          setEditing(false);
+          setSaveStatus('idle');
+        }, 650));
+      }, 550));
+    }, 700));
   };
 
   return (
@@ -156,7 +177,12 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
             <span>Last updated: <strong>{profile.lastUpdated}</strong></span>
             <div>
               <button type="button" onClick={() => { setDraft(profile); setEditing(false); }}>Cancel</button>
-              <button type="button" onClick={saveProfile}>Save changes</button>
+              <button type="button" className={`passenger-profile-save-toggle is-${saveStatus}`} onClick={saveProfile} disabled={saveStatus !== 'idle'} aria-live="polite">
+                {saveStatus === 'loading' && <span className="passenger-profile-save-spinner" aria-hidden="true" />}
+                {saveStatus === 'success' && <span className="passenger-profile-save-check" aria-hidden="true">✓</span>}
+                {saveStatus === 'saved' && <><span className="passenger-profile-save-check" aria-hidden="true">✓</span><span>Saved</span></>}
+                {saveStatus === 'idle' && <span>Save changes</span>}
+              </button>
             </div>
           </footer>
         </section>

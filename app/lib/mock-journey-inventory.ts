@@ -34,20 +34,29 @@ const stationDefinitions: readonly StationDefinition[] = [
   { code: 'PRYJ', name: 'Prayagraj Junction', latitude: 25.4358, longitude: 81.8463 },
   { code: 'PNBE', name: 'Patna Junction', latitude: 25.6027, longitude: 85.1373 },
   { code: 'HWH', name: 'Howrah Junction', latitude: 22.5839, longitude: 88.3428 },
+  { code: 'REWA', name: 'Rewa', latitude: 24.5362, longitude: 81.3042 },
   { code: 'BPL', name: 'Bhopal Junction', latitude: 23.2685, longitude: 77.4139 },
+  { code: 'BTC', name: 'Balaghat Junction', latitude: 21.8129, longitude: 80.1838 },
   { code: 'NGP', name: 'Nagpur Junction', latitude: 21.1539, longitude: 79.0882 },
+  { code: 'RJN', name: 'Rajnandgaon', latitude: 21.0972, longitude: 81.0302 },
+  { code: 'DURG', name: 'Durg Junction', latitude: 21.1907, longitude: 81.2849 },
+  { code: 'R', name: 'Raipur Junction', latitude: 21.2560, longitude: 81.6296 },
   { code: 'CSMT', name: 'Mumbai CSMT', latitude: 18.9398, longitude: 72.8355 },
+  { code: 'BRC', name: 'Vadodara Junction', latitude: 22.3107, longitude: 73.1812 },
+  { code: 'BHUJ', name: 'Bhuj', latitude: 23.2530, longitude: 69.6693 },
   { code: 'PUNE', name: 'Pune Junction', latitude: 18.5289, longitude: 73.8744 },
   { code: 'SUR', name: 'Solapur', latitude: 17.6649, longitude: 75.8930 },
   { code: 'KLBG', name: 'Kalaburagi', latitude: 17.3297, longitude: 76.8343 },
   { code: 'WADI', name: 'Wadi Junction', latitude: 17.0513, longitude: 76.9905 },
   { code: 'HYB', name: 'Hyderabad Deccan', latitude: 17.3924, longitude: 78.4674 },
   { code: 'BZA', name: 'Vijayawada Junction', latitude: 16.5184, longitude: 80.6193 },
+  { code: 'PURI', name: 'Puri', latitude: 19.8076, longitude: 85.8352 },
   { code: 'MAS', name: 'MGR Chennai Central', latitude: 13.0822, longitude: 80.2755 },
   { code: 'KPD', name: 'Katpadi Junction', latitude: 12.9723, longitude: 79.1384 },
   { code: 'JTJ', name: 'Jolarpettai Junction', latitude: 12.5700, longitude: 78.5744 },
   { code: 'KJM', name: 'Krishnarajapuram', latitude: 13.0007, longitude: 77.6758 },
   { code: 'SBC', name: 'KSR Bengaluru', latitude: 12.9784, longitude: 77.5720 },
+  { code: 'JAT', name: 'Jammu Tawi', latitude: 32.7069, longitude: 74.8806 },
 ];
 
 const services: readonly ServiceBlueprint[] = [
@@ -73,6 +82,11 @@ const services: readonly ServiceBlueprint[] = [
   { numbers: ['12437', '12438'], name: 'Secunderabad Rajdhani', route: ['ALJN', 'NDLS', 'BPL', 'NGP', 'HYB', 'WADI', 'KLBG', 'SUR', 'PUNE', 'CSMT'], departures: ['15:05', '19:35'], classes: ['1A', '2A', '3A'] },
   { numbers: ['12577', '12578'], name: 'Bagmati Express', route: ['KPD', 'JTJ', 'KJM', 'SBC', 'WADI', 'HYB', 'NGP', 'BPL', 'CNB', 'PRYJ', 'PNBE', 'HWH'], departures: ['05:40', '07:15'], classes: EXPRESS_CLASSES },
   { numbers: ['12647', '12648'], name: 'Kongu Express', route: ['HWH', 'PNBE', 'PRYJ', 'BPL', 'NGP', 'BZA', 'MAS', 'KPD', 'JTJ', 'SBC'], departures: ['11:30', '23:45'], classes: ALL_CLASSES },
+  { numbers: ['12549', '12550'], name: 'Durg Jammu Tawi Express', route: ['DURG', 'R', 'NGP', 'BPL', 'NDLS', 'JAT'], departures: ['12:15', '04:35'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['18237', '18238'], name: 'Chhattisgarh Express', route: ['RJN', 'DURG', 'R', 'NGP', 'BPL', 'NDLS'], departures: ['15:35', '04:25'], classes: EXPRESS_CLASSES },
+  { numbers: ['11703', '11704'], name: 'Rewa Itwari Express', route: ['REWA', 'BPL', 'BTC', 'NGP'], departures: ['17:20', '18:30'], classes: EXPRESS_CLASSES },
+  { numbers: ['22955', '22956'], name: 'Kutch Express', route: ['CSMT', 'BRC', 'BHUJ'], departures: ['17:45', '20:15'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12843', '12844'], name: 'Puri Ahmedabad Express', route: ['PURI', 'R', 'DURG', 'NGP', 'BPL', 'BRC'], departures: ['17:30', '18:40'], classes: OVERNIGHT_CLASSES },
 ];
 
 const stationByCode = new Map(stationDefinitions.map((station) => [station.code, station]));
