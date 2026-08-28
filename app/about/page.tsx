@@ -4,6 +4,7 @@ import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import TactileGlareLink from '../components/tactile-glare-link';
 import HandwrittenSignature from '../components/handwritten-signature';
+import TechnologyLoop from '../components/technology-loop';
 
 export const metadata: Metadata = {
   title: 'About RailSetu — A precise way through the waitlist',
@@ -49,6 +50,7 @@ const aboutTopics = [
   { id: 'about-process', title: 'How the engine thinks' },
   { id: 'about-traveller', title: 'Built around the traveller' },
   { id: 'about-build-clarity', title: 'What the build makes clear' },
+  { id: 'about-technology', title: 'Technology stack' },
   { id: 'about-scope', title: 'Prototype scope' },
 ];
 
@@ -140,6 +142,16 @@ export default function AboutPage() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="about-technology" id="about-technology" aria-labelledby="about-technology-title">
+        <div className="about-technology-heading">
+          <p className="section-kicker">Under the hood</p>
+          <h2 id="about-technology-title">The stack behind RailSetu.</h2>
+          <p>Every language, framework, library and production tool currently used to build and run the experience.</p>
+        </div>
+        <TechnologyLoop />
+        <p className="about-technology-note">Move your pointer over the stack to pause it.</p>
       </section>
 
       <footer className="about-footer" id="about-scope">
