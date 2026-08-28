@@ -2,7 +2,7 @@ const signatureWords = ['Built', 'with', '❤️', 'for', 'Indians'];
 
 export default function HandwrittenSignature() {
   return (
-    <div className="handwritten-signature" aria-label="Built with love for Indians">
+    <div className="handwritten-signature" aria-label="Built with love for Indians by Ankit Shrivastava">
       <span className="signature-split-flap" aria-hidden="true">
         {signatureWords.map((word) => (
           <span className="signature-split-flap-word" key={word}>
@@ -22,6 +22,7 @@ export default function HandwrittenSignature() {
           </span>
         ))}
       </span>
+      <span className="signature-credit" aria-hidden="true">by Ankit Shrivastava</span>
     </div>
   );
 }
