@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import AboutScrollIsland from '../components/about-scroll-island';
 import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import TactileGlareLink from '../components/tactile-glare-link';
 import HandwrittenSignature from '../components/handwritten-signature';
 import TechnologyLoop from '../components/technology-loop';
+import AboutFeedback from '../components/about-feedback';
 
 export const metadata: Metadata = {
   title: 'About RailSetu — A precise way through the waitlist',
@@ -49,8 +51,10 @@ const aboutTopics = [
   { id: 'about-overview', title: 'The problem and the idea' },
   { id: 'about-process', title: 'How the engine thinks' },
   { id: 'about-traveller', title: 'Built around the traveller' },
+  { id: 'about-comfort-simple', title: 'Comfort Score, simply' },
   { id: 'about-build-clarity', title: 'What the build makes clear' },
   { id: 'about-technology', title: 'Technology stack' },
+  { id: 'about-feedback', title: 'Share feedback' },
   { id: 'about-scope', title: 'Prototype scope' },
 ];
 
@@ -125,6 +129,28 @@ export default function AboutPage() {
         </ul>
       </section>
 
+      <section className="about-comfort-simple" id="about-comfort-simple" aria-labelledby="about-comfort-simple-title">
+        <div className="about-comfort-simple-heading">
+          <p className="section-kicker">Comfort Score, in the simplest words</p>
+          <h2 id="about-comfort-simple-title">How easy will this journey feel?</h2>
+          <p>Think of it as an effort meter, not a promise that a ticket will be confirmed.</p>
+        </div>
+        <div className="about-comfort-simple-body">
+          <div className="about-comfort-meter" aria-label="Example Comfort Score: 89 out of 100">
+            <strong>89</strong><span>out of 100</span><small>Very comfortable</small>
+          </div>
+          <ol>
+            <li><span>1</span><div><strong>Start at 100.</strong><p>A simple journey begins with a full score.</p></div></li>
+            <li><span>2</span><div><strong>Small chores remove points.</strong><p>Changing seats, managing another ticket, walking to a different coach, moving at night, or getting the wrong berth makes the number smaller.</p></div></li>
+            <li><span>3</span><div><strong>Your needs decide how much.</strong><p>The same change matters more for an elderly traveller, a family, or someone carrying heavy luggage. Staying in one coach or matching a requested lower berth can add a few points back.</p></div></li>
+          </ol>
+        </div>
+        <div className="about-comfort-bands" aria-label="Comfort Score meanings">
+          <span><b>90–100</b>Very easy</span><span><b>80–89</b>Comfortable</span><span><b>65–79</b>Manageable</span><span><b>Below 65</b>More effort</span>
+        </div>
+        <p className="about-comfort-bottomline"><strong>Big number = easier journey.</strong> RailSetu uses it to rank valid paths; it never replaces live availability or a booking confirmation. <Link href="/comfort-score">See the full calculation →</Link></p>
+      </section>
+
       <section className="about-clarity" id="about-build-clarity">
         <div className="about-clarity-heading">
           <p className="section-kicker">What the build makes obvious</p>
@@ -152,6 +178,15 @@ export default function AboutPage() {
         </div>
         <TechnologyLoop />
         <p className="about-technology-note">Move your pointer over the stack to pause it.</p>
+      </section>
+
+      <section className="about-feedback" id="about-feedback" aria-labelledby="about-feedback-title">
+        <div>
+          <p className="section-kicker">Made with travellers</p>
+          <h2 id="about-feedback-title">See something we can improve?</h2>
+          <p>Tell us what felt useful, confusing, or missing. Short and honest is perfect.</p>
+        </div>
+        <AboutFeedback />
       </section>
 
       <footer className="about-footer" id="about-scope">
