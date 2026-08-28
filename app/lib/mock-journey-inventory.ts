@@ -34,15 +34,22 @@ const stationDefinitions: readonly StationDefinition[] = [
   { code: 'PRYJ', name: 'Prayagraj Junction', latitude: 25.4358, longitude: 81.8463 },
   { code: 'PNBE', name: 'Patna Junction', latitude: 25.6027, longitude: 85.1373 },
   { code: 'HWH', name: 'Howrah Junction', latitude: 22.5839, longitude: 88.3428 },
+  { code: 'VGLJ', name: 'Virangana Lakshmibai Jhansi', latitude: 25.4333, longitude: 78.5535 },
   { code: 'REWA', name: 'Rewa', latitude: 24.5362, longitude: 81.3042 },
   { code: 'BPL', name: 'Bhopal Junction', latitude: 23.2685, longitude: 77.4139 },
+  { code: 'ET', name: 'Itarsi Junction', latitude: 22.6117, longitude: 77.7623 },
   { code: 'BTC', name: 'Balaghat Junction', latitude: 21.8129, longitude: 80.1838 },
   { code: 'NGP', name: 'Nagpur Junction', latitude: 21.1539, longitude: 79.0882 },
   { code: 'RJN', name: 'Rajnandgaon', latitude: 21.0972, longitude: 81.0302 },
   { code: 'DURG', name: 'Durg Junction', latitude: 21.1907, longitude: 81.2849 },
   { code: 'R', name: 'Raipur Junction', latitude: 21.2560, longitude: 81.6296 },
+  { code: 'BSP', name: 'Bilaspur Junction', latitude: 22.0546, longitude: 82.1732 },
+  { code: 'BSL', name: 'Bhusaval Junction', latitude: 21.0456, longitude: 75.7886 },
   { code: 'CSMT', name: 'Mumbai CSMT', latitude: 18.9398, longitude: 72.8355 },
+  { code: 'BDTS', name: 'Bandra Terminus', latitude: 19.0623, longitude: 72.8406 },
+  { code: 'ST', name: 'Surat', latitude: 21.2049, longitude: 72.8411 },
   { code: 'BRC', name: 'Vadodara Junction', latitude: 22.3107, longitude: 73.1812 },
+  { code: 'ADI', name: 'Ahmedabad Junction', latitude: 23.0260, longitude: 72.6003 },
   { code: 'BHUJ', name: 'Bhuj', latitude: 23.2530, longitude: 69.6693 },
   { code: 'PUNE', name: 'Pune Junction', latitude: 18.5289, longitude: 73.8744 },
   { code: 'SUR', name: 'Solapur', latitude: 17.6649, longitude: 75.8930 },
@@ -56,6 +63,7 @@ const stationDefinitions: readonly StationDefinition[] = [
   { code: 'JTJ', name: 'Jolarpettai Junction', latitude: 12.5700, longitude: 78.5744 },
   { code: 'KJM', name: 'Krishnarajapuram', latitude: 13.0007, longitude: 77.6758 },
   { code: 'SBC', name: 'KSR Bengaluru', latitude: 12.9784, longitude: 77.5720 },
+  { code: 'LDH', name: 'Ludhiana Junction', latitude: 30.9120, longitude: 75.8480 },
   { code: 'JAT', name: 'Jammu Tawi', latitude: 32.7069, longitude: 74.8806 },
 ];
 
@@ -71,22 +79,22 @@ const services: readonly ServiceBlueprint[] = [
   },
   { numbers: ['12702', '12701'], name: 'Hussainsagar Express', route: ['PUNE', 'SUR', 'KLBG', 'WADI', 'HYB'], departures: ['18:35', '14:40'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12657', '12658'], name: 'Chennai Mail', route: ['MAS', 'KPD', 'JTJ', 'KJM', 'SBC'], departures: ['22:50', '22:40'], classes: MIXED_CLASSES },
-  { numbers: ['12628', '12627'], name: 'Karnataka Express', route: ['NDLS', 'BPL', 'NGP', 'HYB', 'WADI', 'SBC'], departures: ['20:20', '19:20'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['11019', '11020'], name: 'Konark Express', route: ['CSMT', 'PUNE', 'SUR', 'WADI', 'HYB', 'BZA', 'MAS'], departures: ['14:00', '12:10'], classes: EXPRESS_CLASSES },
-  { numbers: ['12295', '12296'], name: 'Sanghamitra Express', route: ['PNBE', 'PRYJ', 'BPL', 'NGP', 'HYB', 'BZA', 'MAS', 'SBC'], departures: ['20:15', '09:10'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12628', '12627'], name: 'Karnataka Express', route: ['NDLS', 'VGLJ', 'BPL', 'ET', 'BSL', 'SUR', 'KLBG', 'WADI', 'SBC'], departures: ['20:20', '19:20'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['11019', '11020'], name: 'Konark Express', route: ['CSMT', 'PUNE', 'SUR', 'WADI', 'HYB', 'BZA', 'PURI'], departures: ['14:00', '12:10'], classes: EXPRESS_CLASSES },
+  { numbers: ['12295', '12296'], name: 'Sanghamitra Express', route: ['PNBE', 'NGP', 'BZA', 'MAS', 'SBC'], departures: ['20:15', '09:10'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12303', '12304'], name: 'Poorva Express', route: ['NDLS', 'CNB', 'PRYJ', 'PNBE', 'HWH'], departures: ['17:40', '08:15'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12841', '12842'], name: 'Coromandel Express', route: ['HWH', 'BZA', 'MAS'], departures: ['15:20', '07:00'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['12723', '12724'], name: 'Telangana Express', route: ['HYB', 'NGP', 'BPL', 'NDLS'], departures: ['06:25', '16:00'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['12615', '12616'], name: 'Grand Trunk Express', route: ['MAS', 'BZA', 'HYB', 'NGP', 'BPL', 'NDLS'], departures: ['19:15', '16:10'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12723', '12724'], name: 'Telangana Express', route: ['HYB', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['06:25', '16:00'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12615', '12616'], name: 'Grand Trunk Express', route: ['MAS', 'BZA', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['19:15', '16:10'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12321', '12322'], name: 'Mumbai Mail', route: ['CSMT', 'NGP', 'HWH'], departures: ['22:15', '23:35'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['12437', '12438'], name: 'Secunderabad Rajdhani', route: ['ALJN', 'NDLS', 'BPL', 'NGP', 'HYB', 'WADI', 'KLBG', 'SUR', 'PUNE', 'CSMT'], departures: ['15:05', '19:35'], classes: ['1A', '2A', '3A'] },
-  { numbers: ['12577', '12578'], name: 'Bagmati Express', route: ['KPD', 'JTJ', 'KJM', 'SBC', 'WADI', 'HYB', 'NGP', 'BPL', 'CNB', 'PRYJ', 'PNBE', 'HWH'], departures: ['05:40', '07:15'], classes: EXPRESS_CLASSES },
-  { numbers: ['12647', '12648'], name: 'Kongu Express', route: ['HWH', 'PNBE', 'PRYJ', 'BPL', 'NGP', 'BZA', 'MAS', 'KPD', 'JTJ', 'SBC'], departures: ['11:30', '23:45'], classes: ALL_CLASSES },
-  { numbers: ['12549', '12550'], name: 'Durg Jammu Tawi Express', route: ['DURG', 'R', 'NGP', 'BPL', 'NDLS', 'JAT'], departures: ['12:15', '04:35'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['18237', '18238'], name: 'Chhattisgarh Express', route: ['RJN', 'DURG', 'R', 'NGP', 'BPL', 'NDLS'], departures: ['15:35', '04:25'], classes: EXPRESS_CLASSES },
-  { numbers: ['11703', '11704'], name: 'Rewa Itwari Express', route: ['REWA', 'BPL', 'BTC', 'NGP'], departures: ['17:20', '18:30'], classes: EXPRESS_CLASSES },
-  { numbers: ['22955', '22956'], name: 'Kutch Express', route: ['CSMT', 'BRC', 'BHUJ'], departures: ['17:45', '20:15'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['12843', '12844'], name: 'Puri Ahmedabad Express', route: ['PURI', 'R', 'DURG', 'NGP', 'BPL', 'BRC'], departures: ['17:30', '18:40'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12437', '12438'], name: 'Secunderabad Rajdhani', route: ['HYB', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['12:45', '15:35'], classes: ['1A', '2A', '3A'] },
+  { numbers: ['12577', '12578'], name: 'Bagmati Express', route: ['SBC', 'KJM', 'JTJ', 'KPD', 'MAS', 'BZA', 'NGP', 'PRYJ', 'PNBE'], departures: ['05:40', '07:15'], classes: EXPRESS_CLASSES },
+  { numbers: ['12647', '12648'], name: 'Kongu Express', route: ['KJM', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['11:30', '23:45'], classes: ALL_CLASSES },
+  { numbers: ['12425', '12426'], name: 'Jammu Rajdhani', route: ['NDLS', 'LDH', 'JAT'], departures: ['20:40', '21:25'], classes: ['1A', '2A', '3A'] },
+  { numbers: ['18237', '18238'], name: 'Chhattisgarh Express', route: ['BSP', 'R', 'DURG', 'RJN', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['14:15', '04:25'], classes: EXPRESS_CLASSES },
+  { numbers: ['11703', '11704'], name: 'Rewa Itwari Express', route: ['REWA', 'BTC', 'NGP'], departures: ['17:20', '18:30'], classes: EXPRESS_CLASSES },
+  { numbers: ['22955', '22956'], name: 'Kutch Express', route: ['BDTS', 'BRC', 'BHUJ'], departures: ['17:45', '20:15'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12843', '12844'], name: 'Puri Ahmedabad Express', route: ['PURI', 'R', 'DURG', 'RJN', 'NGP', 'BSL', 'ST', 'BRC', 'ADI'], departures: ['17:30', '18:40'], classes: OVERNIGHT_CLASSES },
 ];
 
 const stationByCode = new Map(stationDefinitions.map((station) => [station.code, station]));
@@ -210,7 +218,8 @@ function generatedChain(
   const seed = hash(`${number}|${route[fromIndex]}|${route[toIndex]}|${travelClass}|${variant}`);
   const interiorCount = Math.max(0, toIndex - fromIndex - 1);
   const changeRoll = seed % 100;
-  const requestedChanges = interiorCount === 0 ? 0 : changeRoll < 48 ? 1 : changeRoll < 80 ? 2 : 3;
+  if (interiorCount === 0) return [];
+  const requestedChanges = changeRoll < 48 ? 1 : changeRoll < 80 ? 2 : 3;
   const changes = Math.min(interiorCount, requestedChanges);
   const points = splitIndices(fromIndex, toIndex, changes, seed);
   const totalDistance = points.slice(1).reduce((total, point, index) => total + distanceKm(route[points[index]], route[point]), 0);
@@ -262,20 +271,22 @@ function trainForQuery(service: ServiceBlueprint, direction: 0 | 1, context: Inv
   const waitlist = pinned ? 46 : 8 + (hash(`${scheduled.number}|${context.from}|${context.to}|${travelClass}`) % 51);
   const inventory = pinned
     ? pinned
-    : [0, 1].flatMap((variant) => generatedChain(
+    : generatedChain(
       scheduled.number,
       scheduled.route,
       fromIndex,
       toIndex,
       travelClass,
       directFare,
-      variant,
-    ));
+      0,
+    );
+  const journeyMinutes = scheduled.route.slice(fromIndex + 1, toIndex + 1)
+    .reduce((total, code, index) => total + segmentMinutes(scheduled.route[fromIndex + index], code), 0);
 
   return {
     number: scheduled.number,
     name: service.name,
-    duration: scheduled.duration,
+    duration: `${Math.floor(journeyMinutes / 60)}h ${String(journeyMinutes % 60).padStart(2, '0')}m`,
     stations: scheduled.stations,
     direct: { label: `WL ${waitlist}`, fare: directFare },
     inventory,
@@ -305,7 +316,7 @@ export const mockInventoryCoverage = (() => {
 
 export const mockJourneyInventoryProvider: JourneyInventoryProvider = Object.freeze({
   id: 'railsetu-representative-india',
-  version: '2026.08.28.1',
+  version: '2026.08.29.1',
   listStations: () => stationDefinitions.map(({ code, name }) => ({ code, name })),
   getInventory: getMockInventory,
   diagnostics: () => ({

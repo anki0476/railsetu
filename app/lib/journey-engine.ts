@@ -173,9 +173,14 @@ export function solveJourneyFromInventory(query: JourneyQuery, snapshot: Journey
     walk(query.from, []);
   });
 
-  const unique = Array.from(new Map(solutions.map((solution) => [solution.id, solution])).values());
-  unique.sort((first, second) => second.comfort - first.comfort || first.fare - second.fare);
-  return { direct, solutions: unique.slice(0, JOURNEY_ENGINE_LIMITS.maxReturnedSolutions), recommendations: [] };
+  solutions.sort((first, second) => second.comfort - first.comfort || first.fare - second.fare);
+  const seenTrains = new Set<string>();
+  const uniqueByTrain = solutions.filter((solution) => {
+    if (seenTrains.has(solution.trainNumber)) return false;
+    seenTrains.add(solution.trainNumber);
+    return true;
+  });
+  return { direct, solutions: uniqueByTrain.slice(0, JOURNEY_ENGINE_LIMITS.maxReturnedSolutions), recommendations: [] };
 }
 
 const classNames: Readonly<Record<string, string>> = {
