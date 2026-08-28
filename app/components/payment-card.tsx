@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 
 type PaymentMode = 'upi' | 'visa' | 'mastercard';
@@ -114,7 +115,7 @@ export default function PaymentCard() {
         </button>
       </span>
       <p className="payment-prototype-note">Prototype checkout · no payment will be collected</p>
-      {otpState !== 'hidden' ? (
+      {otpState !== 'hidden' && typeof document !== 'undefined' ? createPortal((
         <div className="payment-otp-backdrop" role="presentation">
           <section className="payment-otp-dialog" role="dialog" aria-modal="true" aria-labelledby="payment-otp-title">
             <span className="payment-otp-icon" aria-hidden="true">✦</span>
@@ -132,7 +133,7 @@ export default function PaymentCard() {
             <p className="payment-otp-note">Prototype only · no OTP is sent and no payment is collected</p>
           </section>
         </div>
-      ) : null}
+      ), document.body) : null}
     </section>
   );
 }
