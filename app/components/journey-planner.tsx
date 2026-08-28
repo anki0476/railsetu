@@ -251,6 +251,7 @@ export default function JourneyPlanner() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [presets, setPresets] = useState<SavedPreset[]>([]);
+  const [presetJustSaved, setPresetJustSaved] = useState(false);
   const [searchPhase, setSearchPhase] = useState<SearchPhase>('idle');
   const [speechOpen, setSpeechOpen] = useState(false);
   const [speechDraft, setSpeechDraft] = useState('');
@@ -262,6 +263,8 @@ export default function JourneyPlanner() {
   const searchSequence = useRef(0);
   const searchRequest = useRef<AbortController | null>(null);
   const resultsAnchor = useRef<HTMLDivElement>(null);
+  const presetsAnchor = useRef<HTMLElement>(null);
+  const presetHighlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateInput = useRef<HTMLInputElement>(null);
   const mapTrigger = useRef<HTMLButtonElement>(null);
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
@@ -294,6 +297,7 @@ export default function JourneyPlanner() {
     searchSequence.current += 1;
     searchRequest.current?.abort();
     searchTimers.current.forEach(clearTimeout);
+    if (presetHighlightTimer.current) clearTimeout(presetHighlightTimer.current);
     speechRecognition.current?.abort();
   }, []);
 
@@ -327,6 +331,15 @@ export default function JourneyPlanner() {
     const next = [preset, ...presets.filter((item) => !(item.mode === mode && presetMatchesForm(item, form)))].slice(0, 8);
     persistPresets(next);
     setSaveMenuOpen(false);
+    setPresetJustSaved(true);
+    if (presetHighlightTimer.current) clearTimeout(presetHighlightTimer.current);
+    requestAnimationFrame(() => {
+      presetsAnchor.current?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    });
+    presetHighlightTimer.current = setTimeout(() => setPresetJustSaved(false), 2200);
   };
 
   const loadPreset = (preset: SavedPreset) => {
@@ -875,7 +888,7 @@ export default function JourneyPlanner() {
 
       <p className="planner-disclaimer">Prototype results use representative inventory for product demonstration. Live railway availability will be connected in the data-integration phase.</p>
 
-      <section className="planner-presets" aria-labelledby="saved-presets-title">
+      <section ref={presetsAnchor} className={`planner-presets ${presetJustSaved ? 'is-save-highlighted' : ''}`} aria-labelledby="saved-presets-title">
         <div className="planner-presets-heading">
           <div>
             <span className="mini-label">Saved presets</span>
