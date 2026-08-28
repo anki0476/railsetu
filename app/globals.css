@@ -579,7 +579,7 @@ html.railsetu-dark .planner-page { color:#eef2ff; }.railsetu-dark .planner-page:
 
 @media (max-width: 760px) {
   .hero-shell { padding-inline:18px; }
-  .nav-wrap { height:76px; grid-template-columns:1fr auto; }.nav-links { display:none; }.nav-cta { padding:10px 13px; font-size:11px; }.planner-nav-actions { gap:7px; }.planner-settings-trigger { width:35px; height:35px; }.planner-settings-panel { top:calc(100% + 13px); }
+  .nav-wrap { height:76px; grid-template-columns:1fr auto; }.nav-links { display:none; }.nav-cta { padding:10px 13px; font-size:11px; }.planner-nav-actions { gap:7px; }.planner-settings-trigger { width:35px; height:35px; }.planner-settings-panel { position:fixed; top:88px; right:12px; left:12px; width:auto; max-height:calc(100svh - 104px); overflow-y:auto; overscroll-behavior:contain; }.planner-settings-panel::before { display:none; }
   .hero-copy { margin-top:58px; }.hero-copy h1 { font-size:clamp(50px,15vw,72px); }.hero-copy p { max-width:92%; }.hero-actions { flex-direction:column; gap:18px; }
   .ticket-story-wrap { width:100%; margin-top:76px; }.ticket-story-copy { align-items:flex-start; flex-direction:column; gap:13px; margin-inline:4px; }.ticket-story-copy p { align-self:flex-start; }.ticket-pixel-swap { border-radius:20px; }.ticket-state { left:12px; bottom:11px; padding:7px 9px; font-size:7px; }
   .product-stage { width:100%; margin-top:70px; padding:10px; border-radius:28px; }.journey-card { min-height:510px; padding:24px 18px; border-radius:22px; }.card-topline { flex-direction:column; }.card-topline h2 { font-size:23px; }.confirmed { align-self:flex-start; }.traveller-mode { width:100%; }.mode-tag { margin-left:auto; }
