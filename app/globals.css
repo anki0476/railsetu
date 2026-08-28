@@ -215,8 +215,12 @@ html.railsetu-cursor-enabled [role='button'] {
 .brand-font-thenyodia { font-family:'RailSetu Thenyodia',var(--font-geist),sans-serif; }
 .brand-font-transcity { font-family:'RailSetu Transcity',var(--font-geist),sans-serif; }
 .brand-font-silveridge { font-family:'RailSetu Silveridge',var(--font-geist),sans-serif; }
-.brand-mark { position:relative; display:inline-grid; flex:0 0 auto; width:48px; height:27px; place-items:center; overflow:hidden; }
-.brand-mark img { display:block; width:48px; height:48px; max-width:none; object-fit:contain; transform:scale(1.22); }
+.brand-mark { position:relative; display:inline-grid; flex:0 0 auto; width:70px; height:40px; place-items:center; overflow:hidden; filter:drop-shadow(0 7px 10px rgba(34,58,113,.2)); }
+.brand-mark img { display:block; width:70px; height:70px; max-width:none; object-fit:contain; filter:saturate(.7) contrast(1.12) brightness(1.06); transform:scale(1.22); }
+.brand-mark::after { content:''; position:absolute; inset:-12px; pointer-events:none; background:linear-gradient(112deg,transparent 14%,rgba(255,255,255,.18) 28%,#dceaff 39%,#6f8ec7 48%,#fff 55%,#90a9d8 63%,rgba(255,255,255,.08) 74%,transparent 86%); background-size:230% 100%; mix-blend-mode:screen; -webkit-mask:url('/railsetu-logo.png') center/contain no-repeat; mask:url('/railsetu-logo.png') center/contain no-repeat; animation:brand-metallic-paint 3.8s cubic-bezier(.45,0,.55,1) infinite; }
+.brand:hover .brand-mark::after { animation-duration:1.8s; }.brand:hover .brand-mark { filter:drop-shadow(0 8px 14px rgba(74,104,187,.34)); }
+@keyframes brand-metallic-paint { 0%,18% { background-position:150% 50%; opacity:.38; } 48% { opacity:.95; } 82%,100% { background-position:-80% 50%; opacity:.42; } }
+@media (prefers-reduced-motion:reduce) { .brand-mark::after { animation:none; background-position:45% 50%; opacity:.55; } }
 .nav-links { display: flex; gap: 34px; font-size: 13px; color: rgba(17,19,26,.68); }
 .nav-links a { transition: color .25s ease; }.nav-links a:hover { color: var(--ink); }
 .nav-cta { justify-self: end; display: inline-flex; align-items: center; gap: 12px; padding: 11px 17px; border: 1px solid rgba(20,26,48,.18); border-radius: 999px; font-size: 13px; background: rgba(255,255,255,.26); backdrop-filter: blur(10px); transition: .3s ease; }
