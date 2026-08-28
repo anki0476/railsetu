@@ -16,7 +16,7 @@ type ScoringLeg = {
   from: { time: string };
   to: { time: string };
   coach: string;
-  berth: 'LB' | 'MB' | 'UB' | 'SL';
+  berth: 'LB' | 'MB' | 'UB' | 'SL' | 'WS' | 'AS';
 };
 
 type ScoringQuery = {

@@ -1,4 +1,5 @@
-import { solveJourney, type JourneyOutcome } from '../../../lib/journey-engine';
+import { activeJourneyInventoryProvider } from '../../../lib/active-journey-inventory';
+import { solveJourneyFromInventory, type JourneyOutcome } from '../../../lib/journey-engine';
 import {
   JOURNEY_REQUEST_LIMIT_BYTES,
   JourneyRequestError,
@@ -73,12 +74,13 @@ export async function POST(request: Request) {
     }
 
     const query = parseJourneyRequest(parsed);
-    const key = journeyCacheKey(query);
+    const key = `${activeJourneyInventoryProvider.id}@${activeJourneyInventoryProvider.version}|${journeyCacheKey(query)}`;
     const now = Date.now();
     let outcome = getCached(key, now);
     const cacheStatus = outcome ? 'HIT' : 'MISS';
     if (!outcome) {
-      outcome = solveJourney(query);
+      const inventory = await activeJourneyInventoryProvider.getInventory(query);
+      outcome = solveJourneyFromInventory(query, inventory);
       setCached(key, outcome, now);
     }
 
