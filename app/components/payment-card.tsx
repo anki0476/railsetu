@@ -2,9 +2,15 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { OTPField, OTPFieldInput } from './ui/otp-field';
 
 type PaymentMode = 'upi' | 'visa' | 'mastercard';
 type PaymentState = 'idle' | 'processing' | 'done';
+type OTPState = 'hidden' | 'filling' | 'verified';
+
+const OTP_LENGTH = 6;
+const OTP_VALUE = '675624';
+const OTP_SLOT_KEYS = Array.from({ length: OTP_LENGTH }, (_, index) => `otp-slot-${index}`);
 
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 const modes: Array<{ id: PaymentMode; label: string; detail: string; mark: string }> = [
@@ -17,8 +23,11 @@ export default function PaymentCard() {
   const params = useSearchParams();
   const [selectedMode, setSelectedMode] = useState<PaymentMode>('upi');
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
+  const [otpState, setOtpState] = useState<OTPState>('hidden');
+  const [otpValue, setOtpValue] = useState('');
   const paymentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const otpTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const fareValue = Number(params.get('fare'));
   const fare = Number.isFinite(fareValue) && fareValue > 0 ? fareValue : 1440;
   const train = params.get('train') ?? '12310 · Magadh Express';
@@ -28,19 +37,39 @@ export default function PaymentCard() {
   useEffect(() => () => {
     if (paymentTimer.current) clearTimeout(paymentTimer.current);
     if (handoffTimer.current) clearTimeout(handoffTimer.current);
+    otpTimers.current.forEach(clearTimeout);
   }, []);
 
-  const proceed = () => {
+  const completePayment = (mode: PaymentMode) => {
     if (paymentState !== 'idle') return;
     setPaymentState('processing');
     paymentTimer.current = setTimeout(() => {
       setPaymentState('done');
       const ticketParams = new URLSearchParams(params.toString());
-      ticketParams.set('mode', selectedMode);
+      ticketParams.set('mode', mode);
       handoffTimer.current = setTimeout(() => {
         window.location.assign(`/ticket?${ticketParams.toString()}`);
       }, 850);
     }, 1450);
+  };
+
+  const beginOtpVerification = () => {
+    setOtpValue('');
+    setOtpState('filling');
+    OTP_VALUE.split('').forEach((_, index) => {
+      otpTimers.current.push(setTimeout(() => setOtpValue(OTP_VALUE.slice(0, index + 1)), 350 + index * 220));
+    });
+    otpTimers.current.push(setTimeout(() => setOtpState('verified'), 350 + OTP_LENGTH * 220));
+    otpTimers.current.push(setTimeout(() => {
+      setOtpState('hidden');
+      completePayment(selectedMode);
+    }, 350 + OTP_LENGTH * 220 + 700));
+  };
+
+  const proceed = () => {
+    if (paymentState !== 'idle') return;
+    if (selectedMode === 'upi') completePayment(selectedMode);
+    else beginOtpVerification();
   };
 
   return (
@@ -85,6 +114,25 @@ export default function PaymentCard() {
         </button>
       </span>
       <p className="payment-prototype-note">Prototype checkout · no payment will be collected</p>
+      {otpState !== 'hidden' ? (
+        <div className="payment-otp-backdrop" role="presentation">
+          <section className="payment-otp-dialog" role="dialog" aria-modal="true" aria-labelledby="payment-otp-title">
+            <span className="payment-otp-icon" aria-hidden="true">✦</span>
+            <small>Mock card verification</small>
+            <h2 id="payment-otp-title">Confirm your payment</h2>
+            <p>A one-time password was sent to the mobile number linked with this demo card.</p>
+            <OTPField aria-label="One-time password" length={OTP_LENGTH} value={otpValue} onChange={setOtpValue}>
+              {OTP_SLOT_KEYS.map((slotKey, index) => (
+                <OTPFieldInput key={slotKey} index={index} aria-label={`Character ${index + 1} of ${OTP_LENGTH}`} readOnly={otpState !== 'filling'} />
+              ))}
+            </OTPField>
+            <strong className={`payment-otp-status is-${otpState}`} aria-live="polite">
+              {otpState === 'verified' ? '✓ OTP verified — continuing securely' : 'Autofilling demo OTP…'}
+            </strong>
+            <p className="payment-otp-note">Prototype only · no OTP is sent and no payment is collected</p>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
