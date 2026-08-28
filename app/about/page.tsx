@@ -3,6 +3,7 @@ import AboutScrollIsland from '../components/about-scroll-island';
 import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import TactileGlareLink from '../components/tactile-glare-link';
+import HandwrittenSignature from '../components/handwritten-signature';
 
 export const metadata: Metadata = {
   title: 'About RailSetu — A precise way through the waitlist',
@@ -157,6 +158,8 @@ export default function AboutPage() {
           View journey preview <span>→</span>
         </TactileGlareLink>
       </footer>
+
+      <HandwrittenSignature />
     </main>
   );
 }

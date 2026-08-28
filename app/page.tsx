@@ -5,6 +5,7 @@ import TicketPixelSwap from './components/ticket-pixel-swap';
 import ChooseJourneyCueLink from './components/choose-journey-cue-link';
 import LandingFaq from './components/landing-faq';
 import IntroCarousel from './components/intro-carousel';
+import HandwrittenSignature from './components/handwritten-signature';
 
 const journeyStops = [
   { code: 'PUNE', time: '18:35', state: 'Board', active: true },
@@ -131,6 +132,8 @@ export default function Home() {
       </section>
 
       <LandingFaq />
+
+      <HandwrittenSignature />
     </main>
   );
 }

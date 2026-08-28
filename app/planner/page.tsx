@@ -3,6 +3,7 @@ import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import JourneyPlanner from '../components/journey-planner';
 import TactileGlareLink from '../components/tactile-glare-link';
+import HandwrittenSignature from '../components/handwritten-signature';
 
 export const metadata: Metadata = {
   title: 'RailSetu Journey Planner — Find confirmed paths',
@@ -47,6 +48,8 @@ export default function PlannerPage() {
         <span>RailSetu · independent civic-tech prototype</span>
         <a href="/">Return to the landing page <i>↗</i></a>
       </footer>
+
+      <HandwrittenSignature />
     </main>
   );
 }
