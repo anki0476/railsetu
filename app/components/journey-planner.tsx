@@ -87,6 +87,12 @@ const choiceStyle = {
   '--glare-opacity': 0.28,
 } as CSSProperties;
 
+const mapStyle = {
+  '--tactile-depth': '4px',
+  '--tactile-base': '#b8c6ec',
+  '--glare-opacity': 0.42,
+} as CSSProperties;
+
 const money = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
@@ -701,7 +707,14 @@ export default function JourneyPlanner() {
             <p>{submitted.date} · {submitted.travelClass} · ranked for {submitted.profile === 'elderly' ? 'limited mobility' : submitted.profile}</p>
           </div>
           <div className="planner-results-actions">
-            {best ? <button ref={mapTrigger} className="planner-view-map" type="button" onClick={() => setMapOpen(true)}><i aria-hidden="true">⌖</i> View on map</button> : null}
+            {best ? (
+              <span className="tactile-wrap planner-map-wrap" style={mapStyle}>
+                <span className="tactile-base" aria-hidden="true" />
+                <button ref={mapTrigger} className="tactile-cap glare-surface planner-view-map" type="button" onClick={() => setMapOpen(true)}>
+                  <i aria-hidden="true">⌖</i> View on map
+                </button>
+              </span>
+            ) : null}
             <span className={`planner-result-count ${outcome.solutions.length ? 'has-results' : ''}`}>{outcome.solutions.length} confirmed path{outcome.solutions.length === 1 ? '' : 's'}</span>
           </div>
         </div>
