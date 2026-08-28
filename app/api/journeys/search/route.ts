@@ -1,5 +1,5 @@
 import { activeJourneyInventoryProvider } from '../../../lib/active-journey-inventory';
-import { solveJourneyFromInventory, type JourneyOutcome } from '../../../lib/journey-engine';
+import { findJourneyRecommendations, solveJourneyFromInventory, type JourneyOutcome } from '../../../lib/journey-engine';
 import {
   JOURNEY_REQUEST_LIMIT_BYTES,
   JourneyRequestError,
@@ -81,6 +81,9 @@ export async function POST(request: Request) {
     if (!outcome) {
       const inventory = await activeJourneyInventoryProvider.getInventory(query);
       outcome = solveJourneyFromInventory(query, inventory);
+      if (!outcome.solutions.length) {
+        outcome.recommendations = await findJourneyRecommendations(query, activeJourneyInventoryProvider);
+      }
       setCached(key, outcome, now);
     }
 

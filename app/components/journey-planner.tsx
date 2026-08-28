@@ -7,6 +7,7 @@ import {
   stationOptions,
   type CoachPreference,
   type JourneyQuery,
+  type JourneyRecommendation,
   type JourneySolution,
   type LuggageLevel,
   type TravellerProfile,
@@ -128,6 +129,13 @@ function changeLimitLabel(form: Pick<PlannerForm, 'changeLimit' | 'customMaxChan
   if (form.changeLimit === 'any') return 'any number of changes';
   if (form.changeLimit === 'custom') return 'up to ' + form.customMaxChanges + ' changes';
   return form.changeLimit === 'two' ? 'up to 2 changes' : '1 change';
+}
+
+function recommendationChangeLimit(maxChanges: number): Pick<PlannerForm, 'changeLimit' | 'customMaxChanges'> {
+  if (maxChanges <= 1) return { changeLimit: 'one', customMaxChanges: maxChanges };
+  if (maxChanges === 2) return { changeLimit: 'two', customMaxChanges: maxChanges };
+  if (maxChanges >= JOURNEY_ENGINE_LIMITS.maxChanges) return { changeLimit: 'any', customMaxChanges: maxChanges };
+  return { changeLimit: 'custom', customMaxChanges: maxChanges };
 }
 
 function BookmarkIcon({ checked = false }: { checked?: boolean }) {
@@ -396,14 +404,12 @@ export default function JourneyPlanner() {
     setSpeechOpen(false);
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const runSearch = (nextSubmission: PlannerForm) => {
     searchSequence.current += 1;
     const sequence = searchSequence.current;
     searchRequest.current?.abort();
     searchTimers.current.forEach(clearTimeout);
     searchTimers.current = [];
-    const nextSubmission = { ...form };
     const query = journeyQuery(nextSubmission);
     const controller = new AbortController();
     searchRequest.current = controller;
@@ -434,6 +440,22 @@ export default function JourneyPlanner() {
           setSearchPhase('idle');
         }, completionDelay));
       });
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    runSearch({ ...form });
+  };
+
+  const applyRecommendation = (recommendation: JourneyRecommendation) => {
+    const nextSubmission: PlannerForm = {
+      ...form,
+      travelClass: recommendation.query.travelClass,
+      coachPreference: recommendation.query.coachPreference,
+      ...recommendationChangeLimit(recommendation.query.maxChanges),
+    };
+    setForm(nextSubmission);
+    runSearch(nextSubmission);
   };
 
   const continueToPayment = (solution: NonNullable<typeof best>) => {
@@ -823,11 +845,30 @@ export default function JourneyPlanner() {
             </div>
           </>
         ) : (
-          <div className="planner-empty">
+          <div className={`planner-empty ${outcome.recommendations.length ? 'has-recommendations' : ''}`}>
             <span aria-hidden="true">↗</span>
             <h3>No route matches every constraint yet.</h3>
-            <p>Try 3A inventory, allow nearby coach changes, or increase the maximum seat changes.</p>
-            <button type="button" onClick={() => { setForm(initialForm); setSubmitted(initialForm); }}>Restore the recommended search</button>
+            {outcome.recommendations.length ? (
+              <>
+                <p>RailSetu tested safer relaxations against this route&apos;s inventory. These are the smallest changes that unlock at least one confirmed path.</p>
+                <div className="planner-recommendation-list" aria-label="Recommended constraint changes">
+                  {outcome.recommendations.map((recommendation, index) => (
+                    <article className="planner-recommendation" key={recommendation.id}>
+                      <span>Option {String(index + 1).padStart(2, '0')}</span>
+                      <h4>{recommendation.title}</h4>
+                      <p>{recommendation.explanation}</p>
+                      <div>{recommendation.changes.map((change) => <small key={change}>{change}</small>)}</div>
+                      <button type="button" onClick={() => applyRecommendation(recommendation)}>Apply changes and search <i aria-hidden="true">→</i></button>
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p>No same-train inventory currently connects these stations, even after testing every supported class and safe constraint relaxation.</p>
+                <button type="button" onClick={() => { setForm(initialForm); setSubmitted(initialForm); setOutcome(solveJourney(journeyQuery(initialForm))); }}>Restore the recommended search</button>
+              </>
+            )}
           </div>
         )}
       </div>

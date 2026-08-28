@@ -68,6 +68,7 @@ const services: readonly ServiceBlueprint[] = [
   { numbers: ['12303', '12304'], name: 'Poorva Express', route: ['NDLS', 'CNB', 'PRYJ', 'PNBE', 'HWH'], departures: ['17:40', '08:15'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12841', '12842'], name: 'Coromandel Express', route: ['HWH', 'BZA', 'MAS'], departures: ['15:20', '07:00'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12723', '12724'], name: 'Telangana Express', route: ['HYB', 'NGP', 'BPL', 'NDLS'], departures: ['06:25', '16:00'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12615', '12616'], name: 'Grand Trunk Express', route: ['MAS', 'BZA', 'HYB', 'NGP', 'BPL', 'NDLS'], departures: ['19:15', '16:10'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12321', '12322'], name: 'Mumbai Mail', route: ['CSMT', 'NGP', 'HWH'], departures: ['22:15', '23:35'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12437', '12438'], name: 'Secunderabad Rajdhani', route: ['ALJN', 'NDLS', 'BPL', 'NGP', 'HYB', 'WADI', 'KLBG', 'SUR', 'PUNE', 'CSMT'], departures: ['15:05', '19:35'], classes: ['1A', '2A', '3A'] },
   { numbers: ['12577', '12578'], name: 'Bagmati Express', route: ['KPD', 'JTJ', 'KJM', 'SBC', 'WADI', 'HYB', 'NGP', 'BPL', 'CNB', 'PRYJ', 'PNBE', 'HWH'], departures: ['05:40', '07:15'], classes: EXPRESS_CLASSES },
