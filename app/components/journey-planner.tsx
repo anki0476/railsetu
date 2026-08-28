@@ -7,6 +7,7 @@ import {
   stationOptions,
   type CoachPreference,
   type JourneyQuery,
+  type JourneySolution,
   type LuggageLevel,
   type TravellerProfile,
 } from '../lib/journey-engine';
@@ -247,6 +248,7 @@ export default function JourneyPlanner() {
   const [speechDraft, setSpeechDraft] = useState('');
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('ready');
   const [mapOpen, setMapOpen] = useState(false);
+  const [mapSolution, setMapSolution] = useState<JourneySolution | null>(null);
   const [outcome, setOutcome] = useState(() => solveJourney(journeyQuery(initialForm)));
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const searchSequence = useRef(0);
@@ -262,6 +264,12 @@ export default function JourneyPlanner() {
     setMapOpen(false);
     requestAnimationFrame(() => mapTrigger.current?.focus());
   }, []);
+
+  const openMap = (solution: JourneySolution, trigger: HTMLButtonElement) => {
+    mapTrigger.current = trigger;
+    setMapSolution(solution);
+    setMapOpen(true);
+  };
 
   useEffect(() => {
     try {
@@ -710,7 +718,7 @@ export default function JourneyPlanner() {
             {best ? (
               <span className="tactile-wrap planner-map-wrap" style={mapStyle}>
                 <span className="tactile-base" aria-hidden="true" />
-                <button ref={mapTrigger} className="tactile-cap glare-surface planner-view-map" type="button" onClick={() => setMapOpen(true)}>
+                <button className="tactile-cap glare-surface planner-view-map" type="button" onClick={(event) => openMap(best, event.currentTarget)}>
                   <i aria-hidden="true">⌖</i> View on map
                 </button>
               </span>
@@ -748,7 +756,7 @@ export default function JourneyPlanner() {
               </article>
             </div>
 
-            <JourneyMapModal open={mapOpen} onClose={closeMap} solution={best} />
+            {mapSolution ? <JourneyMapModal open={mapOpen} onClose={closeMap} solution={mapSolution} /> : null}
 
             <div className="planner-solution-list">
               {outcome.solutions.map((solution, solutionIndex) => {
@@ -760,17 +768,25 @@ export default function JourneyPlanner() {
                         <h3>{solution.trainNumber} · {solution.trainName}</h3>
                         <p>{solution.duration} total train journey</p>
                       </div>
-                      <div className="planner-comfort">
-                        <strong>{solution.comfort}</strong>
-                        <span>Comfort<br />score</span>
-                        <a className="planner-comfort-info" href="/comfort-score" aria-label={'Learn how the comfort score of ' + solution.comfort + ' is calculated'}>
-                          i
-                          <span className="planner-comfort-tooltip" role="tooltip">
-                            <b>{solution.comfortDetails.label}</b>
-                            <small>{solution.comfortDetails.summary}</small>
-                            <span className="planner-comfort-learn">Learn more →</span>
-                          </span>
-                        </a>
+                      <div className="planner-solution-actions">
+                        <span className="tactile-wrap planner-map-wrap" style={mapStyle}>
+                          <span className="tactile-base" aria-hidden="true" />
+                          <button className="tactile-cap glare-surface planner-view-map" type="button" onClick={(event) => openMap(solution, event.currentTarget)} aria-label={`View ${solution.trainNumber} ${solution.trainName} on map`}>
+                            <i aria-hidden="true">⌖</i> View on map
+                          </button>
+                        </span>
+                        <div className="planner-comfort">
+                          <strong>{solution.comfort}</strong>
+                          <span>Comfort<br />score</span>
+                          <a className="planner-comfort-info" href="/comfort-score" aria-label={'Learn how the comfort score of ' + solution.comfort + ' is calculated'}>
+                            i
+                            <span className="planner-comfort-tooltip" role="tooltip">
+                              <b>{solution.comfortDetails.label}</b>
+                              <small>{solution.comfortDetails.summary}</small>
+                              <span className="planner-comfort-learn">Learn more →</span>
+                            </span>
+                          </a>
+                        </div>
                       </div>
                     </div>
 
