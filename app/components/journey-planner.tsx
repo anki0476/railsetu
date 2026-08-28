@@ -14,6 +14,7 @@ import {
 } from '../lib/journey-engine';
 import { searchJourney } from '../lib/journey-client';
 import JourneyMapModal from './journey-map-modal';
+import { useSiteLanguage } from './site-language';
 
 type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
 type PlannerForm = Omit<JourneyQuery, 'maxChanges'> & {
@@ -121,8 +122,16 @@ function changeLimitValue(form: PlannerForm) {
 }
 
 function journeyQuery(form: PlannerForm): JourneyQuery {
-  const { date: _date, note: _note, changeLimit: _changeLimit, customMaxChanges: _customMaxChanges, ...query } = form;
-  return { ...query, maxChanges: changeLimitValue(form) };
+  return {
+    from: form.from,
+    to: form.to,
+    travelClass: form.travelClass,
+    profile: form.profile,
+    coachPreference: form.coachPreference,
+    luggage: form.luggage,
+    lowerBerth: form.lowerBerth,
+    maxChanges: changeLimitValue(form),
+  };
 }
 
 function changeLimitLabel(form: Pick<PlannerForm, 'changeLimit' | 'customMaxChanges'>) {
@@ -246,6 +255,7 @@ function StationSwapButton({ onSwap }: { onSwap: () => void }) {
 }
 
 export default function JourneyPlanner() {
+  const { language } = useSiteLanguage();
   const [form, setForm] = useState<PlannerForm>(initialForm);
   const [submitted, setSubmitted] = useState<PlannerForm>(initialForm);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -287,6 +297,8 @@ export default function JourneyPlanner() {
       const stored = window.localStorage.getItem(PRESET_STORAGE_KEY);
       if (!stored) return;
       const parsed = JSON.parse(stored) as { version?: number; items?: SavedPreset[] };
+      // Hydrate the device-local preset snapshot once after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (parsed.version === 1 && Array.isArray(parsed.items)) setPresets(parsed.items.slice(0, 8));
     } catch {
       // Ignore unavailable or malformed device-local storage.
@@ -385,7 +397,7 @@ export default function JourneyPlanner() {
     speechRecognition.current = recognition;
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-IN';
+    recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
     recognition.onresult = (event) => {
       let dictated = '';
       for (let index = 0; index < event.results.length; index += 1) dictated += event.results[index][0].transcript;
@@ -426,6 +438,8 @@ export default function JourneyPlanner() {
     const query = journeyQuery(nextSubmission);
     const controller = new AbortController();
     searchRequest.current = controller;
+    // Event-handler timing is intentionally sampled once for the staged status animation.
+    // eslint-disable-next-line react-hooks/purity
     const startedAt = Date.now();
     setSearchPhase('searching');
     requestAnimationFrame(() => resultsAnchor.current?.scrollIntoView({ behavior: 'auto', block: 'start' }));

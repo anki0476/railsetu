@@ -1,8 +1,15 @@
-const signatureWords = ['Built', 'with', '❤️', 'for', 'Indians'];
+'use client';
+
+import { useSiteLanguage } from './site-language';
+
+const englishSignatureWords = ['Built', 'with', '❤️', 'for', 'Indians'];
+const hindiSignatureWords = ['भारतीयों', 'के', 'लिए', '❤️', 'से', 'बनाया'];
 
 export default function HandwrittenSignature() {
+  const { language } = useSiteLanguage();
+  const signatureWords = language === 'hi' ? hindiSignatureWords : englishSignatureWords;
   return (
-    <div className="handwritten-signature" aria-label="Built with love for Indians by Ankit Shrivastava">
+    <div className="handwritten-signature" aria-label={language === 'hi' ? 'भारतीयों के लिए प्रेम से निर्मित · अंकित श्रीवास्तव' : 'Built with love for Indians by Ankit Shrivastava'}>
       <span className="signature-split-flap" aria-hidden="true">
         {signatureWords.map((word) => (
           <span className="signature-split-flap-word" key={word}>
@@ -22,7 +29,7 @@ export default function HandwrittenSignature() {
           </span>
         ))}
       </span>
-      <span className="signature-credit" aria-hidden="true">by Ankit Shrivastava</span>
+      <span className="signature-credit" aria-hidden="true">{language === 'hi' ? 'अंकित श्रीवास्तव द्वारा' : 'by Ankit Shrivastava'}</span>
     </div>
   );
 }

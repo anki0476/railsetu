@@ -1,13 +1,38 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import PassengerProfile from './passenger-profile';
 import JourneyHistory from './journey-history';
+import { useSiteLanguage } from './site-language';
 
 type SiteTheme = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'railsetu.theme.v1';
 const LEGACY_THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';
+const THEME_CHANGE_EVENT = 'railsetu:theme-change';
+let sessionTheme: SiteTheme = 'light';
+
+function readTheme(): SiteTheme {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+    if (stored === 'dark' || stored === 'light') sessionTheme = stored;
+  } catch {
+    // Keep the current session theme when device storage is unavailable.
+  }
+  return sessionTheme;
+}
+
+function subscribeToTheme(onStoreChange: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === THEME_STORAGE_KEY || event.key === LEGACY_THEME_STORAGE_KEY) onStoreChange();
+  };
+  window.addEventListener('storage', onStorage);
+  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStorage);
+    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  };
+}
 
 function applyTheme(theme: SiteTheme) {
   document.documentElement.classList.toggle('railsetu-dark', theme === 'dark');
@@ -33,28 +58,26 @@ function HistorySettingsIcon() {
   );
 }
 
+function LanguageSettingsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+    </svg>
+  );
+}
+
 export default function SiteSettings() {
+  const { language, setLanguage } = useSiteLanguage();
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState<SiteTheme>('light');
+  const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => 'light');
   const [profileOpen, setProfileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let stored: string | null = null;
-    try {
-      stored = window.localStorage.getItem(THEME_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
-    } catch {
-      // Use the light default if device storage is unavailable.
-    }
-    const initialTheme: SiteTheme = stored === 'dark' ? 'dark' : 'light';
-    setTheme(initialTheme);
-    applyTheme(initialTheme);
-    return () => {
-      document.documentElement.classList.remove('railsetu-dark');
-      document.documentElement.style.colorScheme = '';
-    };
-  }, []);
+    applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,13 +97,13 @@ export default function SiteSettings() {
 
   const toggleTheme = () => {
     const nextTheme: SiteTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    applyTheme(nextTheme);
+    sessionTheme = nextTheme;
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
     } catch {
       // The selected theme still applies for this session when storage is unavailable.
     }
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   };
 
   const isDark = theme === 'dark';
@@ -129,6 +152,24 @@ export default function SiteSettings() {
               <span className="planner-settings-option-copy"><strong>History</strong><small>Past journeys</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
+            <div className="planner-language-option">
+              <span className="planner-settings-option-icon"><LanguageSettingsIcon /></span>
+              <span className="planner-settings-option-copy"><strong>Website language</strong><small>English or Hindi</small></span>
+              <div className="planner-language-switch" role="group" aria-label="Choose website language">
+                <button
+                  type="button"
+                  className={language === 'en' ? 'is-active' : ''}
+                  aria-pressed={language === 'en'}
+                  onClick={() => setLanguage('en')}
+                >EN</button>
+                <button
+                  type="button"
+                  className={language === 'hi' ? 'is-active' : ''}
+                  aria-pressed={language === 'hi'}
+                  onClick={() => setLanguage('hi')}
+                >हिं</button>
+              </div>
+            </div>
           </div>
 
           <div className="planner-theme-row">
