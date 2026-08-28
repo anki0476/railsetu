@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import PaymentCard from '../components/payment-card';
 import TactileGlareLink from '../components/tactile-glare-link';
@@ -16,7 +17,7 @@ export default function PaymentPage() {
       <span className="payment-ambient payment-ambient-two" aria-hidden="true" />
       <nav className="nav-wrap payment-nav" aria-label="Payment navigation">
         <a className="brand" href="/" aria-label="RailSetu landing page">
-          <span className="brand-mark" aria-hidden="true"><i /><i /></span>
+          <BrandMark />
           <BrandTextType />
         </a>
         <span className="payment-nav-context"><i /> Prototype checkout</span>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import AboutScrollIsland from '../components/about-scroll-island';
+import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import TactileGlareLink from '../components/tactile-glare-link';
 
@@ -55,7 +56,7 @@ export default function AboutPage() {
     <main className="about-page">
       <nav className="nav-wrap about-nav" aria-label="About navigation">
         <a className="brand" href="/" aria-label="RailSetu home">
-          <span className="brand-mark" aria-hidden="true"><i /><i /></span>
+          <BrandMark />
           <BrandTextType />
         </a>
         <TactileGlareLink

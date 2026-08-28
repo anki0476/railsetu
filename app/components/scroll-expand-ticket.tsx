@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { ColorPanels } from '@paper-design/shaders-react';
 import { useSearchParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import BrandMark from './brand-mark';
 import TactileGlareLink from './tactile-glare-link';
 import { registerTicketInHistory } from '../lib/ticket-history';
 
@@ -294,7 +295,7 @@ export default function ScrollExpandTicket() {
             <div ref={ticketRef} className="ticket-detail-layer">
               <article className="rail-ticket" aria-labelledby="rail-ticket-title">
                 <header className="rail-ticket-header">
-                  <div className="rail-ticket-brand"><span className="brand-mark" aria-hidden="true"><i /><i /></span><strong>RailSetu</strong></div>
+                  <div className="rail-ticket-brand"><BrandMark /><strong>RailSetu</strong></div>
                   <div className="rail-ticket-status"><i /> Confirmed throughout</div>
                 </header>
 

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import JourneyPlanner from '../components/journey-planner';
 import TactileGlareLink from '../components/tactile-glare-link';
@@ -16,7 +17,7 @@ export default function PlannerPage() {
 
       <nav className="nav-wrap planner-nav" aria-label="Planner navigation">
         <a className="brand" href="/" aria-label="RailSetu landing page">
-          <span className="brand-mark" aria-hidden="true"><i /><i /></span>
+          <BrandMark />
           <BrandTextType />
         </a>
         <span className="planner-nav-context"><i /> Journey planner</span>

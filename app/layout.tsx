@@ -12,6 +12,11 @@ const geist = Geist({
 export const metadata: Metadata = {
   title: 'RailSetu — A better way through the waitlist',
   description: 'Passenger-aware confirmed journey planning for waitlisted train routes.',
+  icons: {
+    icon: '/railsetu-logo.png',
+    shortcut: '/railsetu-logo.png',
+    apple: '/railsetu-logo.png',
+  },
   openGraph: {
     title: 'RailSetu — A better way through the waitlist',
     description: 'Passenger-aware confirmed journey planning for waitlisted train routes.',

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import TactileGlareLink from '../components/tactile-glare-link';
 
@@ -20,7 +21,7 @@ export default function ComfortScorePage() {
     <main className="about-page comfort-score-page">
       <nav className="nav-wrap about-nav" aria-label="Comfort score navigation">
         <a className="brand" href="/" aria-label="RailSetu home">
-          <span className="brand-mark" aria-hidden="true"><i /><i /></span>
+          <BrandMark />
           <BrandTextType />
         </a>
         <TactileGlareLink className="nav-cta" wrapperClassName="nav-about-wrap" href="/planner" baseColor="#aebfdf" depth={4} glareOpacity={0.2}>

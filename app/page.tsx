@@ -1,4 +1,5 @@
 import TactileGlareLink from './components/tactile-glare-link';
+import BrandMark from './components/brand-mark';
 import BrandTextType from './components/brand-text-type';
 import TicketPixelSwap from './components/ticket-pixel-swap';
 import ChooseJourneyCueLink from './components/choose-journey-cue-link';
@@ -20,7 +21,7 @@ export default function Home() {
 
         <nav className="nav-wrap landing-nav" aria-label="Primary navigation">
           <a className="brand" href="#top" aria-label="RailSetu home">
-            <span className="brand-mark" aria-hidden="true"><i /><i /></span>
+            <BrandMark />
             <BrandTextType />
           </a>
           <TactileGlareLink
