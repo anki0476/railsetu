@@ -69,13 +69,13 @@ const stationDefinitions: readonly StationDefinition[] = [
 
 const services: readonly ServiceBlueprint[] = [
   {
-    numbers: ['12310', '12309'], name: 'Magadh Express', route: ['NDLS', 'ALJN', 'CNB', 'PRYJ', 'PNBE'],
-    departures: ['20:10', '17:10'], classes: OVERNIGHT_CLASSES,
+    numbers: ['12402', '12401'], name: 'Magadh Express', route: ['NDLS', 'ALJN', 'CNB', 'PRYJ', 'PNBE'],
+    departures: ['20:00', '17:10'], classes: OVERNIGHT_CLASSES,
     explicitTimes: {
-      '12310': ['20:10', '21:48', '01:05', '03:25', '09:40'],
-      '12309': ['17:10', '22:55', '01:15', '04:32', '06:10'],
+      '12402': ['20:00', '21:38', '00:55', '03:15', '09:30'],
+      '12401': ['17:10', '22:55', '01:15', '04:32', '06:10'],
     },
-    durationOverride: { '12310': '13h 30m', '12309': '13h 00m' },
+    durationOverride: { '12402': '13h 30m', '12401': '13h 00m' },
   },
   { numbers: ['12702', '12701'], name: 'Hussainsagar Express', route: ['PUNE', 'SUR', 'KLBG', 'WADI', 'HYB'], departures: ['18:35', '14:40'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12657', '12658'], name: 'Chennai Mail', route: ['MAS', 'KPD', 'JTJ', 'KJM', 'SBC'], departures: ['22:50', '22:40'], classes: MIXED_CLASSES },
@@ -86,14 +86,13 @@ const services: readonly ServiceBlueprint[] = [
   { numbers: ['12841', '12842'], name: 'Coromandel Express', route: ['HWH', 'BZA', 'MAS'], departures: ['15:20', '07:00'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12723', '12724'], name: 'Telangana Express', route: ['HYB', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['06:25', '16:00'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12615', '12616'], name: 'Grand Trunk Express', route: ['MAS', 'BZA', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['19:15', '16:10'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['12321', '12322'], name: 'Mumbai Mail', route: ['CSMT', 'NGP', 'HWH'], departures: ['22:15', '23:35'], classes: OVERNIGHT_CLASSES },
-  { numbers: ['12437', '12438'], name: 'Secunderabad Rajdhani', route: ['HYB', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['12:45', '15:35'], classes: ['1A', '2A', '3A'] },
+  { numbers: ['12321', '12322'], name: 'Mumbai Mail', route: ['HWH', 'PRYJ', 'ET', 'BSL', 'CSMT'], departures: ['21:55', '21:30'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12577', '12578'], name: 'Bagmati Express', route: ['SBC', 'KJM', 'JTJ', 'KPD', 'MAS', 'BZA', 'NGP', 'PRYJ', 'PNBE'], departures: ['05:40', '07:15'], classes: EXPRESS_CLASSES },
   { numbers: ['12647', '12648'], name: 'Kongu Express', route: ['KJM', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['11:30', '23:45'], classes: ALL_CLASSES },
   { numbers: ['12425', '12426'], name: 'Jammu Rajdhani', route: ['NDLS', 'LDH', 'JAT'], departures: ['20:40', '21:25'], classes: ['1A', '2A', '3A'] },
   { numbers: ['18237', '18238'], name: 'Chhattisgarh Express', route: ['BSP', 'R', 'DURG', 'RJN', 'NGP', 'BPL', 'VGLJ', 'NDLS'], departures: ['14:15', '04:25'], classes: EXPRESS_CLASSES },
   { numbers: ['11703', '11704'], name: 'Rewa Itwari Express', route: ['REWA', 'BTC', 'NGP'], departures: ['17:20', '18:30'], classes: EXPRESS_CLASSES },
-  { numbers: ['22955', '22956'], name: 'Kutch Express', route: ['BDTS', 'BRC', 'BHUJ'], departures: ['17:45', '20:15'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['22955', '22956'], name: 'Kutch Express', route: ['BDTS', 'ST', 'BRC', 'ADI', 'BHUJ'], departures: ['17:45', '20:15'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12843', '12844'], name: 'Puri Ahmedabad Express', route: ['PURI', 'R', 'DURG', 'RJN', 'NGP', 'BSL', 'ST', 'BRC', 'ADI'], departures: ['17:30', '18:40'], classes: OVERNIGHT_CLASSES },
 ];
 
@@ -218,7 +217,19 @@ function generatedChain(
   const seed = hash(`${number}|${route[fromIndex]}|${route[toIndex]}|${travelClass}|${variant}`);
   const interiorCount = Math.max(0, toIndex - fromIndex - 1);
   const changeRoll = seed % 100;
-  if (interiorCount === 0) return [];
+  if (interiorCount === 0) {
+    const seatSeed = hash(`${seed}|direct-segment`);
+    return [{
+      id: `${number}-${travelClass.toLowerCase()}-${fromIndex}-${toIndex}-${variant}-0`,
+      from: route[fromIndex],
+      to: route[toIndex],
+      coach: `${coachPrefix(travelClass)}${1 + ((seatSeed >>> 7) % 5)}`,
+      seat: String(1 + (seatSeed % (travelClass === '1A' ? 24 : 64))),
+      berth: berthFor(travelClass, seatSeed >>> 4),
+      fare: directFare,
+      travelClass,
+    }];
+  }
   const requestedChanges = changeRoll < 48 ? 1 : changeRoll < 80 ? 2 : 3;
   const changes = Math.min(interiorCount, requestedChanges);
   const points = splitIndices(fromIndex, toIndex, changes, seed);
@@ -266,7 +277,7 @@ function trainForQuery(service: ServiceBlueprint, direction: 0 | 1, context: Inv
   if (fromIndex < 0 || toIndex <= fromIndex) return null;
 
   const travelClass = context.travelClass as TravelClass;
-  const pinned = scheduled.number === '12310' ? pinnedMagadhChain(context) : null;
+  const pinned = scheduled.number === '12402' ? pinnedMagadhChain(context) : null;
   const directFare = pinned ? 1450 : fareFor(context.from, context.to, travelClass);
   const waitlist = pinned ? 46 : 8 + (hash(`${scheduled.number}|${context.from}|${context.to}|${travelClass}`) % 51);
   const inventory = pinned
@@ -288,7 +299,127 @@ function trainForQuery(service: ServiceBlueprint, direction: 0 | 1, context: Inv
     name: service.name,
     duration: `${Math.floor(journeyMinutes / 60)}h ${String(journeyMinutes % 60).padStart(2, '0')}m`,
     stations: scheduled.stations,
-    direct: { label: `WL ${waitlist}`, fare: directFare },
+    direct: {
+      label: toIndex === fromIndex + 1 ? 'AVAILABLE' : `WL ${waitlist}`,
+      fare: directFare,
+    },
+    inventory,
+  };
+}
+
+type ConnectionHop = {
+  service: ServiceBlueprint;
+  scheduled: ReturnType<typeof scheduleForDirection>;
+  fromIndex: number;
+  toIndex: number;
+};
+
+function routeDistance(route: readonly string[], fromIndex: number, toIndex: number) {
+  return route.slice(fromIndex + 1, toIndex + 1)
+    .reduce((total, code, index) => total + distanceKm(route[fromIndex + index], code), 0);
+}
+
+/**
+ * Finds a low-transfer path across the representative service blueprints. The
+ * transfer penalty intentionally dominates small distance savings so the
+ * prototype recommends a human-plausible interchange plan, not a zig-zag.
+ */
+function findConnectedItinerary(context: InventorySearchContext): ConnectionHop[] | null {
+  const eligible = services
+    .filter((service) => service.classes.includes(context.travelClass as TravelClass))
+    .flatMap((service) => ([0, 1] as const).map((direction) => ({
+      service,
+      scheduled: scheduleForDirection(service, direction),
+    })));
+  const frontier: Array<{ station: string; cost: number; hops: ConnectionHop[]; visited: Set<string> }> = [{
+    station: context.from,
+    cost: 0,
+    hops: [],
+    visited: new Set([context.from]),
+  }];
+  const bestCost = new Map<string, number>([[context.from, 0]]);
+
+  while (frontier.length) {
+    frontier.sort((first, second) => first.cost - second.cost || first.hops.length - second.hops.length);
+    const current = frontier.shift();
+    if (!current) break;
+    if (current.station === context.to) return current.hops;
+    if (current.hops.length >= 6) continue;
+
+    eligible.forEach(({ service, scheduled }) => {
+      const fromIndex = scheduled.route.indexOf(current.station);
+      if (fromIndex < 0) return;
+      for (let toIndex = fromIndex + 1; toIndex < scheduled.route.length; toIndex += 1) {
+        const traversed = scheduled.route.slice(fromIndex + 1, toIndex + 1);
+        if (traversed.some((code) => current.visited.has(code))) continue;
+        const destination = scheduled.route[toIndex];
+        const transferPenalty = current.hops.length ? 420 : 280;
+        const cost = current.cost + routeDistance(scheduled.route, fromIndex, toIndex) + transferPenalty;
+        if (cost >= (bestCost.get(destination) ?? Number.POSITIVE_INFINITY)) continue;
+        bestCost.set(destination, cost);
+        frontier.push({
+          station: destination,
+          cost,
+          hops: [...current.hops, { service, scheduled, fromIndex, toIndex }],
+          visited: new Set([...current.visited, ...traversed]),
+        });
+      }
+    });
+  }
+  return null;
+}
+
+function connectedTrainForQuery(context: InventorySearchContext): TrainInventoryRecord | null {
+  const hops = findConnectedItinerary(context);
+  if (!hops?.length) return null;
+  const travelClass = context.travelClass as TravelClass;
+  const route: string[] = [];
+  const stationTimes = new Map<string, string>();
+  const inventory: InventoryLegRecord[] = [];
+  let elapsed = minutes(hops[0].scheduled.stations[hops[0].fromIndex].time);
+  const journeyStart = elapsed;
+
+  hops.forEach((hop, hopIndex) => {
+    const hopRoute = hop.scheduled.route.slice(hop.fromIndex, hop.toIndex + 1);
+    if (hopIndex === 0) {
+      route.push(hopRoute[0]);
+      stationTimes.set(hopRoute[0], clock(elapsed));
+    } else {
+      const transferMinutes = 45 + (hash(`${context.from}|${context.to}|${hop.scheduled.number}`) % 16) * 5;
+      elapsed += transferMinutes;
+      stationTimes.set(hopRoute[0], clock(elapsed));
+    }
+    hopRoute.slice(1).forEach((code, index) => {
+      elapsed += segmentMinutes(hopRoute[index], code);
+      route.push(code);
+      stationTimes.set(code, clock(elapsed));
+    });
+
+    const seed = hash(`${hop.scheduled.number}|${context.from}|${context.to}|${travelClass}|connection`);
+    inventory.push({
+      id: `connection-${hop.scheduled.number}-${hop.fromIndex}-${hop.toIndex}-${travelClass.toLowerCase()}`,
+      from: hopRoute[0],
+      to: hopRoute[hopRoute.length - 1],
+      coach: `${coachPrefix(travelClass)}${1 + ((seed >>> 8) % 5)}`,
+      seat: String(1 + (seed % (travelClass === '1A' ? 24 : 64))),
+      berth: berthFor(travelClass, seed >>> 4),
+      fare: fareFor(hopRoute[0], hopRoute[hopRoute.length - 1], travelClass),
+      travelClass,
+    });
+  });
+
+  const stations = route.map((code): ScheduledStation => {
+    const station = stationByCode.get(code);
+    if (!station) throw new Error(`Unknown connected-itinerary station ${code}.`);
+    return { code, name: station.name, time: stationTimes.get(code) ?? '00:00' };
+  });
+  const totalMinutes = Math.max(1, elapsed - journeyStart);
+  return {
+    number: hops.map((hop) => hop.scheduled.number).join(' / '),
+    name: hops.map((hop) => hop.service.name).join(' → '),
+    duration: `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`,
+    stations,
+    direct: null,
     inventory,
   };
 }
@@ -297,26 +428,32 @@ function getMockInventory(context: InventorySearchContext): JourneyInventorySnap
   const trains = services.flatMap((service) => ([0, 1] as const)
     .map((direction) => trainForQuery(service, direction, context))
     .filter((train): train is TrainInventoryRecord => Boolean(train)));
+  if (!trains.length) {
+    const connected = connectedTrainForQuery(context);
+    if (connected) trains.push(connected);
+  }
   return { providerId: mockJourneyInventoryProvider.id, version: mockJourneyInventoryProvider.version, trains };
 }
 
 export const mockInventoryCoverage = (() => {
-  const pairs = new Set<string>();
-  services.forEach((service) => {
-    for (let first = 0; first < service.route.length; first += 1) {
-      for (let second = first + 1; second < service.route.length; second += 1) {
-        pairs.add([service.route[first], service.route[second]].sort().join('|'));
-      }
-    }
-  });
   const stationCount = stationDefinitions.length;
   const totalPairs = stationCount * (stationCount - 1) / 2;
-  return Object.freeze({ stationCount, serviceCount: services.length * 2, connectedPairs: pairs.size, totalPairs, ratio: pairs.size / totalPairs });
+  let connectedPairs = 0;
+  for (let first = 0; first < stationDefinitions.length; first += 1) {
+    for (let second = first + 1; second < stationDefinitions.length; second += 1) {
+      const from = stationDefinitions[first].code;
+      const to = stationDefinitions[second].code;
+      const direct = services.some((service) => service.classes.includes('3A')
+        && service.route.includes(from) && service.route.includes(to));
+      if (direct || findConnectedItinerary({ from, to, travelClass: '3A' })) connectedPairs += 1;
+    }
+  }
+  return Object.freeze({ stationCount, serviceCount: services.length * 2, connectedPairs, totalPairs, ratio: connectedPairs / totalPairs });
 })();
 
 export const mockJourneyInventoryProvider: JourneyInventoryProvider = Object.freeze({
   id: 'railsetu-representative-india',
-  version: '2026.08.29.1',
+  version: '2026.08.29.2',
   listStations: () => stationDefinitions.map(({ code, name }) => ({ code, name })),
   getInventory: getMockInventory,
   diagnostics: () => ({

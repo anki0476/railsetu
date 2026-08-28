@@ -33,7 +33,7 @@ export type TrainInventoryRecord = {
   name: string;
   duration: string;
   stations: ScheduledStation[];
-  direct: { label: string; fare: number };
+  direct: { label: string; fare: number } | null;
   inventory: InventoryLegRecord[];
 };
 
