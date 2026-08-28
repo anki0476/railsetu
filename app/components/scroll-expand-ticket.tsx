@@ -159,9 +159,15 @@ export default function ScrollExpandTicket() {
     const eased = smoothstep(0, 1, progress);
     const width = stage.clientWidth;
     const height = stage.clientHeight;
-    const compactSize = clamp(Math.min(width * 0.48, height * 0.45), 218, 318);
-    const compactHorizontal = Math.max(0, (width - compactSize) / 2);
-    const compactVertical = Math.max(0, (height - compactSize) / 2);
+    const isMobile = width < 760;
+    const compactWidth = isMobile
+      ? clamp(Math.min(width * 0.76, height * 0.42), 250, 318)
+      : clamp(Math.min(width * 0.48, height * 0.45), 218, 318);
+    const compactHeight = isMobile
+      ? Math.min(height - 120, compactWidth + 92)
+      : compactWidth;
+    const compactHorizontal = Math.max(0, (width - compactWidth) / 2);
+    const compactVertical = Math.max(0, (height - compactHeight) / 2);
     const expandedHorizontal = 0;
     const expandedVertical = 0;
     const horizontalInset = compactHorizontal + (expandedHorizontal - compactHorizontal) * eased;
