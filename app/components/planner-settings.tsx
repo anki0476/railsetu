@@ -60,9 +60,9 @@ function HistorySettingsIcon() {
 
 function LanguageSettingsIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+    <svg className="planner-settings-language-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle className="planner-settings-language-outline" cx="12" cy="12" r="9" />
+      <path className="planner-settings-language-orbits" d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
     </svg>
   );
 }
@@ -155,20 +155,18 @@ export default function SiteSettings() {
             <div className="planner-language-option">
               <span className="planner-settings-option-icon"><LanguageSettingsIcon /></span>
               <span className="planner-settings-option-copy"><strong>Website language</strong><small>English or Hindi</small></span>
-              <div className="planner-language-switch" role="group" aria-label="Choose website language">
-                <button
-                  type="button"
-                  className={language === 'en' ? 'is-active' : ''}
-                  aria-pressed={language === 'en'}
-                  onClick={() => setLanguage('en')}
-                >EN</button>
-                <button
-                  type="button"
-                  className={language === 'hi' ? 'is-active' : ''}
-                  aria-pressed={language === 'hi'}
-                  onClick={() => setLanguage('hi')}
-                >हिं</button>
-              </div>
+              <button
+                className={`planner-language-switch ${language === 'hi' ? 'is-hindi' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={language === 'hi'}
+                aria-label={language === 'en' ? 'Switch website language to Hindi' : 'Switch website language to English'}
+                onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+              >
+                <span className={language === 'en' ? 'is-active' : ''}>EN</span>
+                <span className={language === 'hi' ? 'is-active' : ''}>हिं</span>
+                <i aria-hidden="true" />
+              </button>
             </div>
           </div>
 
