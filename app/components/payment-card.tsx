@@ -1,17 +1,21 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 
-type PaymentMode = 'upi' | 'visa' | 'mastercard';
+type PaymentMode = string;
 type PaymentState = 'idle' | 'processing' | 'done';
 type OTPState = 'hidden' | 'filling' | 'verified';
+type AddedCard = { id: string; last4: string; holder: string; expiry: string; mark: string; saved: boolean };
+type CardDraft = { number: string; holder: string; expiry: string; cvv: string; save: boolean };
 
 const OTP_LENGTH = 6;
 const OTP_VALUE = '675624';
 const OTP_SLOT_KEYS = Array.from({ length: OTP_LENGTH }, (_, index) => `otp-slot-${index}`);
+const SAVED_CARD_STORAGE_KEY = 'railsetu.mock-cards.v1';
+const EMPTY_CARD: CardDraft = { number: '', holder: '', expiry: '', cvv: '', save: false };
 
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 const modes: Array<{ id: PaymentMode; label: string; detail: string; mark: string }> = [
@@ -26,9 +30,22 @@ export default function PaymentCard() {
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [otpState, setOtpState] = useState<OTPState>('hidden');
   const [otpValue, setOtpValue] = useState('');
+  const [cardDialogOpen, setCardDialogOpen] = useState(false);
+  const [cardDraft, setCardDraft] = useState<CardDraft>(EMPTY_CARD);
+  const [cardError, setCardError] = useState('');
+  const [addedCards, setAddedCards] = useState<AddedCard[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(SAVED_CARD_STORAGE_KEY) ?? '[]') as AddedCard[];
+      return Array.isArray(stored) ? stored.slice(0, 3) : [];
+    } catch {
+      return [];
+    }
+  });
   const paymentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const otpTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const cardNumberInput = useRef<HTMLInputElement>(null);
   const fareValue = Number(params.get('fare'));
   const fare = Number.isFinite(fareValue) && fareValue > 0 ? fareValue : 1440;
   const train = params.get('train') ?? '12310 · Magadh Express';
@@ -40,6 +57,57 @@ export default function PaymentCard() {
     if (handoffTimer.current) clearTimeout(handoffTimer.current);
     otpTimers.current.forEach(clearTimeout);
   }, []);
+
+  useEffect(() => {
+    if (!cardDialogOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCardDialogOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    requestAnimationFrame(() => cardNumberInput.current?.focus());
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [cardDialogOpen]);
+
+  const closeCardDialog = () => {
+    setCardDialogOpen(false);
+    setCardDraft(EMPTY_CARD);
+    setCardError('');
+  };
+
+  const addMockCard = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const digits = cardDraft.number.replace(/\D/g, '');
+    if (digits.length < 12 || digits.length > 19 || !cardDraft.holder.trim() || !/^\d{2}\/\d{2}$/.test(cardDraft.expiry) || !/^\d{3,4}$/.test(cardDraft.cvv)) {
+      setCardError('Complete every field using valid mock card details.');
+      return;
+    }
+    const card: AddedCard = {
+      id: `added-${window.crypto.randomUUID()}`,
+      last4: digits.slice(-4),
+      holder: cardDraft.holder.trim().toUpperCase(),
+      expiry: cardDraft.expiry,
+      mark: digits.startsWith('4') ? 'VISA' : 'CARD',
+      saved: cardDraft.save,
+    };
+    setAddedCards((current) => {
+      const next = [card, ...current].slice(0, 3);
+      if (cardDraft.save) {
+        try {
+          window.localStorage.setItem(SAVED_CARD_STORAGE_KEY, JSON.stringify(next.filter((item) => item.saved)));
+        } catch {
+          // The card remains available during this visit if storage is unavailable.
+        }
+      }
+      return next;
+    });
+    setSelectedMode(card.id);
+    closeCardDialog();
+  };
 
   const completePayment = (mode: PaymentMode) => {
     if (paymentState !== 'idle') return;
@@ -103,6 +171,17 @@ export default function PaymentCard() {
               <em>{mode.mark}</em>
             </label>
           ))}
+          {addedCards.map((card) => (
+            <label className={`payment-mode ${selectedMode === card.id ? 'is-selected' : ''}`} key={card.id}>
+              <input type="radio" name="payment-mode" value={card.id} checked={selectedMode === card.id} onChange={() => setSelectedMode(card.id)} />
+              <span className="payment-radio" aria-hidden="true"><i /></span>
+              <span className="payment-mode-copy"><small>Mock card</small><strong>•••• {card.last4}</strong></span>
+              <em>{card.mark}</em>
+            </label>
+          ))}
+          <button className="payment-add-card" type="button" onClick={() => setCardDialogOpen(true)}>
+            <span aria-hidden="true">＋</span><span><strong>Add another card</strong><small>Use mock details only</small></span><i aria-hidden="true">›</i>
+          </button>
         </div>
       </fieldset>
 
@@ -115,6 +194,30 @@ export default function PaymentCard() {
         </button>
       </span>
       <p className="payment-prototype-note">Prototype checkout · no payment will be collected</p>
+      {cardDialogOpen && typeof document !== 'undefined' ? createPortal((
+        <div className="payment-add-card-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCardDialog(); }}>
+          <section className="payment-add-card-dialog" role="dialog" aria-modal="true" aria-labelledby="payment-add-card-title">
+            <button className="payment-add-card-close" type="button" aria-label="Close add card" onClick={closeCardDialog}>×</button>
+            <div className="payment-glass-card" tabIndex={0} role="img" aria-label={`Mock RailSetu card ending ${cardDraft.number.replace(/\D/g, '').slice(-4) || '0000'}`}>
+              <div className="payment-glass-card-top"><span>RAILSETU <em>✦</em></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8.6a6.4 6.4 0 0 1 0 6.8M9.6 6.4a10.4 10.4 0 0 1 0 11.2M13.2 4.2a14.6 14.6 0 0 1 0 15.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg></div>
+              <div className="payment-glass-card-chip" aria-hidden="true" />
+              <p>{`••••  ••••  ••••  ${cardDraft.number.replace(/\D/g, '').slice(-4).padStart(4, '0')}`}</p>
+              <div className="payment-glass-card-meta"><span><em>Card holder</em>{cardDraft.holder || 'MOCK TRAVELLER'}</span><span><em>Expires</em>{cardDraft.expiry || 'MM/YY'}</span><b aria-hidden="true"><i /><i /></b></div>
+            </div>
+            <div className="payment-add-card-heading"><small>Prototype card</small><h2 id="payment-add-card-title">Add a mock card</h2><p>For demonstration only. Do not enter real financial information.</p></div>
+            <form onSubmit={addMockCard}>
+              <label className="payment-card-number-field"><span>Card number</span><input ref={cardNumberInput} inputMode="numeric" autoComplete="off" placeholder="4242 4242 4242 4242" value={cardDraft.number} onChange={(event) => setCardDraft((current) => ({ ...current, number: event.target.value.replace(/[^\d ]/g, '').slice(0, 23) }))} /></label>
+              <label><span>Name on card</span><input autoComplete="off" placeholder="Mock Traveller" value={cardDraft.holder} onChange={(event) => setCardDraft((current) => ({ ...current, holder: event.target.value.slice(0, 30) }))} /></label>
+              <label><span>Expiry</span><input inputMode="numeric" autoComplete="off" placeholder="09/29" value={cardDraft.expiry} onChange={(event) => setCardDraft((current) => ({ ...current, expiry: event.target.value.replace(/[^\d/]/g, '').slice(0, 5) }))} /></label>
+              <label><span>CVV</span><input type="password" inputMode="numeric" autoComplete="off" placeholder="123" value={cardDraft.cvv} onChange={(event) => setCardDraft((current) => ({ ...current, cvv: event.target.value.replace(/\D/g, '').slice(0, 4) }))} /></label>
+              <label className="payment-save-card-check"><input type="checkbox" checked={cardDraft.save} onChange={(event) => setCardDraft((current) => ({ ...current, save: event.target.checked }))} /><span aria-hidden="true">✓</span><strong>Save for future use</strong></label>
+              {cardError ? <p className="payment-card-form-error" role="alert">{cardError}</p> : null}
+              <p className="payment-card-storage-note">Only the mock card label and last four digits are stored. The full number and CVV are discarded.</p>
+              <button className="payment-add-card-submit" type="submit">Add mock card <span>→</span></button>
+            </form>
+          </section>
+        </div>
+      ), document.body) : null}
       {otpState !== 'hidden' && typeof document !== 'undefined' ? createPortal((
         <div className="payment-otp-backdrop" role="presentation">
           <section className="payment-otp-dialog" role="dialog" aria-modal="true" aria-labelledby="payment-otp-title">
