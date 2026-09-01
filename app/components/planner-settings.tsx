@@ -119,7 +119,7 @@ export default function SiteSettings() {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    applyTheme(theme);
+    applyTheme(readTheme());
   }, [theme]);
 
   useEffect(() => {
