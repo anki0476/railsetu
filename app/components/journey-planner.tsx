@@ -63,11 +63,20 @@ type SavedPreset = {
 };
 
 const PRESET_STORAGE_KEY = 'railsetu.saved-presets.v1';
+const PLANNER_SESSION_KEY = 'railsetu.planner-session.v1';
+
+function todayInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 const initialForm: PlannerForm = {
   from: 'NDLS',
   to: 'PNBE',
-  date: '2026-08-30',
+  date: todayInputValue(),
   travelClass: '3A',
   profile: 'elderly',
   coachPreference: 'same',
@@ -77,6 +86,22 @@ const initialForm: PlannerForm = {
   lowerBerth: true,
   note: '',
 };
+
+function restorePlannerForm(): PlannerForm {
+  if (typeof window === 'undefined') return initialForm;
+  try {
+    const stored = window.sessionStorage.getItem(PLANNER_SESSION_KEY);
+    if (!stored) return initialForm;
+    const parsed = JSON.parse(stored) as Partial<PlannerForm>;
+    const stationCodes = new Set(stationOptions.map((station) => station.code));
+    const restored = { ...initialForm, ...parsed };
+    if (!stationCodes.has(restored.from) || !stationCodes.has(restored.to) || restored.from === restored.to) return initialForm;
+    restored.date = restored.date >= todayInputValue() ? restored.date : todayInputValue();
+    return restored;
+  } catch {
+    return initialForm;
+  }
+}
 
 const submitStyle = {
   '--tactile-depth': '7px',
@@ -256,8 +281,8 @@ function StationSwapButton({ onSwap }: { onSwap: () => void }) {
 
 export default function JourneyPlanner() {
   const { language } = useSiteLanguage();
-  const [form, setForm] = useState<PlannerForm>(initialForm);
-  const [submitted, setSubmitted] = useState<PlannerForm>(initialForm);
+  const [form, setForm] = useState<PlannerForm>(restorePlannerForm);
+  const [submitted, setSubmitted] = useState<PlannerForm>(restorePlannerForm);
   const [noteOpen, setNoteOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [presets, setPresets] = useState<SavedPreset[]>([]);
@@ -268,7 +293,7 @@ export default function JourneyPlanner() {
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('ready');
   const [mapOpen, setMapOpen] = useState(false);
   const [mapSolution, setMapSolution] = useState<JourneySolution | null>(null);
-  const [outcome, setOutcome] = useState(() => solveJourney(journeyQuery(initialForm)));
+  const [outcome, setOutcome] = useState(() => solveJourney(journeyQuery(restorePlannerForm())));
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const searchSequence = useRef(0);
   const searchRequest = useRef<AbortController | null>(null);
@@ -280,6 +305,7 @@ export default function JourneyPlanner() {
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
   const best = outcome.solutions[0];
+  const minimumJourneyDate = todayInputValue();
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
   const closeMap = useCallback(() => {
     setMapOpen(false);
@@ -304,6 +330,14 @@ export default function JourneyPlanner() {
       // Ignore unavailable or malformed device-local storage.
     }
   }, []);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(PLANNER_SESSION_KEY, JSON.stringify(form));
+    } catch {
+      // The planner still works if session storage is unavailable.
+    }
+  }, [form]);
 
   useEffect(() => () => {
     searchSequence.current += 1;
@@ -575,7 +609,16 @@ export default function JourneyPlanner() {
           <label className="planner-field planner-date-field">
             <span>Journey date</span>
             <div className="planner-date-input" onClick={() => dateInput.current?.showPicker?.()}>
-              <input ref={dateInput} type="date" min="2026-08-26" value={form.date} onChange={(event) => setForm((value) => ({ ...value, date: event.target.value }))} />
+              <input
+                ref={dateInput}
+                type="date"
+                min={minimumJourneyDate}
+                value={form.date}
+                onChange={(event) => setForm((value) => ({
+                  ...value,
+                  date: event.target.value >= minimumJourneyDate ? event.target.value : minimumJourneyDate,
+                }))}
+              />
               <span className="planner-calendar-icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 2v4" />
