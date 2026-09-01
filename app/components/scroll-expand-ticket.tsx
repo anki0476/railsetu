@@ -69,6 +69,7 @@ function paymentLabel(mode: string) {
 export default function ScrollExpandTicket() {
   const params = useSearchParams();
   const [ticketLoadPhase, setTicketLoadPhase] = useState<'loading' | 'revealing' | 'ready'>('loading');
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle');
   const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -107,6 +108,28 @@ export default function ScrollExpandTicket() {
   }, [params]);
   const downloadPath = `/api/ticket?${downloadParams}`;
   const qrValue = `${canonicalOrigin}${downloadPath}`;
+
+  async function shareTicket() {
+    const url = window.location.href;
+    const data = {
+      title: `RailSetu ticket · ${from} to ${to}`,
+      text: `${train} from ${fromName} to ${toName} on ${date}`,
+      url,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShareStatus('copied');
+      window.setTimeout(() => setShareStatus('idle'), 2200);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      window.prompt('Copy your RailSetu ticket link', url);
+    }
+  }
 
   useEffect(() => {
     if (ticketLoadPhase !== 'ready') return;
@@ -338,7 +361,12 @@ export default function ScrollExpandTicket() {
                   <div><span>Ticket ID</span><strong id="rail-ticket-title">{ticketId}</strong></div>
                   <div><span>Traveller plan</span><strong>{profile === 'elderly' ? 'Limited mobility' : profile}</strong></div>
                   <div><span>Mock payment</span><strong>{paymentLabel(mode)}</strong></div>
-                  <a href={downloadPath} download>Download Ticket <span>↓</span></a>
+                  <div className="rail-ticket-actions">
+                    <a href={downloadPath} download>Download Ticket <span>↓</span></a>
+                    <button className="rail-ticket-share" type="button" onClick={shareTicket} aria-live="polite">
+                      {shareStatus === 'copied' ? 'Link copied' : 'Share'} <span>{shareStatus === 'copied' ? '✓' : '↗'}</span>
+                    </button>
+                  </div>
                 </footer>
               </article>
             </div>
