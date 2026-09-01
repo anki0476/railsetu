@@ -202,12 +202,12 @@ export default function PaymentCard() {
               <div className="payment-glass-card-top"><span>RAILSETU <em>✦</em></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8.6a6.4 6.4 0 0 1 0 6.8M9.6 6.4a10.4 10.4 0 0 1 0 11.2M13.2 4.2a14.6 14.6 0 0 1 0 15.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg></div>
               <div className="payment-glass-card-chip" aria-hidden="true" />
               <p>{`••••  ••••  ••••  ${cardDraft.number.replace(/\D/g, '').slice(-4).padStart(4, '0')}`}</p>
-              <div className="payment-glass-card-meta"><span><em>Card holder</em>{cardDraft.holder || 'MOCK TRAVELLER'}</span><span><em>Expires</em>{cardDraft.expiry || 'MM/YY'}</span><b aria-hidden="true"><i /><i /></b></div>
+              <div className="payment-glass-card-meta"><span><em>Card holder</em>{cardDraft.holder || 'Ravi Kishan'}</span><span><em>Expires</em>{cardDraft.expiry || 'MM/YY'}</span><b aria-hidden="true"><i /><i /></b></div>
             </div>
             <div className="payment-add-card-heading"><small>Prototype card</small><h2 id="payment-add-card-title">Add a mock card</h2><p>For demonstration only. Do not enter real financial information.</p></div>
             <form onSubmit={addMockCard}>
               <label className="payment-card-number-field"><span>Card number</span><input ref={cardNumberInput} inputMode="numeric" autoComplete="off" placeholder="4242 4242 4242 4242" value={cardDraft.number} onChange={(event) => setCardDraft((current) => ({ ...current, number: event.target.value.replace(/[^\d ]/g, '').slice(0, 23) }))} /></label>
-              <label><span>Name on card</span><input autoComplete="off" placeholder="Mock Traveller" value={cardDraft.holder} onChange={(event) => setCardDraft((current) => ({ ...current, holder: event.target.value.slice(0, 30) }))} /></label>
+              <label><span>Name on card</span><input autoComplete="off" placeholder="Ravi Kishan" value={cardDraft.holder} onChange={(event) => setCardDraft((current) => ({ ...current, holder: event.target.value.slice(0, 30) }))} /></label>
               <label><span>Expiry</span><input inputMode="numeric" autoComplete="off" placeholder="09/29" value={cardDraft.expiry} onChange={(event) => setCardDraft((current) => ({ ...current, expiry: event.target.value.replace(/[^\d/]/g, '').slice(0, 5) }))} /></label>
               <label><span>CVV</span><input type="password" inputMode="numeric" autoComplete="off" placeholder="123" value={cardDraft.cvv} onChange={(event) => setCardDraft((current) => ({ ...current, cvv: event.target.value.replace(/\D/g, '').slice(0, 4) }))} /></label>
               <label className="payment-save-card-check"><input type="checkbox" checked={cardDraft.save} onChange={(event) => setCardDraft((current) => ({ ...current, save: event.target.checked }))} /><span aria-hidden="true">✓</span><strong>Save for future use</strong></label>

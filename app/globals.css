@@ -634,7 +634,7 @@ body,
 .hero-shell :is(.nav-wrap,.hero-copy,.ticket-pixel-swap,.product-stage,.journey-card,.traveller-mode,.mode-tag,.status-pill,.floating-note),
 .why-section,.why-section .principles article,.intro-carousel-section,.intro-carousel,.intro-visual-card,.intro-carousel-arrows button,.intro-carousel-dots button,.faq-section,.faq-item,.faq-item button,.faq-chevron,
 .about-page :is(.nav-wrap,.about-hero,.about-feature,.about-steps article,.about-care,.about-clarity,.about-clarity-list article,.about-footer),
-.payment-page :is(.nav-wrap,.payment-heading,.payment-card,.payment-wallet-icon,.payment-card-close,.payment-journey-summary,.payment-modes,.payment-mode,.payment-mode-copy),
+.payment-page :is(.nav-wrap,.payment-heading,.payment-card,.payment-wallet-icon,.payment-card-close,.payment-journey-summary,.payment-modes,.payment-mode,.payment-mode-copy,.payment-add-card),
 .ticket-reveal-page :is(.ticket-scroll-stage,.ticket-expand-frame,.ticket-back-home,.ticket-scan-label,.ticket-scroll-hint,.rail-ticket,.rail-ticket-route,.rail-ticket-meta>div,.rail-ticket-legs,.rail-ticket-section-title,.rail-ticket-leg,.rail-ticket-seat,.rail-ticket-footer) {
   transition-property:color,background-color,border-color,box-shadow,fill,stroke;
   transition-duration:.55s;
@@ -703,6 +703,10 @@ html.railsetu-dark body { color:#eef2ff; background:#070b17; }
 .railsetu-dark .payment-mode:hover,.railsetu-dark .payment-mode.is-selected { border-color:#6b83da; background-color:#17223d; box-shadow:0 0 0 3px rgba(100,126,219,.12); }
 .railsetu-dark .payment-mode-copy strong { color:#e7ecf8; }
 .railsetu-dark .payment-mode-copy small,.railsetu-dark .payment-mode em { color:#96a2ba; }
+.railsetu-dark .payment-add-card { color:#e7ecf8; border-color:#2c3858; border-style:solid; background-color:#111a30; }
+.railsetu-dark .payment-add-card:hover { border-color:#6b83da; background-color:#17223d; box-shadow:0 0 0 3px rgba(100,126,219,.12); }
+.railsetu-dark .payment-add-card>span:first-child { color:#aebdff; background:#26365f; }
+.railsetu-dark .payment-add-card small,.railsetu-dark .payment-add-card>i { color:#96a2ba; }
 .railsetu-dark .payment-otp-dialog { color:#edf2ff; border-color:#34466e; background:rgba(15,24,44,.98); }.railsetu-dark .payment-otp-dialog>p,.railsetu-dark .payment-otp-status { color:#9eabc3; }.railsetu-dark .otp-field-input { color:#eef2ff; border-color:#344261; background:#111b31; }.railsetu-dark .payment-otp-status.is-verified { color:#78d39e; }
 
 .railsetu-dark .ticket-reveal-page { color:#eef2ff; }
