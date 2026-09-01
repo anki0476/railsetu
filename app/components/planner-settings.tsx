@@ -10,6 +10,10 @@ type SiteTheme = 'light' | 'dark';
 const THEME_STORAGE_KEY = 'railsetu.theme.v1';
 const LEGACY_THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';
 const THEME_CHANGE_EVENT = 'railsetu:theme-change';
+const CURSOR_STORAGE_KEY = 'railsetu.cursor-skin.v1';
+const CALENDAR_STORAGE_KEY = 'railsetu.mock-calendar.v1';
+const CURSOR_CHANGE_EVENT = 'railsetu:cursor-change';
+const SETTINGS_CHANGE_EVENT = 'railsetu:more-settings-change';
 let sessionTheme: SiteTheme = 'light';
 
 function readTheme(): SiteTheme {
@@ -37,6 +41,29 @@ function subscribeToTheme(onStoreChange: () => void) {
 function applyTheme(theme: SiteTheme) {
   document.documentElement.classList.toggle('railsetu-dark', theme === 'dark');
   document.documentElement.style.colorScheme = theme;
+}
+
+function readLocalToggle(key: string, defaultValue: boolean) {
+  try {
+    const stored = window.localStorage.getItem(key);
+    return stored === null ? defaultValue : stored === 'on';
+  } catch {
+    return defaultValue;
+  }
+}
+
+function subscribeToMoreSettings(onStoreChange: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === CURSOR_STORAGE_KEY || event.key === CALENDAR_STORAGE_KEY) onStoreChange();
+  };
+  window.addEventListener('storage', onStorage);
+  window.addEventListener(SETTINGS_CHANGE_EVENT, onStoreChange);
+  window.addEventListener(CURSOR_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStorage);
+    window.removeEventListener(SETTINGS_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener(CURSOR_CHANGE_EVENT, onStoreChange);
+  };
 }
 
 function UserSettingsIcon() {
@@ -67,12 +94,28 @@ function LanguageSettingsIcon() {
   );
 }
 
+function MoreSettingsIcon() {
+  return (
+    <svg className="planner-settings-sliders-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <g className="planner-slider-one"><line x1="21" x2="14" y1="4" y2="4" /><line x1="10" x2="3" y1="4" y2="4" /><line className="planner-slider-knob" x1="14" x2="14" y1="2" y2="6" /></g>
+      <g className="planner-slider-two"><line x1="21" x2="12" y1="12" y2="12" /><line x1="8" x2="3" y1="12" y2="12" /><line className="planner-slider-knob" x1="8" x2="8" y1="10" y2="14" /></g>
+      <g className="planner-slider-three"><line x1="3" x2="12" y1="20" y2="20" /><line x1="16" x2="21" y1="20" y2="20" /><line className="planner-slider-knob" x1="16" x2="16" y1="18" y2="22" /></g>
+    </svg>
+  );
+}
+
 export default function SiteSettings() {
   const { language, setLanguage } = useSiteLanguage();
   const [open, setOpen] = useState(false);
   const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => 'light');
   const [profileOpen, setProfileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreSettingsSnapshot = useSyncExternalStore(
+    subscribeToMoreSettings,
+    () => `${readLocalToggle(CURSOR_STORAGE_KEY, true)}:${readLocalToggle(CALENDAR_STORAGE_KEY, false)}`,
+    () => 'true:false',
+  );
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,6 +150,18 @@ export default function SiteSettings() {
   };
 
   const isDark = theme === 'dark';
+  const [cursorSnapshot, calendarSnapshot] = moreSettingsSnapshot.split(':');
+  const cursorEnabled = cursorSnapshot === 'true';
+  const calendarLinked = calendarSnapshot === 'true';
+
+  const updateLocalToggle = (key: string, enabled: boolean, eventName = SETTINGS_CHANGE_EVENT) => {
+    try {
+      window.localStorage.setItem(key, enabled ? 'on' : 'off');
+    } catch {
+      // Keep the control usable during this visit if device storage is unavailable.
+    }
+    window.dispatchEvent(new Event(eventName));
+  };
 
   return (
     <div className={`planner-settings ${open ? 'is-open' : ''}`} ref={root}>
@@ -168,6 +223,41 @@ export default function SiteSettings() {
                 <i aria-hidden="true" />
               </button>
             </div>
+            <button
+              className={`planner-settings-option planner-more-options-trigger ${moreOpen ? 'is-active' : ''}`}
+              type="button"
+              aria-expanded={moreOpen}
+              aria-controls="railsetu-more-options"
+              onClick={() => setMoreOpen((current) => !current)}
+            >
+              <span className="planner-settings-option-icon"><MoreSettingsIcon /></span>
+              <span className="planner-settings-option-copy"><strong>More options</strong><small>Cursor and calendar</small></span>
+              <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
+            </button>
+            {moreOpen ? (
+              <div className="planner-more-options" id="railsetu-more-options">
+                <div className="planner-more-option-row">
+                  <span><strong>Cursor skin</strong><small>Use the RailSetu pointer effect</small></span>
+                  <button
+                    className={`planner-mini-switch ${cursorEnabled ? 'is-on' : ''}`}
+                    type="button"
+                    role="switch"
+                    aria-checked={cursorEnabled}
+                    aria-label={cursorEnabled ? 'Disable cursor skin' : 'Enable cursor skin'}
+                    onClick={() => updateLocalToggle(CURSOR_STORAGE_KEY, !cursorEnabled, CURSOR_CHANGE_EVENT)}
+                  ><i aria-hidden="true" /></button>
+                </div>
+                <div className="planner-more-option-row planner-calendar-row">
+                  <span><strong>Google Calendar</strong><small>Demo connection—no account data is requested</small></span>
+                  <button
+                    className={`planner-calendar-mock ${calendarLinked ? 'is-linked' : ''}`}
+                    type="button"
+                    aria-pressed={calendarLinked}
+                    onClick={() => updateLocalToggle(CALENDAR_STORAGE_KEY, !calendarLinked)}
+                  >{calendarLinked ? 'Mock linked ✓' : 'Link mock'}</button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="planner-theme-row">

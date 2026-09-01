@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 
 type ClickBurst = {
   id: number;
@@ -12,6 +12,28 @@ const ARROW_PATH = 'M0,0 L18,11 L9,13 L6,21 Z';
 const ARROW_REST = Math.atan2(-15, -12);
 const BURST_LINES = [0, 1, 2, 3];
 const BURST_PARTICLES = [0, 1, 2, 3, 4, 5, 6, 7];
+const CURSOR_STORAGE_KEY = 'railsetu.cursor-skin.v1';
+const CURSOR_CHANGE_EVENT = 'railsetu:cursor-change';
+
+function readCursorPreference() {
+  try {
+    return window.localStorage.getItem(CURSOR_STORAGE_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function subscribeToCursorPreference(onStoreChange: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === CURSOR_STORAGE_KEY) onStoreChange();
+  };
+  window.addEventListener('storage', onStorage);
+  window.addEventListener(CURSOR_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStorage);
+    window.removeEventListener(CURSOR_CHANGE_EVENT, onStoreChange);
+  };
+}
 
 function shortestAngle(from: number, to: number) {
   let delta = (to - from) % (Math.PI * 2);
@@ -21,6 +43,7 @@ function shortestAngle(from: number, to: number) {
 }
 
 export default function GlobalInteractionEffects() {
+  const cursorEnabled = useSyncExternalStore(subscribeToCursorPreference, readCursorPreference, () => true);
   const cursorRef = useRef<HTMLDivElement>(null);
   const [bursts, setBursts] = useState<ClickBurst[]>([]);
   const nextId = useRef(0);
@@ -28,10 +51,14 @@ export default function GlobalInteractionEffects() {
 
   useEffect(() => {
     const cursor = cursorRef.current;
+    const activeTimeoutIds = timeoutIds.current;
     const canUseCursor = window.matchMedia('(pointer: fine)').matches;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    if (!cursor || !canUseCursor || reduceMotion) return;
+    if (!cursor || !canUseCursor || reduceMotion || !cursorEnabled) {
+      document.documentElement.classList.remove('railsetu-cursor-enabled');
+      return;
+    }
 
     document.documentElement.classList.add('railsetu-cursor-enabled');
 
@@ -61,9 +88,9 @@ export default function GlobalInteractionEffects() {
       setBursts((current) => [...current.slice(-4), { id, x: event.clientX, y: event.clientY }]);
       const timeoutId = window.setTimeout(() => {
         setBursts((current) => current.filter((burst) => burst.id !== id));
-        timeoutIds.current.delete(timeoutId);
+        activeTimeoutIds.delete(timeoutId);
       }, 680);
-      timeoutIds.current.add(timeoutId);
+      activeTimeoutIds.add(timeoutId);
     };
 
     const onUp = () => {
@@ -99,15 +126,15 @@ export default function GlobalInteractionEffects() {
 
     return () => {
       cancelAnimationFrame(frameId);
-      timeoutIds.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      timeoutIds.current.clear();
+      activeTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      activeTimeoutIds.clear();
       document.documentElement.classList.remove('railsetu-cursor-enabled');
       window.removeEventListener('pointermove', onMove);
       document.documentElement.removeEventListener('pointerleave', onLeave);
       window.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointerup', onUp);
     };
-  }, []);
+  }, [cursorEnabled]);
 
   return (
     <div className="interaction-layer" aria-hidden="true">
