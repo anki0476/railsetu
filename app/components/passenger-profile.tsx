@@ -66,6 +66,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
   const [editing, setEditing] = useState(false);
   const [addingPassenger, setAddingPassenger] = useState(false);
   const [linkedPassengers, setLinkedPassengers] = useState<LinkedPassenger[]>([]);
+  const [passengerPendingRemoval, setPassengerPendingRemoval] = useState<string | null>(null);
   const [linkedPassengerDraft, setLinkedPassengerDraft] = useState<LinkedPassengerDraft>(emptyLinkedPassenger);
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -94,6 +95,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
     setDraft(profile);
     setEditing(false);
     setAddingPassenger(false);
+    setPassengerPendingRemoval(null);
     setVerificationStatus('idle');
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -173,6 +175,22 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
     setAddingPassenger(false);
   };
 
+  const removeLinkedPassenger = (passengerId: string) => {
+    if (passengerPendingRemoval !== passengerId) {
+      setPassengerPendingRemoval(passengerId);
+      return;
+    }
+
+    const nextPassengers = linkedPassengers.filter((passenger) => passenger.id !== passengerId);
+    setLinkedPassengers(nextPassengers);
+    setPassengerPendingRemoval(null);
+    try {
+      window.localStorage.setItem(LINKED_PASSENGERS_STORAGE_KEY, JSON.stringify(nextPassengers));
+    } catch {
+      // The passenger is still removed for this session when storage is unavailable.
+    }
+  };
+
   return (
     <div className="passenger-profile-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
@@ -209,7 +227,10 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
           </div>
           <div className="passenger-linked-section">
             <div className="passenger-linked-heading"><div><strong>Other passengers</strong><small>Saved on this device</small></div><button type="button" onClick={() => { setLinkedPassengerDraft(emptyLinkedPassenger); setVerificationStatus('idle'); setAddingPassenger(true); }}>＋ Add</button></div>
-            {linkedPassengers.length ? <div className="passenger-linked-list">{linkedPassengers.map((passenger) => <article key={passenger.id}><span aria-hidden="true">{passenger.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span><div><strong>{passenger.fullName}</strong><small>{passenger.relation} · Mock Aadhaar •••• {passenger.aadhaarLast4}</small></div><i aria-label="Mock Aadhaar verified">✓</i></article>)}</div> : <p className="passenger-linked-empty">Add family or companions for faster journey planning.</p>}
+            {linkedPassengers.length ? <div className="passenger-linked-list">{linkedPassengers.map((passenger) => {
+              const isPendingRemoval = passengerPendingRemoval === passenger.id;
+              return <article key={passenger.id}><span aria-hidden="true">{passenger.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span><div><strong>{passenger.fullName}</strong><small>{passenger.relation} · Mock Aadhaar •••• {passenger.aadhaarLast4}</small></div><div className="passenger-linked-actions"><i aria-label="Mock Aadhaar verified">✓</i><button className={isPendingRemoval ? 'is-confirming' : ''} type="button" onClick={() => removeLinkedPassenger(passenger.id)} aria-label={isPendingRemoval ? `Confirm removal of ${passenger.fullName}` : `Remove ${passenger.fullName}`}>{isPendingRemoval ? 'Remove?' : '×'}</button></div></article>;
+            })}</div> : <p className="passenger-linked-empty">Add family or companions for faster journey planning.</p>}
           </div>
           <button className="passenger-profile-edit" type="button" onClick={() => setEditing(true)}>
             <EditIcon /> Edit profile
