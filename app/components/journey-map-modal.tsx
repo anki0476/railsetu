@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { JourneySolution } from '../lib/journey-engine';
 
-type JourneyMapModalProps = { open: boolean; onClose: () => void; solution: JourneySolution };
+type JourneyMapModalProps = { open: boolean; onClose: () => void; solution: JourneySolution; sharePath: string };
 type MapPoint = { code: string; name: string; time: string; latitude: number; longitude: number };
 type RenderedPoint = MapPoint & { x: number; y: number };
 type MapStyle = CSSProperties & {
@@ -166,7 +166,7 @@ function RouteMap({ points }: { points: MapPoint[] }) {
   );
 }
 
-export default function JourneyMapModal({ open, onClose, solution }: JourneyMapModalProps) {
+export default function JourneyMapModal({ open, onClose, solution, sharePath }: JourneyMapModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle');
   const mapPoints = useMemo(() => {
@@ -196,7 +196,7 @@ export default function JourneyMapModal({ open, onClose, solution }: JourneyMapM
     const lastStop = solution.legs.at(-1)?.to;
     const routeSummary = solution.legs.map((leg) => `${leg.from.code} → ${leg.to.code} (${leg.from.time}–${leg.to.time})`).join(' · ');
     const text = `${solution.trainNumber} · ${solution.trainName}\n${routeSummary}`;
-    const url = window.location.href;
+    const url = new URL(sharePath, window.location.origin).toString();
 
     try {
       if (navigator.share) {

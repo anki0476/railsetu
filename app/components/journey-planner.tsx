@@ -91,16 +91,56 @@ function restorePlannerForm(): PlannerForm {
   if (typeof window === 'undefined') return initialForm;
   try {
     const stored = window.sessionStorage.getItem(PLANNER_SESSION_KEY);
-    if (!stored) return initialForm;
-    const parsed = JSON.parse(stored) as Partial<PlannerForm>;
+    const parsed = stored ? JSON.parse(stored) as Partial<PlannerForm> : {};
     const stationCodes = new Set(stationOptions.map((station) => station.code));
     const restored = { ...initialForm, ...parsed };
     if (!stationCodes.has(restored.from) || !stationCodes.has(restored.to) || restored.from === restored.to) return initialForm;
     restored.date = restored.date >= todayInputValue() ? restored.date : todayInputValue();
+
+    const shared = new URLSearchParams(window.location.search);
+    if (shared.get('map') === '1') {
+      const from = shared.get('from');
+      const to = shared.get('to');
+      const travelClass = shared.get('class');
+      const profile = shared.get('profile');
+      const coachPreference = shared.get('coach');
+      const luggage = shared.get('luggage');
+      const maxChanges = Number(shared.get('changes'));
+      if (from && to && stationCodes.has(from) && stationCodes.has(to) && from !== to) {
+        restored.from = from;
+        restored.to = to;
+      }
+      if (travelClass && ['1A', '2A', '3A', '3E', 'CC', 'EC', 'SL'].includes(travelClass)) restored.travelClass = travelClass;
+      if (profile && ['standard', 'elderly', 'family'].includes(profile)) restored.profile = profile as TravellerProfile;
+      if (coachPreference && ['same', 'nearby', 'any'].includes(coachPreference)) restored.coachPreference = coachPreference as CoachPreference;
+      if (luggage && ['none', 'light', 'heavy'].includes(luggage)) restored.luggage = luggage as LuggageLevel;
+      if (Number.isFinite(maxChanges)) Object.assign(restored, recommendationChangeLimit(Math.max(0, Math.min(JOURNEY_ENGINE_LIMITS.maxChanges, maxChanges))));
+      restored.lowerBerth = shared.get('lower') !== '0';
+      const sharedDate = shared.get('date');
+      if (sharedDate) restored.date = sharedDate >= todayInputValue() ? sharedDate : todayInputValue();
+    }
     return restored;
   } catch {
     return initialForm;
   }
+}
+
+function mapSharePath(form: PlannerForm, solution: JourneySolution) {
+  const query = journeyQuery(form);
+  const search = new URLSearchParams({
+    map: '1',
+    solution: solution.id,
+    from: query.from,
+    to: query.to,
+    date: form.date,
+    class: query.travelClass,
+    profile: query.profile,
+    coach: query.coachPreference,
+    luggage: query.luggage,
+    changes: String(query.maxChanges),
+    lower: query.lowerBerth ? '1' : '0',
+  });
+  return `/planner?${search.toString()}`;
 }
 
 const submitStyle = {
@@ -302,6 +342,7 @@ export default function JourneyPlanner() {
   const presetHighlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateInput = useRef<HTMLInputElement>(null);
   const mapTrigger = useRef<HTMLButtonElement>(null);
+  const sharedMapHandled = useRef(false);
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
   const best = outcome.solutions[0];
@@ -338,6 +379,18 @@ export default function JourneyPlanner() {
       // The planner still works if session storage is unavailable.
     }
   }, [form]);
+
+  useEffect(() => {
+    if (sharedMapHandled.current || typeof window === 'undefined') return;
+    const shared = new URLSearchParams(window.location.search);
+    if (shared.get('map') !== '1') return;
+    const requestedSolution = shared.get('solution');
+    const solution = outcome.solutions.find((candidate) => candidate.id === requestedSolution) ?? outcome.solutions[0];
+    if (!solution) return;
+    sharedMapHandled.current = true;
+    setMapSolution(solution);
+    setMapOpen(true);
+  }, [outcome.solutions]);
 
   useEffect(() => () => {
     searchSequence.current += 1;
@@ -848,7 +901,7 @@ export default function JourneyPlanner() {
               </article>
             </div>
 
-            {mapSolution ? <JourneyMapModal open={mapOpen} onClose={closeMap} solution={mapSolution} /> : null}
+            {mapSolution ? <JourneyMapModal open={mapOpen} onClose={closeMap} solution={mapSolution} sharePath={mapSharePath(submitted, mapSolution)} /> : null}
 
             <div className="planner-solution-list">
               {outcome.solutions.map((solution, solutionIndex) => {
