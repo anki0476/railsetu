@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
+import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
 
 type PaymentMode = string;
 type PaymentState = 'idle' | 'processing' | 'done';
@@ -28,6 +29,7 @@ const modes: Array<{ id: PaymentMode; label: string; detail: string; mark: strin
 export default function PaymentCard() {
   const params = useSearchParams();
   const [selectedMode, setSelectedMode] = useState<PaymentMode>('upi');
+  const [walletBalance, setWalletBalance] = useState(0);
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [otpState, setOtpState] = useState<OTPState>('hidden');
   const [otpValue, setOtpValue] = useState('');
@@ -53,6 +55,14 @@ export default function PaymentCard() {
   const train = params.get('train') ?? '12310 · Magadh Express';
   const from = params.get('from') ?? 'NDLS';
   const to = params.get('to') ?? 'PNBE';
+
+  useEffect(() => {
+    const refreshWallet = () => setWalletBalance(getWalletBalance());
+    refreshWallet();
+    window.addEventListener('storage', refreshWallet);
+    window.addEventListener(WALLET_EVENT, refreshWallet);
+    return () => { window.removeEventListener('storage', refreshWallet); window.removeEventListener(WALLET_EVENT, refreshWallet); };
+  }, []);
 
   useEffect(() => () => {
     if (paymentTimer.current) clearTimeout(paymentTimer.current);
@@ -122,6 +132,10 @@ export default function PaymentCard() {
 
   const completePayment = (mode: PaymentMode) => {
     if (paymentState !== 'idle') return;
+    if (mode === 'wallet') {
+      if (walletBalance < fare) return;
+      addWalletTransaction({ id: `payment-${window.crypto.randomUUID()}`, amount: -fare, label: `Ticket · ${train}`, createdAt: Date.now() });
+    }
     setPaymentState('processing');
     paymentTimer.current = setTimeout(() => {
       setPaymentState('done');
@@ -148,7 +162,7 @@ export default function PaymentCard() {
 
   const proceed = () => {
     if (paymentState !== 'idle') return;
-    if (selectedMode === 'upi') completePayment(selectedMode);
+    if (selectedMode === 'upi' || selectedMode === 'wallet') completePayment(selectedMode);
     else beginOtpVerification();
   };
 
@@ -182,6 +196,12 @@ export default function PaymentCard() {
               <em>{mode.mark}</em>
             </label>
           ))}
+          <label className={`payment-mode payment-mode-wallet ${selectedMode === 'wallet' ? 'is-selected' : ''} ${walletBalance < fare ? 'is-disabled' : ''}`} aria-disabled={walletBalance < fare}>
+            <input type="radio" name="payment-mode" value="wallet" checked={selectedMode === 'wallet'} disabled={walletBalance < fare} onChange={() => setSelectedMode('wallet')} />
+            <span className="payment-radio" aria-hidden="true"><i /></span>
+            <span className="payment-mode-copy"><small>RailSetu Wallet</small><strong>{money.format(walletBalance)} available</strong>{walletBalance < fare ? <span>Insufficient balance</span> : null}</span>
+            <em>WALLET</em>
+          </label>
           {addedCards.map((card) => (
             <label className={`payment-mode ${selectedMode === card.id ? 'is-selected' : ''}`} key={card.id}>
               <input type="radio" name="payment-mode" value={card.id} checked={selectedMode === card.id} onChange={() => setSelectedMode(card.id)} />

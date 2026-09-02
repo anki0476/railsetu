@@ -18,6 +18,10 @@ export function readWallet(): WalletTransaction[] {
 }
 
 export function addWalletRefund(transaction: WalletTransaction) {
+  addWalletTransaction(transaction);
+}
+
+export function addWalletTransaction(transaction: WalletTransaction) {
   try {
     const next = [transaction, ...readWallet()].slice(0, 24);
     window.localStorage.setItem(WALLET_KEY, JSON.stringify(next));
@@ -25,4 +29,8 @@ export function addWalletRefund(transaction: WalletTransaction) {
   } catch {
     // Wallet remains a no-data prototype if storage is unavailable.
   }
+}
+
+export function getWalletBalance() {
+  return readWallet().reduce((sum, item) => sum + item.amount, 0);
 }
