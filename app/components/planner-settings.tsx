@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
 import PassengerProfile from './passenger-profile';
 import JourneyHistory from './journey-history';
+import RailSetuWallet from './railsetu-wallet';
 import { useSiteLanguage } from './site-language';
 
 type SiteTheme = 'light' | 'dark';
@@ -88,6 +89,10 @@ function HistorySettingsIcon() {
   );
 }
 
+function WalletSettingsIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H19a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 17.5Z"/><path d="M4 7h16M15 11h5v4h-5a2 2 0 0 1 0-4Z"/></svg>;
+}
+
 function LanguageSettingsIcon() {
   return (
     <svg className="planner-settings-language-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -117,6 +122,7 @@ export default function SiteSettings() {
   const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => 'light');
   const [profileOpen, setProfileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreSettingsSnapshot = useSyncExternalStore(
@@ -215,6 +221,16 @@ export default function SiteSettings() {
               <span className="planner-settings-option-copy"><strong>History</strong><small>Past journeys</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
+            <button
+              className="planner-settings-option"
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => { setOpen(false); setWalletOpen(true); }}
+            >
+              <span className="planner-settings-option-icon"><WalletSettingsIcon /></span>
+              <span className="planner-settings-option-copy"><strong>Wallet</strong><small>Refunds and balance</small></span>
+              <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
+            </button>
             <div className="planner-language-option">
               <span className="planner-settings-option-icon"><LanguageSettingsIcon /></span>
               <span className="planner-settings-option-copy"><strong>Website language</strong><small>English or Hindi</small></span>
@@ -302,6 +318,7 @@ export default function SiteSettings() {
       ) : null}
       <PassengerProfile isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
       <JourneyHistory isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <RailSetuWallet isOpen={walletOpen} onClose={() => setWalletOpen(false)} />
       <Auth10 open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );

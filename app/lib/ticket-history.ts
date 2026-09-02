@@ -9,6 +9,10 @@ export interface TicketHistoryItem {
   purchasedAt: number;
   fare: number;
   ticketUrl: string;
+  status?: 'upcoming' | 'cancelled' | 'completed';
+  cancelledAt?: number;
+  refundAmount?: number;
+  refundDestination?: 'original' | 'wallet';
 }
 
 export const TICKET_HISTORY_STORAGE_KEY = 'railsetu.ticket-history.v1';
@@ -48,5 +52,15 @@ export function clearTicketHistory() {
     window.dispatchEvent(new Event('railsetu:ticket-history-updated'));
   } catch {
     // Leave the current interface usable when browser storage is unavailable.
+  }
+}
+
+export function updateTicketInHistory(id: string, updates: Partial<TicketHistoryItem>) {
+  try {
+    const next = readTicketHistory().map((item) => item.id === id ? { ...item, ...updates } : item);
+    window.localStorage.setItem(TICKET_HISTORY_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event('railsetu:ticket-history-updated'));
+  } catch {
+    // Keep the prototype usable when browser storage is unavailable.
   }
 }
