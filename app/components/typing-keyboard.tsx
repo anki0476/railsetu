@@ -9,7 +9,7 @@ const rows = [
   'ZXCVBNM',
 ];
 
-export default function TypingKeyboard({ text = 'Your journeys, preferences and tickets — together in RailSetu.' }: { text?: string }) {
+export default function TypingKeyboard({ text = "Waitlist.....\nIt's Done bro!\nYour journeys, preferences and tickets — together in RailSetu." }: { text?: string }) {
   const reducedMotion = useReducedMotion();
   const [position, setPosition] = useState(0);
   const visibleText = useMemo(() => reducedMotion ? text : text.slice(0, position), [position, reducedMotion, text]);
@@ -23,7 +23,7 @@ export default function TypingKeyboard({ text = 'Your journeys, preferences and 
 
   return (
     <div className="auth-keyboard-scene" aria-hidden="true">
-      <div className="auth-keyboard-screen"><span>{visibleText}</span><i /></div>
+      <div className="auth-keyboard-screen"><span style={{ whiteSpace: 'pre-line' }}>{visibleText}</span><i /></div>
       <div className="auth-keyboard">
         {rows.map((row) => <div className="auth-keyboard-row" key={row}>{[...row].map((key) => <span className={activeKey === key ? 'is-pressed' : ''} key={key}>{key}</span>)}</div>)}
         <div className="auth-keyboard-row auth-keyboard-row-bottom"><span>⌘</span><span className={activeKey === ' ' ? 'is-pressed auth-space-key' : 'auth-space-key'}>RailSetu</span><span>↵</span></div>

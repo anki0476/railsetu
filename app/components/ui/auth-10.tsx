@@ -38,7 +38,7 @@ export default function Auth10({ open, onClose }: Auth10Props) {
     <motion.div className="railsetu-auth-backdrop" role="presentation" initial={reducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <motion.section className="railsetu-auth-dialog" role="dialog" aria-modal="true" aria-labelledby="railsetu-auth-title" initial={reducedMotion ? false : { opacity: 0, y: 18, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: .98 }} transition={{ type: 'spring', stiffness: 300, damping: 28 }}>
         <button className="railsetu-auth-close" ref={closeRef} type="button" onClick={onClose} aria-label="Close login and sign up">×</button>
-        <aside className="railsetu-auth-visual"><span>RAILSETU ACCESS</span><TypingKeyboard /><div><strong>Your journey, remembered.</strong><small>Keep preferences and mock tickets together on this device.</small></div></aside>
+        <aside className="railsetu-auth-visual"><span>RAILSETU ACCESS</span><TypingKeyboard /><div><strong>Your journey, sorted!</strong><small>Keep preferences and mock tickets together on this device.</small></div></aside>
         <div className="railsetu-auth-form-panel">
           <span className="railsetu-auth-kicker">Passenger account · prototype</span>
           <h2 id="railsetu-auth-title">{mode === 'login' ? 'Welcome back' : 'Create your RailSetu account'}</h2>
@@ -52,7 +52,7 @@ export default function Auth10({ open, onClose }: Auth10Props) {
             <button className="railsetu-auth-submit" type="submit">{mode === 'login' ? 'Login' : 'Create mock account'} <span aria-hidden="true">→</span></button>
           </form>
           <div className="railsetu-auth-divider"><span>or continue with</span></div>
-          <div className="railsetu-auth-social"><button type="button" onClick={() => setStatus('Demo Google login complete — no account was contacted.')}><GoogleIcon /> Google</button><button type="button" onClick={() => setStatus('Demo passkey login complete — no account was contacted.')}><span aria-hidden="true">✦</span> Passkey</button></div>
+          <div className="railsetu-auth-social"><button type="button" onClick={() => setStatus('Demo Google login complete — no account was contacted.')}><GoogleIcon /> Google</button><button type="button" onClick={() => setStatus('Demo IRCTC login complete — no account was contacted.')}><span aria-hidden="true">✦</span> IRCTC</button></div>
           {status ? <p className="railsetu-auth-status" role="status">{status}</p> : null}
         </div>
       </motion.section>
