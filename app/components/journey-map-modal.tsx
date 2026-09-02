@@ -168,6 +168,7 @@ function RouteMap({ points }: { points: MapPoint[] }) {
 
 export default function JourneyMapModal({ open, onClose, solution }: JourneyMapModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle');
   const mapPoints = useMemo(() => {
     const rawStops = solution.legs.length ? [solution.legs[0].from, ...solution.legs.map((leg) => leg.to)] : [];
     return rawStops.flatMap((stop) => {
@@ -190,6 +191,27 @@ export default function JourneyMapModal({ open, onClose, solution }: JourneyMapM
     };
   }, [open, onClose]);
 
+  async function shareRoute() {
+    const firstStop = solution.legs[0].from;
+    const lastStop = solution.legs.at(-1)?.to;
+    const routeSummary = solution.legs.map((leg) => `${leg.from.code} → ${leg.to.code} (${leg.from.time}–${leg.to.time})`).join(' · ');
+    const text = `${solution.trainNumber} · ${solution.trainName}\n${routeSummary}`;
+    const url = window.location.href;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `RailSetu route · ${firstStop.name} to ${lastStop?.name}`, text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      setShareStatus('copied');
+      window.setTimeout(() => setShareStatus('idle'), 2200);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      window.prompt('Copy your RailSetu route', `${text}\n${url}`);
+    }
+  }
+
   if (!open || !mapPoints.length) return null;
 
   return (
@@ -197,7 +219,10 @@ export default function JourneyMapModal({ open, onClose, solution }: JourneyMapM
       <section className="journey-map-dialog" role="dialog" aria-modal="true" aria-labelledby="journey-map-title">
         <header className="journey-map-header">
           <div><span>RailSetu journey map</span><h2 id="journey-map-title">{solution.legs[0].from.name} <i>→</i> {solution.legs.at(-1)?.to.name}</h2></div>
-          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close journey map">×</button>
+          <div className="journey-map-header-actions">
+            <button className="journey-map-share" type="button" onClick={shareRoute} aria-live="polite">{shareStatus === 'copied' ? 'Link copied' : 'Share'} <span aria-hidden="true">{shareStatus === 'copied' ? '✓' : '↗'}</span></button>
+            <button className="journey-map-close" ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close journey map">×</button>
+          </div>
         </header>
 
         <div className="journey-map-body">
