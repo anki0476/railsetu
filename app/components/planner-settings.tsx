@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import dynamic from 'next/dynamic';
 import PassengerProfile from './passenger-profile';
 import JourneyHistory from './journey-history';
 import { useSiteLanguage } from './site-language';
 
 type SiteTheme = 'light' | 'dark';
+
+const Auth10 = dynamic(() => import('./ui/auth-10'), { ssr: false });
 
 const THEME_STORAGE_KEY = 'railsetu.theme.v1';
 const LEGACY_THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';
@@ -104,12 +107,17 @@ function MoreSettingsIcon() {
   );
 }
 
+function LoginSettingsIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></svg>;
+}
+
 export default function SiteSettings() {
   const { language, setLanguage } = useSiteLanguage();
   const [open, setOpen] = useState(false);
   const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => 'light');
   const [profileOpen, setProfileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreSettingsSnapshot = useSyncExternalStore(
     subscribeToMoreSettings,
@@ -258,6 +266,16 @@ export default function SiteSettings() {
                 </div>
               </div>
             ) : null}
+            <button
+              className="planner-settings-option planner-login-option"
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => { setOpen(false); setAuthOpen(true); }}
+            >
+              <span className="planner-settings-option-icon"><LoginSettingsIcon /></span>
+              <span className="planner-settings-option-copy"><strong>Login / Sign up</strong><small>Prototype passenger account</small></span>
+              <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
+            </button>
           </div>
 
           <div className="planner-theme-row">
@@ -284,6 +302,7 @@ export default function SiteSettings() {
       ) : null}
       <PassengerProfile isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
       <JourneyHistory isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <Auth10 open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }
