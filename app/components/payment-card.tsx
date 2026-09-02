@@ -1,13 +1,14 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 
 type PaymentMode = string;
 type PaymentState = 'idle' | 'processing' | 'done';
 type OTPState = 'hidden' | 'filling' | 'verified';
+type CardScanState = 'idle' | 'choosing' | 'filled';
 type AddedCard = { id: string; last4: string; holder: string; expiry: string; mark: string; saved: boolean };
 type CardDraft = { number: string; holder: string; expiry: string; cvv: string; save: boolean };
 
@@ -33,6 +34,7 @@ export default function PaymentCard() {
   const [cardDialogOpen, setCardDialogOpen] = useState(false);
   const [cardDraft, setCardDraft] = useState<CardDraft>(EMPTY_CARD);
   const [cardError, setCardError] = useState('');
+  const [cardScanState, setCardScanState] = useState<CardScanState>('idle');
   const [addedCards, setAddedCards] = useState<AddedCard[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -77,6 +79,15 @@ export default function PaymentCard() {
     setCardDialogOpen(false);
     setCardDraft(EMPTY_CARD);
     setCardError('');
+    setCardScanState('idle');
+  };
+
+  const mockAutofillFromCardImage = (event: ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files?.length) return;
+    setCardScanState('filled');
+    setCardError('');
+    setCardDraft((current) => ({ ...current, number: '4242 4242 4242 4242', holder: 'Ravi Kishan', expiry: '09/29', cvv: '123' }));
+    event.target.value = '';
   };
 
   const addMockCard = (event: FormEvent<HTMLFormElement>) => {
@@ -205,6 +216,14 @@ export default function PaymentCard() {
               <div className="payment-glass-card-meta"><span><em>Card holder</em>{cardDraft.holder || 'Ravi Kishan'}</span><span><em>Expires</em>{cardDraft.expiry || 'MM/YY'}</span><b aria-hidden="true"><i /><i /></b></div>
             </div>
             <div className="payment-add-card-heading"><small>Prototype card</small><h2 id="payment-add-card-title">Add a mock card</h2><p>For demonstration only. Do not enter real financial information.</p></div>
+            <div className={`payment-card-scan is-${cardScanState}`}>
+              <button type="button" aria-expanded={cardScanState !== 'idle'} aria-controls="payment-card-scan-options" onClick={() => setCardScanState((current) => current === 'idle' ? 'choosing' : 'idle')}><span aria-hidden="true">▣</span><strong>Scan Card</strong><i aria-hidden="true">⌄</i></button>
+              {cardScanState !== 'idle' ? <div id="payment-card-scan-options" className="payment-card-scan-options">
+                <label><input type="file" accept="image/*" onChange={mockAutofillFromCardImage} /><span aria-hidden="true">↑</span><div><strong>Upload card photo</strong><small>Choose a clear image from this device</small></div></label>
+                <label><input type="file" accept="image/*" capture="environment" onChange={mockAutofillFromCardImage} /><span aria-hidden="true">◎</span><div><strong>Use camera</strong><small>Take a clear picture of the card</small></div></label>
+              </div> : null}
+              {cardScanState === 'filled' ? <p role="status">Demo details filled. The image was not uploaded or stored.</p> : null}
+            </div>
             <form onSubmit={addMockCard}>
               <label className="payment-card-number-field"><span>Card number</span><input ref={cardNumberInput} inputMode="numeric" autoComplete="off" placeholder="4242 4242 4242 4242" value={cardDraft.number} onChange={(event) => setCardDraft((current) => ({ ...current, number: event.target.value.replace(/[^\d ]/g, '').slice(0, 23) }))} /></label>
               <label><span>Name on card</span><input autoComplete="off" placeholder="Ravi Kishan" value={cardDraft.holder} onChange={(event) => setCardDraft((current) => ({ ...current, holder: event.target.value.slice(0, 30) }))} /></label>
