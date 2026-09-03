@@ -56,6 +56,11 @@ export default function GlobalInteractionEffects() {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (!cursor || !canUseCursor || reduceMotion || !cursorEnabled) {
+      if (cursor) {
+        cursor.style.opacity = '0';
+        cursor.style.transform = 'translate3d(-100px, -100px, 0)';
+      }
+      setBursts([]);
       document.documentElement.classList.remove('railsetu-cursor-enabled');
       return;
     }
@@ -126,6 +131,8 @@ export default function GlobalInteractionEffects() {
 
     return () => {
       cancelAnimationFrame(frameId);
+      cursor.style.opacity = '0';
+      cursor.style.transform = 'translate3d(-100px, -100px, 0)';
       activeTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
       activeTimeoutIds.clear();
       document.documentElement.classList.remove('railsetu-cursor-enabled');
