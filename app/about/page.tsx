@@ -149,6 +149,13 @@ export default function AboutPage() {
           <span><b>90–100</b>Very easy</span><span><b>80–89</b>Comfortable</span><span><b>65–79</b>Manageable</span><span><b>Below 65</b>More effort</span>
         </div>
         <p className="about-comfort-bottomline"><strong>Big number = easier journey.</strong> RailSetu uses it to rank valid paths; it never replaces live availability or a booking confirmation. <Link href="/comfort-score">See the full calculation →</Link></p>
+        <aside className="about-refund-policy" aria-labelledby="about-refund-policy-title">
+          <div>
+            <p className="section-kicker">Cancelled-ticket refunds</p>
+            <h3 id="about-refund-policy-title">Earlier cancellations usually mean a larger refund.</h3>
+          </div>
+          <p>For confirmed tickets, RailSetu estimates the deduction using IRCTC&apos;s time bands: a class-based charge more than 48 hours before departure, 25% from 48–12 hours, 50% from 12–4 hours, and no refund inside four hours. Minimum charges and GST may apply. The Wallet destination is a prototype convenience; official e-ticket refunds normally return to the original payment account. <a href="https://contents.irctc.co.in/en/RefundCancellationRules.pdf" target="_blank" rel="noreferrer">Read the official rules ↗</a></p>
+        </aside>
       </section>
 
       <section className="about-clarity" id="about-build-clarity">
