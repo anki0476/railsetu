@@ -7,6 +7,10 @@
   --line: rgba(36, 50, 90, 0.12);
 }
 
+.rail-ticket-status.is-cancelled { color:#9b3949; background:#fde8ec; }
+.rail-ticket-status.is-cancelled i { background:#c74e60; }
+.railsetu-dark .rail-ticket-status.is-cancelled { color:#ffc4cb; background:#3a2029; }
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; color: var(--ink); background: #f7f9ff; font-family: var(--font-geist), Arial, sans-serif; }

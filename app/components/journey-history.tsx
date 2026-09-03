@@ -19,6 +19,14 @@ function HistoryTicketIcon() {
 function startOfToday() { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(); }
 function itemStatus(item: TicketHistoryItem): Exclude<HistoryFilter, 'all'> { if (item.status === 'cancelled') return 'cancelled'; return new Date(`${item.journeyDate}T00:00:00`).getTime() >= startOfToday() ? 'upcoming' : 'completed'; }
 
+function ticketUrlForStatus(item: TicketHistoryItem, status: Exclude<HistoryFilter, 'all'>) {
+  if (status !== 'cancelled') return item.ticketUrl;
+  const [path, query = ''] = item.ticketUrl.split('?');
+  const params = new URLSearchParams(query);
+  params.set('status', 'cancelled');
+  return `${path}?${params.toString()}`;
+}
+
 function departureTime(item: TicketHistoryItem) {
   try {
     const firstLeg = new URL(item.ticketUrl, window.location.origin).searchParams.get('legs')?.split('|')[0]?.split('~');
@@ -80,7 +88,7 @@ export default function JourneyHistory({ isOpen, onClose }: JourneyHistoryProps)
         <span className="journey-history-ticket-icon"><HistoryTicketIcon /></span>
         <div className="journey-history-main"><small>{item.train}</small><h3>{item.from} <i>→</i> {item.to}</h3><p>{item.fromName} to {item.toName}</p><em className={`journey-history-status is-${status}`}>{status}</em></div>
         <dl><div><dt>Journey date</dt><dd>{item.journeyDate}</dd></div><div><dt>Purchased</dt><dd>{dateTime.format(new Date(item.purchasedAt))}</dd></div><div><dt>{status === 'cancelled' ? 'Refund' : 'Total fare'}</dt><dd>{money.format(status === 'cancelled' ? item.refundAmount ?? 0 : item.fare)}</dd></div></dl>
-        <div className="journey-history-actions"><a href={item.ticketUrl}>View ticket <span>↗</span></a>{status === 'upcoming' ? <button type="button" onClick={() => { setDestination('original'); setCancelling(item); }}>Cancel ticket</button> : null}</div>
+        <div className="journey-history-actions"><a href={ticketUrlForStatus(item, status)}>View ticket <span>↗</span></a>{status === 'upcoming' ? <button type="button" onClick={() => { setDestination('original'); setCancelling(item); }}>Cancel ticket</button> : null}</div>
       </article>; })}</div> : <div className="journey-history-empty"><span><HistoryTicketIcon /></span><h3>No {filter === 'all' ? 'tickets' : filter + ' tickets'}.</h3><p>{filter === 'upcoming' ? 'New confirmed journeys will appear here until their travel date.' : 'There is nothing in this category yet.'}</p>{filter === 'all' ? <a href="/planner">Plan a journey <span>→</span></a> : null}</div>}
       <footer><p>Saved on this device · {items.length} {items.length === 1 ? 'ticket' : 'tickets'}</p>{items.length ? <div className="journey-history-clear">{confirmClear ? <span>This removes every saved ticket.</span> : null}<button className={confirmClear ? 'is-confirming' : ''} type="button" onClick={clearAll}>{confirmClear ? 'Confirm clear' : 'Clear history'}</button>{confirmClear ? <button type="button" onClick={() => setConfirmClear(false)}>Keep history</button> : null}</div> : null}</footer>
     </section>

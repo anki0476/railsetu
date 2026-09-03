@@ -95,12 +95,13 @@ export default function ScrollExpandTicket() {
   const comfort = clean(params.get('comfort'), '89', 3);
   const profile = clean(params.get('profile'), 'elderly', 20);
   const mode = clean(params.get('mode'), 'upi', 16);
+  const isCancelled = params.get('status') === 'cancelled';
   const legs = useMemo(() => parseLegs(params.get('legs')), [params]);
   const ticketId = `RS-${train.split('·')[0].trim()}-${from}${to}-${date.replaceAll('-', '')}`;
 
   const downloadParams = useMemo(() => {
     const next = new URLSearchParams();
-    ['fare', 'train', 'from', 'fromName', 'to', 'toName', 'date', 'class', 'comfort', 'profile', 'mode', 'legs'].forEach((key) => {
+    ['fare', 'train', 'from', 'fromName', 'to', 'toName', 'date', 'class', 'comfort', 'profile', 'mode', 'legs', 'status'].forEach((key) => {
       const value = params.get(key);
       if (value) next.set(key, value);
     });
@@ -284,7 +285,7 @@ export default function ScrollExpandTicket() {
             <div
               className={`ticket-color-loader ${ticketLoadPhase === 'revealing' ? 'is-revealing' : ''}`}
               role="status"
-              aria-label="Preparing your confirmed RailSetu ticket"
+              aria-label={`Preparing your ${isCancelled ? 'cancelled' : 'confirmed'} RailSetu ticket`}
             >
               <div className="ticket-color-loader-content">
                 <div className="ticket-color-panels" aria-hidden="true">
@@ -325,7 +326,7 @@ export default function ScrollExpandTicket() {
               <article className="rail-ticket" aria-labelledby="rail-ticket-title">
                 <header className="rail-ticket-header">
                   <div className="rail-ticket-brand"><BrandMark /><strong>RailSetu</strong></div>
-                  <div className="rail-ticket-status"><i /> Confirmed throughout</div>
+                  <div className={`rail-ticket-status ${isCancelled ? 'is-cancelled' : ''}`}><i /> {isCancelled ? 'Cancelled' : 'Confirmed throughout'}</div>
                 </header>
 
                 <div className="rail-ticket-route">
