@@ -24,7 +24,7 @@ import {
   type PassengerProfileData,
 } from './passenger-profile';
 import { useSiteLanguage } from './site-language';
-import { JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
+import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 
 type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
@@ -661,6 +661,19 @@ export default function JourneyPlanner() {
           setSearchPhase('idle');
           if (autoContinue && nextOutcome.solutions[0]) {
             searchTimers.current.push(setTimeout(() => continueToPayment(nextOutcome.solutions[0], nextSubmission, true), 450));
+          } else if (autoContinue && nextOutcome.recommendations[0]) {
+            const recommendation = nextOutcome.recommendations[0];
+            dispatchJamvantaFeedback(
+              `That exact option is unavailable. I found ${recommendation.solutionCount} complete confirmed ${recommendation.solutionCount === 1 ? 'route' : 'routes'} if we ${recommendation.title.toLowerCase()}. Should I continue with that option?`,
+              {
+                type: 'plan_journey',
+                travelClass: recommendation.query.travelClass,
+                search: true,
+                autoContinue: true,
+              },
+            );
+          } else if (autoContinue) {
+            dispatchJamvantaFeedback('I could not find a complete confirmed route with those details. Would you like to try another date or travel class?');
           }
         }, completionDelay));
       });
@@ -729,7 +742,8 @@ export default function JourneyPlanner() {
             date: action.date && action.date >= todayInputValue() ? action.date : current.date,
             passengers,
           };
-          if (action.search) window.setTimeout(() => runSearch(next, action.autoContinue), 0);
+          if (action.search && next.from !== next.to) window.setTimeout(() => runSearch(next, action.autoContinue), 0);
+          else if (action.search) dispatchJamvantaFeedback('The departure and destination cannot be the same. Which station are you travelling to?');
           return next;
         });
         document.querySelector('.planner-search-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });

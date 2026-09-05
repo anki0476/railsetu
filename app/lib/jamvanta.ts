@@ -12,15 +12,21 @@ export type JamvantaTurn = {
   reply: string;
   language: 'en-IN' | 'hi-IN';
   action?: JamvantaAction;
+  clarification?: boolean;
   requiresApproval?: boolean;
   approvalLabel?: string;
 };
 
 export const JAMVANTA_ACTION_EVENT = 'railsetu:jamvanta-action';
+export const JAMVANTA_FEEDBACK_EVENT = 'railsetu:jamvanta-feedback';
 const JAMVANTA_PENDING_ACTION_KEY = 'railsetu.jamvanta-pending-action.v1';
 
 export function dispatchJamvantaAction(action: JamvantaAction) {
   window.dispatchEvent(new CustomEvent<JamvantaAction>(JAMVANTA_ACTION_EVENT, { detail: action }));
+}
+
+export function dispatchJamvantaFeedback(message: string, action?: JamvantaAction) {
+  window.dispatchEvent(new CustomEvent(JAMVANTA_FEEDBACK_EVENT, { detail: { message, action } }));
 }
 
 export function routeJamvantaAction(action: JamvantaAction) {

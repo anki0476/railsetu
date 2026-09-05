@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
-import { dispatchJamvantaAction, routeJamvantaAction, takePendingJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
+import { dispatchJamvantaAction, JAMVANTA_FEEDBACK_EVENT, routeJamvantaAction, takePendingJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 import { getWalletBalance } from '../lib/wallet';
 
@@ -120,6 +120,8 @@ export default function Jamvanta() {
   const silenceTimer = useRef<number | null>(null);
   const beginListeningRef = useRef<() => Promise<void>>(async () => undefined);
   const sending = useRef(false);
+  const suggestedAction = useRef<JamvantaAction | null>(null);
+  const speechSequence = useRef(0);
   const panel = useRef<HTMLElement>(null);
   const conversation = useRef<HTMLDivElement>(null);
 
@@ -248,6 +250,25 @@ export default function Jamvanta() {
     routeJamvantaAction(action);
   }, []);
 
+  useEffect(() => {
+    const handleFeedback = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; action?: JamvantaAction }>).detail;
+      const message = plainText(detail?.message ?? '').trim();
+      if (!message) return;
+      suggestedAction.current = detail.action ?? null;
+      const sequence = ++speechSequence.current;
+      setOpen(true);
+      setWorking(false);
+      setNotice(detail.action ? 'Waiting for your choice…' : 'Tell me what you would like to change…');
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
+      void speak(message, 'en-IN', providers.sarvam).then(() => {
+        if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
+      });
+    };
+    window.addEventListener(JAMVANTA_FEEDBACK_EVENT, handleFeedback);
+    return () => window.removeEventListener(JAMVANTA_FEEDBACK_EVENT, handleFeedback);
+  }, [providers.sarvam, updateMessages]);
+
   const choosePayment = useCallback((choice: PaymentChoice) => {
     setPaymentChoices([]);
     setPending({
@@ -258,6 +279,8 @@ export default function Jamvanta() {
 
   const clearConversation = useCallback(() => {
     stopJamvantaSpeech();
+    speechSequence.current += 1;
+    suggestedAction.current = null;
     messagesRef.current = [];
     latestDraft.current = '';
     setMessages([]);
@@ -270,6 +293,34 @@ export default function Jamvanta() {
   const send = useCallback(async (text: string, spokenLanguage?: string) => {
     const transcript = plainText(text).trim();
     if (!transcript || sending.current) return;
+    const suggestion = suggestedAction.current;
+    if (suggestion && /^(yes|yeah|yep|sure|ok(?:ay)?|continue|go ahead|do it|please do|haan|ha|हाँ|हां|ठीक है)[.! ]*$/i.test(transcript)) {
+      suggestedAction.current = null;
+      setDraft('');
+      updateMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: 'user', text: transcript },
+        { id: crypto.randomUUID(), role: 'assistant', text: 'Okay, I’ll continue with that option.' },
+      ]);
+      execute(suggestion);
+      return;
+    }
+    if (suggestion && /^(no|nope|cancel|not now|nahi|nahin|नहीं|नही)[.! ]*$/i.test(transcript)) {
+      suggestedAction.current = null;
+      setDraft('');
+      const reply = 'No problem. Tell me the date or travel class you would prefer instead.';
+      updateMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: 'user', text: transcript },
+        { id: crypto.randomUUID(), role: 'assistant', text: reply },
+      ]);
+      const sequence = ++speechSequence.current;
+      void speak(reply, 'en-IN', providers.sarvam).then(() => {
+        if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
+      });
+      return;
+    }
+    suggestedAction.current = null;
     sending.current = true;
     setDraft('');
     setWorking(true);
@@ -292,7 +343,9 @@ export default function Jamvanta() {
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
       else if (turn.action) execute(turn.action);
       listenAfterReply = !turn.requiresApproval;
+      const sequence = ++speechSequence.current;
       await speak(safeReply, turn.language, providers.sarvam);
+      if (speechSequence.current !== sequence) listenAfterReply = false;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Jamvanta is temporarily unavailable.';
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);

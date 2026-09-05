@@ -1,24 +1,52 @@
 import { NextResponse } from 'next/server';
 import type { JamvantaAction, JamvantaTurn } from '../../../lib/jamvanta';
 import { plainText } from '../../../lib/plain-text';
+import { stationOptions } from '../../../lib/journey-engine';
 
-const stations: Array<[string, string[]]> = [
-  ['NDLS', ['new delhi', 'delhi', 'नई दिल्ली', 'दिल्ली']],
-  ['PNBE', ['patna junction', 'patna', 'पटना']],
-  ['CNB', ['kanpur', 'कानपुर']],
-  ['DURG', ['durg', 'दुर्ग']],
-  ['BRC', ['vadodara', 'baroda', 'वडोदरा', 'बड़ौदा']],
-];
+const spokenAliases: Record<string, string[]> = {
+  NDLS: ['delhi', 'नई दिल्ली', 'दिल्ली'], PNBE: ['patna', 'पटना'], CNB: ['kanpur', 'कानपुर'],
+  DURG: ['दुर्ग'], R: ['raipur', 'रायपुर'], BRC: ['vadodara', 'baroda', 'वडोदरा', 'बड़ौदा'],
+  CSMT: ['mumbai', 'bombay', 'मुंबई'], SBC: ['bengaluru', 'bangalore', 'बेंगलुरु'], MAS: ['chennai', 'madras', 'चेन्नई'],
+  HYB: ['hyderabad', 'हैदराबाद'], HWH: ['howrah', 'kolkata', 'हावड़ा', 'कोलकाता'], BPL: ['bhopal', 'भोपाल'],
+};
 
-function findStation(text: string, after: string[]) {
-  const lower = text.toLowerCase();
-  for (const marker of after) {
-    const index = lower.indexOf(marker);
-    if (index < 0) continue;
-    const fragment = lower.slice(index + marker.length);
-    const match = stations.find(([, names]) => names.some((name) => fragment.includes(name)));
-    if (match) return match[0];
+const normalizePhrase = (value: string) => value.toLowerCase().replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
+const stationAliases = stationOptions.flatMap((station) => {
+  const simplified = station.name.replace(/\b(junction|terminus|deccan|central)\b/gi, '').replace(/\s+/g, ' ').trim();
+  return [...new Set([station.name, simplified, ...(station.code.length > 1 ? [station.code] : []), ...(spokenAliases[station.code] ?? [])])]
+    .filter(Boolean)
+    .map((alias) => ({ code: station.code, alias: normalizePhrase(alias) }));
+}).sort((a, b) => b.alias.length - a.alias.length);
+
+function stationIn(fragment: string) {
+  const normalized = ` ${normalizePhrase(fragment)} `;
+  return stationAliases.find(({ alias }) => normalized.includes(` ${alias} `))?.code;
+}
+
+function routeStations(text: string) {
+  const normalized = normalizePhrase(text);
+  const english = normalized.match(/(?:\bfrom\s+)?(.+?)\s+\bto\s+(.+?)(?=\s+\b(?:on|for|with|in|travelling|traveling|passengers?|people|class)\b|$)/i);
+  const hindi = normalized.match(/(.+?)\s+से\s+(.+?)(?=\s+(?:को|के लिए|में|यात्री|लोग)|$)/i);
+  const match = english ?? hindi;
+  if (match) {
+    const from = stationIn(match[1]);
+    const to = stationIn(match[2]);
+    return { from, to: to !== from ? to : undefined };
   }
+  const padded = ` ${normalized} `;
+  const matches = [...new Set(stationAliases.filter(({ alias }) => padded.includes(` ${alias} `)).map(({ code }) => code))];
+  return { from: matches[0], to: matches.find((code) => code !== matches[0]) };
+}
+
+function travelClass(text: string) {
+  const lower = normalizePhrase(text);
+  if (/\b(?:ec|executive(?: chair car| class)?)\b/.test(lower)) return 'EC';
+  if (/\b(?:1a|first class ac|first ac|1st class ac|one tier ac)\b/.test(lower)) return '1A';
+  if (/\b(?:2a|2 tier ac|two tier ac|second tier ac)\b/.test(lower)) return '2A';
+  if (/\b(?:3e|3 tier ac economy|three tier ac economy|ac economy)\b/.test(lower)) return '3E';
+  if (/\b(?:3a|3 tier ac|three tier ac|third tier ac)\b/.test(lower)) return '3A';
+  if (/\b(?:cc|ac chair car|chair car)\b/.test(lower)) return 'CC';
+  if (/\b(?:sl|sleeper|sleeper class)\b/.test(lower)) return 'SL';
   return undefined;
 }
 
@@ -61,7 +89,7 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
   const lower = text.toLowerCase();
   const hindi = spokenLanguage === 'hi-IN' || /[\u0900-\u097f]/.test(text);
   const language: JamvantaTurn['language'] = hindi ? 'hi-IN' : 'en-IN';
-  const matchedStations = stations.filter(([, names]) => names.some((name) => lower.includes(name))).map(([code]) => code);
+  const route = routeStations(text);
   let action: JamvantaAction | undefined;
   let reply = hindi ? 'मैं आपकी रेलसेतु यात्रा में मदद कर सकता हूँ।' : 'I can help with your RailSetu journey.';
 
@@ -104,22 +132,34 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
   } else if (/about|रेलसेतु के बारे/.test(lower)) {
     action = { type: 'navigate', path: '/about' };
     reply = hindi ? 'रेलसेतु के बारे में पेज खोल रहा हूँ।' : 'Opening About RailSetu.';
-  } else if (/plan|find|search|journey|train|यात्रा|ट्रेन|ढूँढ|खोज/.test(lower) || matchedStations.length >= 2) {
-    const from = findStation(text, ['from ', 'से ', 'leaving ']);
-    const to = findStation(text, ['to ', 'तक ', 'for ']);
-    const allMatches = matchedStations;
+  } else if (/plan|find|search|book|reserve|journey|train|यात्रा|ट्रेन|टिकट|ढूँढ|खोज|बुक/.test(lower) || (route.from && route.to)) {
+    const from = route.from;
+    const to = route.to;
     const date = spokenDate(text);
+    const selectedClass = travelClass(text);
+    const count = passengerCount(text);
+    const completeRequest = Boolean(from && to && from !== to && date && selectedClass && count);
     action = {
       type: 'plan_journey',
-      from: from ?? allMatches[0],
-      to: to ?? allMatches.find((code) => code !== (from ?? allMatches[0])),
-      passengerCount: passengerCount(text),
+      from,
+      to,
+      passengerCount: count,
       date,
-      travelClass: (text.match(/\b(1A|2A|3A|3E|CC|EC|SL)\b/i)?.[1] ?? undefined)?.toUpperCase(),
-      search: /find|search|ढूँढ|खोज/.test(lower) || Boolean(date && allMatches.length >= 2),
-      autoContinue: Boolean(date && allMatches.length >= 2),
+      travelClass: selectedClass,
+      search: completeRequest,
+      autoContinue: completeRequest,
     };
-    reply = hindi ? 'मैंने यात्रा की जानकारी तैयार कर दी है। खोजने से पहले विवरण जाँच लें।' : 'I have prepared the journey details. Please check them before searching.';
+    const missing = !from ? 'from' : !to || to === from ? 'to' : !date ? 'date' : !selectedClass ? 'class' : !count ? 'passengers' : null;
+    if (missing) {
+      const questions = hindi ? {
+        from: 'आप कहाँ से यात्रा शुरू करना चाहते हैं?', to: 'आप किस स्टेशन तक जाना चाहते हैं?', date: 'आप किस तारीख को यात्रा करना चाहते हैं?', class: 'आप किस यात्रा श्रेणी में जाना चाहते हैं?', passengers: 'कितने यात्री सफ़र करेंगे?',
+      } : {
+        from: 'Which station are you travelling from?', to: 'Which station are you travelling to?', date: 'What date would you like to travel?', class: 'Which travel class would you like?', passengers: 'How many passengers are travelling?',
+      };
+      reply = questions[missing];
+      return { reply, language, action, clarification: true };
+    }
+    reply = hindi ? 'सारी जानकारी मिल गई। अब सबसे अच्छा पूरा रास्ता खोज रहा हूँ।' : 'I have everything I need. Finding the best complete route now.';
   }
 
   return { reply, language, action };
@@ -151,7 +191,7 @@ export async function POST(request: Request) {
   const currentTurn = localTurn(transcript, pathname, spokenLanguage);
   const rememberedTurn = localTurn(context, pathname, spokenLanguage);
   const hasRememberedJourney = rememberedTurn.action?.type === 'plan_journey';
-  const suppliesJourneyDetail = Boolean(spokenDate(transcript) || passengerCount(transcript) || /\b(1A|2A|3A|3E|CC|EC|SL)\b/i.test(transcript));
+  const suppliesJourneyDetail = Boolean(spokenDate(transcript) || passengerCount(transcript) || travelClass(transcript) || routeStations(transcript).from || routeStations(transcript).to);
   const fallback = (!currentTurn.action && hasRememberedJourney && suppliesJourneyDetail)
     ? { ...rememberedTurn, language: currentTurn.language }
     : currentTurn.action?.type === 'plan_journey' && hasRememberedJourney
@@ -180,7 +220,7 @@ export async function POST(request: Request) {
     if (!raw) throw new Error('provider returned no result');
     const providerTurn = JSON.parse(raw) as Pick<JamvantaTurn, 'reply' | 'language'>;
     providerTurn.reply = plainText(providerTurn.reply);
-    return NextResponse.json({ ...fallback, ...providerTurn, mode: 'openai' });
+    return NextResponse.json({ ...fallback, ...providerTurn, reply: fallback.clarification ? fallback.reply : providerTurn.reply, mode: 'openai' });
   } catch {
     return NextResponse.json({ ...fallback, mode: 'local-fallback' });
   }
