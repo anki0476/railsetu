@@ -29,10 +29,10 @@ function passengerCount(text: string) {
   return Object.entries(words).find(([word]) => new RegExp(`\\b${word}\\b`).test(lower))?.[1];
 }
 
-function localTurn(transcript: string, pathname: string): JamvantaTurn {
+function localTurn(transcript: string, pathname: string, spokenLanguage?: string): JamvantaTurn {
   const text = transcript.trim();
   const lower = text.toLowerCase();
-  const hindi = /[\u0900-\u097f]/.test(text);
+  const hindi = spokenLanguage === 'hi-IN' || /[\u0900-\u097f]/.test(text);
   const language: JamvantaTurn['language'] = hindi ? 'hi-IN' : 'en-IN';
   let action: JamvantaAction | undefined;
   let reply = hindi ? 'मैं आपकी रेलसेतु यात्रा में मदद कर सकता हूँ।' : 'I can help with your RailSetu journey.';
@@ -72,12 +72,13 @@ function localTurn(transcript: string, pathname: string): JamvantaTurn {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json() as { transcript?: string; pathname?: string };
+  const body = await request.json() as { transcript?: string; pathname?: string; spokenLanguage?: string };
   const transcript = String(body.transcript ?? '').slice(0, 800);
   const pathname = String(body.pathname ?? '/');
   if (!transcript.trim()) return NextResponse.json({ error: 'Transcript is required.' }, { status: 400 });
 
-  const fallback = localTurn(transcript, pathname);
+  const spokenLanguage = String(body.spokenLanguage ?? '');
+  const fallback = localTurn(transcript, pathname, spokenLanguage);
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ ...fallback, mode: 'local-simulation' });
   try {
     const response = await fetch('https://api.openai.com/v1/responses', {
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL ?? 'gpt-5-mini',
         instructions: 'You are Jamvanta, RailSetu voice navigation. Mirror the user language (en-IN or hi-IN). Concisely explain the next action and never claim a prototype booking is real. Return only JSON matching the schema. The server separately chooses the permitted action.',
-        input: `Page: ${pathname}\nUser: ${transcript}`,
+        input: `Page: ${pathname}\nOriginal spoken language: ${spokenLanguage || 'infer from text'}\nTranslated transcript: ${transcript}`,
         text: { format: { type: 'json_schema', name: 'jamvanta_turn', strict: true, schema: {
           type: 'object', additionalProperties: false,
           properties: {

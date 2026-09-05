@@ -98,7 +98,7 @@ export default function Jamvanta() {
     else dispatchJamvantaAction(action);
   }, []);
 
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, spokenLanguage?: string) => {
     const transcript = text.trim();
     if (!transcript || working) return;
     setDraft('');
@@ -109,7 +109,7 @@ export default function Jamvanta() {
       const response = await fetch('/api/jamvanta/turn', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ transcript, pathname: window.location.pathname, search: window.location.search }),
+        body: JSON.stringify({ transcript, spokenLanguage, pathname: window.location.pathname, search: window.location.search }),
       });
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
@@ -157,10 +157,10 @@ export default function Jamvanta() {
               form.append('audio', audio, 'jamvanta.webm');
               const response = await fetch('/api/jamvanta/transcribe', { method: 'POST', body: form });
               if (!response.ok) throw new Error('fallback');
-              const result = await response.json() as { transcript?: string };
+              const result = await response.json() as { transcript?: string; language?: string };
               if (result.transcript?.trim()) {
                 setDraft(result.transcript);
-                await send(result.transcript);
+                await send(result.transcript, result.language);
                 return;
               }
             } catch {
