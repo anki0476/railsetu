@@ -30,12 +30,16 @@ function stopJamvantaSpeech() {
 }
 
 function browserSpeak(text: string, language: JamvantaTurn['language']) {
-  if (!('speechSynthesis' in window)) return;
+  if (!('speechSynthesis' in window)) return Promise.resolve();
   stopJamvantaSpeech();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language;
-  utterance.rate = language === 'hi-IN' ? 0.94 : 1;
-  window.speechSynthesis.speak(utterance);
+  return new Promise<void>((resolve) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language;
+    utterance.rate = language === 'hi-IN' ? 0.94 : 1;
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    window.speechSynthesis.speak(utterance);
+  });
 }
 
 async function speak(text: string, language: JamvantaTurn['language'], useSarvam: boolean) {
@@ -48,14 +52,23 @@ async function speak(text: string, language: JamvantaTurn['language'], useSarvam
       if (!result.audio) throw new Error('Sarvam returned no audio');
       const audio = new Audio(`data:${result.contentType ?? 'audio/wav'};base64,${result.audio}`);
       activeProviderAudio = audio;
-      audio.onended = () => { if (activeProviderAudio === audio) activeProviderAudio = null; };
-      await audio.play();
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => {
+          if (activeProviderAudio === audio) activeProviderAudio = null;
+          resolve();
+        };
+        audio.onerror = () => {
+          if (activeProviderAudio === audio) activeProviderAudio = null;
+          reject(new Error('Sarvam audio playback failed'));
+        };
+        void audio.play().catch(reject);
+      });
       return;
     } catch {
       // The device voice is a resilient fallback when provider audio cannot play.
     }
   }
-  browserSpeak(text, language);
+  await browserSpeak(text, language);
 }
 
 export default function Jamvanta() {
@@ -75,6 +88,8 @@ export default function Jamvanta() {
   const latestDraft = useRef('');
   const wantsListening = useRef(false);
   const recognitionRestartTimer = useRef<number | null>(null);
+  const silenceTimer = useRef<number | null>(null);
+  const beginListeningRef = useRef<() => Promise<void>>(async () => undefined);
   const sending = useRef(false);
   const panel = useRef<HTMLElement>(null);
 
@@ -157,6 +172,7 @@ export default function Jamvanta() {
     document.documentElement.classList.toggle('jamvanta-listening', listening);
     return () => {
       document.documentElement.classList.remove('jamvanta-alive', 'jamvanta-listening');
+      if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
       stopJamvantaSpeech();
     };
   }, [listening, open]);
@@ -183,6 +199,7 @@ export default function Jamvanta() {
     setPending(null);
     const history = messagesRef.current.slice(-12).map(({ role, text: messageText }) => ({ role, text: messageText }));
     updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
+    let listenAfterReply = false;
     try {
       const response = await fetch('/api/jamvanta/turn', {
         method: 'POST',
@@ -194,7 +211,8 @@ export default function Jamvanta() {
       setNotice(turn.mode === 'openai' ? 'Sarvam + OpenAI connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
       const safeReply = plainText(turn.reply);
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: safeReply }]);
-      void speak(safeReply, turn.language, providers.sarvam);
+      await speak(safeReply, turn.language, providers.sarvam);
+      listenAfterReply = !turn.requiresApproval;
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
       else if (turn.action) execute(turn.action);
     } catch (error) {
@@ -203,11 +221,18 @@ export default function Jamvanta() {
     } finally {
       sending.current = false;
       setWorking(false);
+      if (listenAfterReply) {
+        window.setTimeout(() => {
+          if (panel.current) void beginListeningRef.current();
+        }, 180);
+      }
     }
   }, [execute, providers.sarvam, updateMessages]);
 
   const stopListening = useCallback(() => {
     wantsListening.current = false;
+    if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
+    silenceTimer.current = null;
     if (recognitionRestartTimer.current !== null) window.clearTimeout(recognitionRestartTimer.current);
     recognitionRestartTimer.current = null;
     const activeRecognition = recognition.current;
@@ -274,6 +299,8 @@ export default function Jamvanta() {
         for (let index = 0; index < event.results.length; index += 1) next += event.results[index][0].transcript;
         latestDraft.current = next.trim();
         setDraft(plainText(next.trim()));
+        if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
+        silenceTimer.current = window.setTimeout(() => stopListening(), 4000);
       };
       instance.onerror = (event) => {
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -296,13 +323,18 @@ export default function Jamvanta() {
       instance.start();
       setListening(true);
       setNotice('Listening in English, Hindi or Hinglish…');
+      silenceTimer.current = window.setTimeout(() => stopListening(), 4000);
     } catch {
       wantsListening.current = false;
       setNotice('Microphone permission is needed · type below instead');
       setListening(false);
       if (recorder.current?.state === 'recording') recorder.current.stop();
     }
-  }, [send]);
+  }, [send, stopListening]);
+
+  useEffect(() => {
+    beginListeningRef.current = beginListening;
+  }, [beginListening]);
 
   const approve = async () => {
     if (!pending || pending.action.type !== 'pay_with_wallet') return;
