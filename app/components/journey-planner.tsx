@@ -25,6 +25,7 @@ import {
 } from './passenger-profile';
 import { useSiteLanguage } from './site-language';
 import { JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
+import { plainText } from '../lib/plain-text';
 
 type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
 type PlannerForm = Omit<JourneyQuery, 'maxChanges'> & {
@@ -523,7 +524,7 @@ export default function JourneyPlanner() {
       const savedProfile = window.localStorage.getItem(PROFILE_STORAGE_KEY);
       if (savedProfile) {
         const profile = JSON.parse(savedProfile) as Partial<PassengerProfileData>;
-        if (profile.fullName?.trim()) available.push({ id: 'account-holder', name: profile.fullName.trim(), detail: 'Main account holder', profile: form.profile });
+        if (profile.fullName?.trim()) available.push({ id: 'account-holder', name: plainText(profile.fullName, 40).trim(), detail: 'Main account holder', profile: form.profile });
       }
       const savedLinked = window.localStorage.getItem(LINKED_PASSENGERS_STORAGE_KEY);
       const linked = savedLinked ? JSON.parse(savedLinked) as unknown : [];
@@ -861,7 +862,7 @@ export default function JourneyPlanner() {
           <div className="planner-passenger-grid">
             {form.passengers.map((passenger, index) => (
               <article className="planner-passenger-card" key={passenger.id}>
-                <div className="planner-passenger-card-head"><span>{String(index + 1).padStart(2, '0')}</span><input aria-label={`Passenger ${index + 1} name`} value={passenger.name} maxLength={40} onChange={(event) => updatePassenger(passenger.id, { name: event.target.value })} /></div>
+                <div className="planner-passenger-card-head"><span>{String(index + 1).padStart(2, '0')}</span><input aria-label={`Passenger ${index + 1} name`} value={passenger.name} maxLength={40} onChange={(event) => updatePassenger(passenger.id, { name: plainText(event.target.value, 40) })} /></div>
                 <div className="planner-passenger-fields">
                   <label><span>Needs</span><select value={passenger.profile} onChange={(event) => updatePassenger(passenger.id, { profile: event.target.value as TravellerProfile })}><option value="standard">Standard traveller</option><option value="elderly">Elderly / limited mobility</option><option value="family">Child / family care</option></select></label>
                   <label><span>Luggage</span><select value={passenger.luggage} onChange={(event) => updatePassenger(passenger.id, { luggage: event.target.value as LuggageLevel })}><option value="none">None</option><option value="light">Light</option><option value="heavy">Heavy</option></select></label>
@@ -973,7 +974,7 @@ export default function JourneyPlanner() {
                       value={form.note}
                       maxLength={180}
                       placeholder="For example: My mother uses a walking stick, so please avoid rushed platform or coach changes."
-                      onChange={(event) => setForm((value) => ({ ...value, note: event.target.value }))}
+                      onChange={(event) => setForm((value) => ({ ...value, note: plainText(event.target.value, 240) }))}
                     />
                     <small>{form.note.length} / 180</small>
                   </label>

@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
 import { JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
+import { plainText } from '../lib/plain-text';
 
 type PaymentMode = string;
 type PaymentState = 'idle' | 'processing' | 'done';
@@ -260,7 +261,7 @@ export default function PaymentCard() {
             </div>
             <form onSubmit={addMockCard}>
               <label className="payment-card-number-field"><span>Card number</span><input ref={cardNumberInput} inputMode="numeric" autoComplete="off" placeholder="4242 4242 4242 4242" value={cardDraft.number} onChange={(event) => setCardDraft((current) => ({ ...current, number: event.target.value.replace(/[^\d ]/g, '').slice(0, 23) }))} /></label>
-              <label><span>Name on card</span><input autoComplete="off" placeholder="Ravi Kishan" value={cardDraft.holder} onChange={(event) => setCardDraft((current) => ({ ...current, holder: event.target.value.slice(0, 30) }))} /></label>
+              <label><span>Name on card</span><input autoComplete="off" placeholder="Ravi Kishan" value={cardDraft.holder} onChange={(event) => setCardDraft((current) => ({ ...current, holder: plainText(event.target.value, 30) }))} /></label>
               <label><span>Expiry</span><input inputMode="numeric" autoComplete="off" placeholder="09/29" value={cardDraft.expiry} onChange={(event) => setCardDraft((current) => ({ ...current, expiry: event.target.value.replace(/[^\d/]/g, '').slice(0, 5) }))} /></label>
               <label><span>CVV</span><input type="password" inputMode="numeric" autoComplete="off" placeholder="123" value={cardDraft.cvv} onChange={(event) => setCardDraft((current) => ({ ...current, cvv: event.target.value.replace(/\D/g, '').slice(0, 4) }))} /></label>
               <label className="payment-save-card-check"><input type="checkbox" checked={cardDraft.save} onChange={(event) => setCardDraft((current) => ({ ...current, save: event.target.checked }))} /><span aria-hidden="true">✓</span><strong>Save for future use</strong></label>

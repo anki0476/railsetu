@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { JamvantaAction, JamvantaTurn } from '../../../lib/jamvanta';
+import { plainText } from '../../../lib/plain-text';
 
 const stations: Array<[string, string[]]> = [
   ['NDLS', ['new delhi', 'delhi', 'नई दिल्ली', 'दिल्ली']],
@@ -112,13 +113,13 @@ function mergeJourneyAction(remembered: Extract<JamvantaAction, { type: 'plan_jo
 
 export async function POST(request: Request) {
   const body = await request.json() as { transcript?: string; pathname?: string; spokenLanguage?: string; history?: ConversationMessage[] };
-  const transcript = String(body.transcript ?? '').slice(0, 800);
+  const transcript = plainText(body.transcript);
   const pathname = String(body.pathname ?? '/');
   if (!transcript.trim()) return NextResponse.json({ error: 'Transcript is required.' }, { status: 400 });
 
   const spokenLanguage = String(body.spokenLanguage ?? '');
   const history = Array.isArray(body.history)
-    ? body.history.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-12).map((message) => ({ role: message.role, text: message.text.slice(0, 800) }))
+    ? body.history.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-12).map((message) => ({ role: message.role, text: plainText(message.text) }))
     : [];
   const context = conversationContext(history, transcript);
   const currentTurn = localTurn(transcript, pathname, spokenLanguage);
@@ -152,6 +153,7 @@ export async function POST(request: Request) {
     const raw = result.output_text ?? result.output?.flatMap((item) => item.content ?? []).find((item) => item.text)?.text;
     if (!raw) throw new Error('provider returned no result');
     const providerTurn = JSON.parse(raw) as Pick<JamvantaTurn, 'reply' | 'language'>;
+    providerTurn.reply = plainText(providerTurn.reply);
     return NextResponse.json({ ...fallback, ...providerTurn, mode: 'openai' });
   } catch {
     return NextResponse.json({ ...fallback, mode: 'local-fallback' });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { plainText } from '../lib/plain-text';
 
 export interface PassengerProfileData {
   fullName: string;
@@ -114,7 +115,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
   if (!isOpen) return null;
 
   const updateDraft = (field: keyof PassengerProfileData, value: string) => {
-    setDraft((current) => ({ ...current, [field]: value }));
+    setDraft((current) => ({ ...current, [field]: plainText(value, field === 'email' ? 120 : 80) }));
   };
 
   const persistProfile = () => {
@@ -203,7 +204,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
           </header>
           <div className="passenger-linked-body">
             <form onSubmit={(event) => { event.preventDefault(); addLinkedPassenger(); }}>
-              <label><span>Passenger name</span><input value={linkedPassengerDraft.fullName} onChange={(event) => { setLinkedPassengerDraft((current) => ({ ...current, fullName: event.target.value })); setVerificationStatus('idle'); }} placeholder="Mock passenger name" autoComplete="off" /></label>
+              <label><span>Passenger name</span><input value={linkedPassengerDraft.fullName} maxLength={80} onChange={(event) => { setLinkedPassengerDraft((current) => ({ ...current, fullName: plainText(event.target.value, 80) })); setVerificationStatus('idle'); }} placeholder="Mock passenger name" autoComplete="off" /></label>
               <label><span>Relation to account holder</span><select value={linkedPassengerDraft.relation} onChange={(event) => setLinkedPassengerDraft((current) => ({ ...current, relation: event.target.value }))}><option>Parent</option><option>Spouse</option><option>Child</option><option>Sibling</option><option>Friend</option><option>Other</option></select></label>
               <label><span>Mock Aadhaar number</span><input value={linkedPassengerDraft.mockAadhaar} onChange={(event) => { setLinkedPassengerDraft((current) => ({ ...current, mockAadhaar: event.target.value.replace(/[^\dXx ]/g, '').slice(0, 14) })); setVerificationStatus('idle'); }} inputMode="numeric" autoComplete="off" aria-describedby="linked-aadhaar-note" /><small id="linked-aadhaar-note">Prototype only. Never enter a real Aadhaar number.</small></label>
               <div className={`passenger-mock-verification is-${verificationStatus}`}>

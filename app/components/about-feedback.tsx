@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { plainText } from '../lib/plain-text';
 
 const FEEDBACK_STORAGE_KEY = 'railsetu.feedback.v1';
 
@@ -29,7 +30,7 @@ export default function AboutFeedback() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const cleanMessage = message.trim();
+    const cleanMessage = plainText(message).trim();
     if (!cleanMessage) return;
     try {
       const existing = JSON.parse(window.localStorage.getItem(FEEDBACK_STORAGE_KEY) ?? '[]') as unknown;
@@ -72,7 +73,7 @@ export default function AboutFeedback() {
               <button className={category === option ? 'is-selected' : ''} type="button" key={option} onClick={() => setCategory(option)}>{option}</button>
             ))}
           </div>
-          <textarea ref={textareaRef} name="feedback" value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={handleKeyboardSubmit} placeholder="Tell us what happened or what would help…" maxLength={800} required />
+          <textarea ref={textareaRef} name="feedback" value={message} onChange={(event) => setMessage(plainText(event.target.value))} onKeyDown={handleKeyboardSubmit} placeholder="Tell us what happened or what would help…" maxLength={800} required />
           <footer>
             <small>Saved on this device for this prototype</small>
             <button type="submit">Send feedback <span>↗</span></button>

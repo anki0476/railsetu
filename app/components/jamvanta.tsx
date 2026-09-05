@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
 import { dispatchJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
+import { plainText } from '../lib/plain-text';
 
 type VoiceRecognition = {
   continuous: boolean;
@@ -77,7 +78,7 @@ export default function Jamvanta() {
     try {
       const stored = JSON.parse(window.sessionStorage.getItem(JAMVANTA_SESSION_KEY) ?? '[]') as Message[];
       if (Array.isArray(stored)) {
-        const restored = stored.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-20);
+        const restored = stored.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-20).map((message) => ({ ...message, text: plainText(message.text) }));
         messagesRef.current = restored;
         setMessages(restored);
       }
@@ -134,7 +135,7 @@ export default function Jamvanta() {
   }, []);
 
   const send = useCallback(async (text: string, spokenLanguage?: string) => {
-    const transcript = text.trim();
+    const transcript = plainText(text).trim();
     if (!transcript || working) return;
     setDraft('');
     setWorking(true);
@@ -150,8 +151,9 @@ export default function Jamvanta() {
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
       setNotice(turn.mode === 'openai' ? 'Sarvam + OpenAI connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
-      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: turn.reply }]);
-      void speak(turn.reply, turn.language, providers.sarvam);
+      const safeReply = plainText(turn.reply);
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: safeReply }]);
+      void speak(safeReply, turn.language, providers.sarvam);
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
       else if (turn.action) execute(turn.action);
     } catch (error) {
@@ -196,7 +198,7 @@ export default function Jamvanta() {
               if (!response.ok) throw new Error('fallback');
               const result = await response.json() as { transcript?: string; language?: string };
               if (result.transcript?.trim()) {
-                setDraft(result.transcript);
+                setDraft(plainText(result.transcript));
                 recorderWillSubmit.current = false;
                 await send(result.transcript, result.language);
                 return;
@@ -220,7 +222,7 @@ export default function Jamvanta() {
         let next = '';
         for (let index = 0; index < event.results.length; index += 1) next += event.results[index][0].transcript;
         latestDraft.current = next.trim();
-        setDraft(next.trim());
+        setDraft(plainText(next.trim()));
       };
       instance.onerror = () => {
         setNotice('I could not hear that · try again or type below');
@@ -282,7 +284,7 @@ export default function Jamvanta() {
           </div>
           {pending ? <div className="jamvanta-approval"><div><small>CONFIRM BEFORE ACTION</small><strong>Pay from RailSetu Wallet?</strong><span>The exact fare shown on this payment page will be debited.</span></div><div><button type="button" onClick={() => setPending(null)}>Not now</button><button type="button" className="is-primary" onClick={() => void approve()}>{pending.label}</button></div></div> : null}
           <form onSubmit={submit}>
-            <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Tell Jamvanta what to do…" aria-label="Message Jamvanta" />
+            <input value={draft} onChange={(event) => setDraft(plainText(event.target.value))} maxLength={800} placeholder="Tell Jamvanta what to do…" aria-label="Message Jamvanta" />
             <button type="submit" disabled={!draft.trim() || working} aria-label="Send to Jamvanta">↑</button>
           </form>
           <footer>Session-only transcript · no raw audio is stored</footer>
