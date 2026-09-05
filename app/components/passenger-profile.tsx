@@ -10,7 +10,7 @@ export interface PassengerProfileData {
   lastUpdated: string;
 }
 
-interface LinkedPassenger {
+export interface LinkedPassenger {
   id: string;
   fullName: string;
   relation: string;
@@ -29,8 +29,8 @@ interface PassengerProfileProps {
   onClose: () => void;
 }
 
-const PROFILE_STORAGE_KEY = 'railsetu.passenger-profile.v1';
-const LINKED_PASSENGERS_STORAGE_KEY = 'railsetu.linked-passengers.v1';
+export const PROFILE_STORAGE_KEY = 'railsetu.passenger-profile.v1';
+export const LINKED_PASSENGERS_STORAGE_KEY = 'railsetu.linked-passengers.v1';
 const defaultProfile: PassengerProfileData = {
   fullName: 'Mock Name',
   email: 'mock.passenger@example.com',

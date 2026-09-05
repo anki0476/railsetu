@@ -4,6 +4,9 @@ import {
   type CoachPreference,
   type JourneyQuery,
   type LuggageLevel,
+  type GroupStrategy,
+  type JourneyPassenger,
+  type TransitionMode,
   type TravellerProfile,
 } from './journey-engine';
 
@@ -14,6 +17,8 @@ const travelClasses = new Set(['1A', '2A', '3A', '3E', 'SL', 'CC', 'EC']);
 const profiles = new Set<TravellerProfile>(['standard', 'elderly', 'family']);
 const coachPreferences = new Set<CoachPreference>(['same', 'nearby', 'any']);
 const luggageLevels = new Set<LuggageLevel>(['none', 'light', 'heavy']);
+const groupStrategies = new Set<GroupStrategy>(['tiered', 'together', 'safe-split']);
+const transitionModes = new Set<TransitionMode>(['synchronised', 'subgroups']);
 
 export class JourneyRequestError extends Error {
   constructor(public readonly code: string, message: string) {
@@ -52,15 +57,35 @@ export function parseJourneyRequest(value: unknown): JourneyQuery {
     throw new JourneyRequestError('invalid_lower_berth', 'Lower-berth preference must be true or false.');
   }
 
+  const fallbackProfile = enumValue(source.profile, profiles, 'profile');
+  const fallbackLuggage = enumValue(source.luggage, luggageLevels, 'luggage');
+  const fallbackLowerBerth = source.lowerBerth;
+  const rawPassengers = Array.isArray(source.passengers) ? source.passengers.slice(0, 6) : [];
+  const passengers: JourneyPassenger[] = (rawPassengers.length ? rawPassengers : [{}]).map((item, index) => {
+    const passenger = record(item);
+    const id = typeof passenger.id === 'string' && passenger.id.trim() ? passenger.id.slice(0, 40) : `passenger-${index + 1}`;
+    return {
+      id,
+      name: typeof passenger.name === 'string' && passenger.name.trim() ? passenger.name.trim().slice(0, 40) : `Passenger ${index + 1}`,
+      profile: passenger.profile ? enumValue(passenger.profile, profiles, 'passenger_profile') : fallbackProfile,
+      luggage: passenger.luggage ? enumValue(passenger.luggage, luggageLevels, 'passenger_luggage') : fallbackLuggage,
+      lowerBerth: typeof passenger.lowerBerth === 'boolean' ? passenger.lowerBerth : fallbackLowerBerth,
+      companionId: typeof passenger.companionId === 'string' && passenger.companionId !== id ? passenger.companionId.slice(0, 40) : null,
+    };
+  });
+
   return {
     from,
     to,
     travelClass: enumValue(source.travelClass, travelClasses, 'travel_class'),
-    profile: enumValue(source.profile, profiles, 'profile'),
+    profile: fallbackProfile,
     coachPreference: enumValue(source.coachPreference, coachPreferences, 'coach_preference'),
-    luggage: enumValue(source.luggage, luggageLevels, 'luggage'),
+    luggage: fallbackLuggage,
     maxChanges: Math.max(0, Math.min(JOURNEY_ENGINE_LIMITS.maxChanges, maxChanges)),
     lowerBerth: source.lowerBerth,
+    passengers,
+    groupStrategy: source.groupStrategy ? enumValue(source.groupStrategy, groupStrategies, 'group_strategy') : 'tiered',
+    transitionMode: source.transitionMode ? enumValue(source.transitionMode, transitionModes, 'transition_mode') : 'synchronised',
   };
 }
 
@@ -74,5 +99,8 @@ export function journeyCacheKey(query: JourneyQuery) {
     query.luggage,
     query.maxChanges,
     query.lowerBerth ? 1 : 0,
+    query.groupStrategy,
+    query.transitionMode,
+    query.passengers.map((passenger) => [passenger.id, passenger.profile, passenger.luggage, passenger.lowerBerth ? 1 : 0, passenger.companionId ?? ''].join(':')).join(','),
   ].join('|');
 }

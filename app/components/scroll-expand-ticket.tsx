@@ -94,6 +94,8 @@ export default function ScrollExpandTicket() {
   const travelClass = clean(params.get('class'), '3A', 8);
   const comfort = clean(params.get('comfort'), '89', 3);
   const profile = clean(params.get('profile'), 'elderly', 20);
+  const passengerCount = Math.max(1, Math.min(6, Number(params.get('passengerCount')) || 1));
+  const party = clean(params.get('party'), '', 240).split('|').filter(Boolean).slice(0, passengerCount);
   const mode = clean(params.get('mode'), 'upi', 16);
   const isCancelled = params.get('status') === 'cancelled';
   const legs = useMemo(() => parseLegs(params.get('legs')), [params]);
@@ -101,7 +103,7 @@ export default function ScrollExpandTicket() {
 
   const downloadParams = useMemo(() => {
     const next = new URLSearchParams();
-    ['fare', 'train', 'from', 'fromName', 'to', 'toName', 'date', 'class', 'comfort', 'profile', 'mode', 'legs', 'status'].forEach((key) => {
+    ['fare', 'train', 'from', 'fromName', 'to', 'toName', 'date', 'class', 'comfort', 'profile', 'party', 'passengerCount', 'mode', 'legs', 'status'].forEach((key) => {
       const value = params.get(key);
       if (value) next.set(key, value);
     });
@@ -360,7 +362,7 @@ export default function ScrollExpandTicket() {
 
                 <footer className="rail-ticket-footer">
                   <div><span>Ticket ID</span><strong id="rail-ticket-title">{ticketId}</strong></div>
-                  <div><span>Traveller plan</span><strong>{profile === 'elderly' ? 'Limited mobility' : profile}</strong></div>
+                  <div><span>Traveller plan</span><strong>{passengerCount > 1 ? `${passengerCount} passengers · ${party.join(', ')}` : profile === 'elderly' ? 'Limited mobility' : profile}</strong></div>
                   <div><span>Mock payment</span><strong>{paymentLabel(mode)}</strong></div>
                   <div className="rail-ticket-actions">
                     <a href={downloadPath} download>Download Ticket <span>↓</span></a>

@@ -229,7 +229,7 @@ export default function JourneyMapModal({ open, onClose, solution, sharePath }: 
           <RouteMap points={mapPoints} />
           <aside className="journey-map-legend" aria-label="Seat segments">
             <span className="mini-label">Seat segments</span>
-            <h3>One train. {solution.legs.length} confirmed seats.</h3>
+            <h3>{solution.passengerJourneys.length > 1 ? `${solution.passengerJourneys.length} passengers. One coordinated route.` : `One train. ${solution.legs.length} confirmed seats.`}</h3>
             <div>
               {solution.legs.map((leg, index) => (
                 <article key={leg.id} style={{ '--map-color': segmentColors[index % segmentColors.length] } as MapStyle}>

@@ -12,6 +12,17 @@ import { mockJourneyInventoryProvider } from './mock-journey-inventory';
 export type TravellerProfile = 'standard' | 'elderly' | 'family';
 export type CoachPreference = 'same' | 'nearby' | 'any';
 export type LuggageLevel = 'none' | 'light' | 'heavy';
+export type GroupStrategy = 'tiered' | 'together' | 'safe-split';
+export type TransitionMode = 'synchronised' | 'subgroups';
+
+export type JourneyPassenger = {
+  id: string;
+  name: string;
+  profile: TravellerProfile;
+  luggage: LuggageLevel;
+  lowerBerth: boolean;
+  companionId: string | null;
+};
 
 export type JourneyQuery = {
   from: string;
@@ -22,6 +33,9 @@ export type JourneyQuery = {
   luggage: LuggageLevel;
   maxChanges: number;
   lowerBerth: boolean;
+  passengers: JourneyPassenger[];
+  groupStrategy: GroupStrategy;
+  transitionMode: TransitionMode;
 };
 
 export type JourneyLeg = {
@@ -47,6 +61,13 @@ export type JourneySolution = {
   comfort: number;
   comfortDetails: ComfortScoreDetails;
   highlights: string[];
+  allocationConfidence: 'exact-mock' | 'capacity-only';
+  groupArrangement: 'together' | 'subgroups' | 'split-services';
+  passengerJourneys: Array<{
+    passenger: JourneyPassenger;
+    legs: JourneyLeg[];
+    comfort: number;
+  }>;
 };
 
 export type JourneyOutcome = {
@@ -107,6 +128,61 @@ function buildSolution(train: TrainInventoryRecord, legs: JourneyLeg[], query: J
     sleepingBerths.some((leg) => leg.berth === 'LB') ? 'Lower berth included' : 'Seat continuity prioritised',
   ];
 
+  const passengers = query.passengers.length ? query.passengers : [{
+    id: 'passenger-1', name: 'Passenger 1', profile: query.profile, luggage: query.luggage,
+    lowerBerth: query.lowerBerth, companionId: null,
+  }];
+  const usedIds = new Set<string>();
+  const stationByCode = new Map(train.stations.map((station) => [station.code, station]));
+  const indexByCode = new Map(train.stations.map((station, index) => [station.code, index]));
+  const findAlternatePath = () => {
+    let result: JourneyLeg[] | null = null;
+    const baseSignature = legs.map((leg) => `${leg.from.code}-${leg.to.code}`).join('|');
+    const walk = (code: string, path: JourneyLeg[]) => {
+      if (result || path.length > Math.max(1, query.maxChanges + 1)) return;
+      if (code === query.to) {
+        if (path.map((leg) => `${leg.from.code}-${leg.to.code}`).join('|') !== baseSignature) result = path;
+        return;
+      }
+      const currentIndex = indexByCode.get(code) ?? -1;
+      train.inventory.forEach((item) => {
+        const toIndex = indexByCode.get(item.to) ?? -1;
+        if (result || usedIds.has(item.id) || item.from !== code || item.travelClass !== query.travelClass || toIndex <= currentIndex) return;
+        const from = stationByCode.get(item.from);
+        const to = stationByCode.get(item.to);
+        if (from && to) walk(item.to, [...path, { ...item, from, to }]);
+      });
+    };
+    walk(query.from, []);
+    return result;
+  };
+  const companionAnchor = (passenger: JourneyPassenger, passengerIndex: number) => {
+    const companionIndex = passenger.companionId ? passengers.findIndex((candidate) => candidate.id === passenger.companionId) : -1;
+    const reverseIndex = passengers.findIndex((candidate) => candidate.companionId === passenger.id);
+    return Math.min(passengerIndex, ...[companionIndex, reverseIndex].filter((index) => index >= 0));
+  };
+  const passengerJourneys = passengers.map((passenger, passengerIndex) => {
+    const mayUseSubgroups = query.transitionMode === 'subgroups' && query.groupStrategy !== 'together';
+    const preferredPath = mayUseSubgroups && companionAnchor(passenger, passengerIndex) > 0 ? findAlternatePath() ?? legs : legs;
+    const passengerLegs = preferredPath.map((leg) => {
+      const candidate = train.inventory.find((item) => item.travelClass === query.travelClass
+        && item.from === leg.from.code && item.to === leg.to.code && !usedIds.has(item.id));
+      if (!candidate) return null;
+      usedIds.add(candidate.id);
+      return { ...candidate, from: leg.from, to: leg.to } as JourneyLeg;
+    });
+    if (passengerLegs.some((leg) => !leg)) return null;
+    const assigned = passengerLegs as JourneyLeg[];
+    const passengerQuery = { ...query, profile: passenger.profile, luggage: passenger.luggage, lowerBerth: passenger.lowerBerth };
+    const score = calculateComfortScore(assigned, assigned.slice(1).map((leg, index) => coachDistance(assigned[index].coach, leg.coach)), passengerQuery).score;
+    return { passenger: { ...passenger, name: passenger.name || `Passenger ${passengerIndex + 1}` }, legs: assigned, comfort: score };
+  });
+  if (passengerJourneys.some((journey) => !journey)) return null;
+  const completeJourneys = passengerJourneys as JourneySolution['passengerJourneys'];
+  const groupComfort = Math.min(...completeJourneys.map((journey) => journey.comfort));
+  const groupFare = completeJourneys.reduce((total, journey) => total + journey.legs.reduce((sum, leg) => sum + leg.fare, 0), 0);
+  if (passengers.length > 1) highlights.unshift(`${passengers.length} passengers allocated`);
+
   return {
     id: `${train.number}-${legs.map((leg) => leg.id).join('-')}`,
     trainNumber: train.number,
@@ -116,10 +192,13 @@ function buildSolution(train: TrainInventoryRecord, legs: JourneyLeg[], query: J
     changes,
     coachChanges,
     walkingMetres,
-    fare,
-    comfort: comfortDetails.score,
-    comfortDetails,
+    fare: groupFare || fare,
+    comfort: groupComfort,
+    comfortDetails: { ...comfortDetails, score: groupComfort, summary: `Group score follows the passenger with the most demanding allocation. ${comfortDetails.summary}` },
     highlights,
+    allocationConfidence: 'exact-mock',
+    groupArrangement: query.transitionMode === 'subgroups' && query.groupStrategy !== 'together' && completeJourneys.some((journey) => journey.legs.map((leg) => `${leg.from.code}-${leg.to.code}`).join('|') !== legs.map((leg) => `${leg.from.code}-${leg.to.code}`).join('|')) ? 'subgroups' : 'together',
+    passengerJourneys: completeJourneys,
   };
 }
 
@@ -172,6 +251,30 @@ export function solveJourneyFromInventory(query: JourneyQuery, snapshot: Journey
 
     walk(query.from, []);
   });
+
+  if (query.groupStrategy === 'safe-split' && query.passengers.length > 1) {
+    const sourceSolutions = solutions.filter((solution, index, all) => all.findIndex((candidate) => candidate.trainNumber === solution.trainNumber) === index).slice(0, 2);
+    if (sourceSolutions.length === 2) {
+      const passengerJourneys = query.passengers.map((_, index) => sourceSolutions[index % sourceSolutions.length].passengerJourneys[index]);
+      if (passengerJourneys.every(Boolean)) {
+        const complete = passengerJourneys as JourneySolution['passengerJourneys'];
+        const first = sourceSolutions[0];
+        solutions.push({
+          ...first,
+          id: `split-${sourceSolutions.map((solution) => solution.id).join('-')}`,
+          trainNumber: sourceSolutions.map((solution) => solution.trainNumber).join(' / '),
+          trainName: sourceSolutions.map((solution) => solution.trainName).join(' + '),
+          duration: 'Varies by subgroup',
+          legs: complete[0].legs,
+          fare: complete.reduce((total, journey) => total + journey.legs.reduce((sum, leg) => sum + leg.fare, 0), 0),
+          comfort: Math.min(...complete.map((journey) => journey.comfort)),
+          highlights: [`${complete.length} passengers fully routed`, 'Different services used', 'Companion pairs preserved'],
+          groupArrangement: 'split-services',
+          passengerJourneys: complete,
+        });
+      }
+    }
+  }
 
   solutions.sort((first, second) => second.comfort - first.comfort || first.fare - second.fare);
   const seenTrains = new Set<string>();

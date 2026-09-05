@@ -269,6 +269,19 @@ function pinnedMagadhChain(context: InventorySearchContext): InventoryLegRecord[
   ];
 }
 
+function expandForGroup(chain: InventoryLegRecord[], travelClass: TravelClass) {
+  return Array.from({ length: 6 }, (_, passengerIndex) => chain.map((leg, legIndex): InventoryLegRecord => {
+    const seatSeed = hash(`${leg.id}|group|${passengerIndex}|${legIndex}`);
+    return {
+      ...leg,
+      id: `${leg.id}-group-${passengerIndex + 1}`,
+      coach: passengerIndex < 4 ? leg.coach : `${coachPrefix(travelClass)}${Math.max(1, Number(leg.coach.match(/\d+/)?.[0] ?? 1) + 1)}`,
+      seat: String(1 + (seatSeed % (travelClass === '1A' ? 24 : 64))),
+      berth: berthFor(travelClass, seatSeed >>> 4),
+    };
+  })).flat();
+}
+
 function trainForQuery(service: ServiceBlueprint, direction: 0 | 1, context: InventorySearchContext): TrainInventoryRecord | null {
   if (!service.classes.includes(context.travelClass as TravelClass)) return null;
   const scheduled = scheduleForDirection(service, direction);
@@ -280,7 +293,7 @@ function trainForQuery(service: ServiceBlueprint, direction: 0 | 1, context: Inv
   const pinned = scheduled.number === '12402' ? pinnedMagadhChain(context) : null;
   const directFare = pinned ? 1450 : fareFor(context.from, context.to, travelClass);
   const waitlist = pinned ? 46 : 8 + (hash(`${scheduled.number}|${context.from}|${context.to}|${travelClass}`) % 51);
-  const inventory = pinned
+  const primaryInventory = pinned
     ? pinned
     : generatedChain(
       scheduled.number,
@@ -291,6 +304,17 @@ function trainForQuery(service: ServiceBlueprint, direction: 0 | 1, context: Inv
       directFare,
       0,
     );
+  const alternateInventory = generatedChain(
+    scheduled.number,
+    scheduled.route,
+    fromIndex,
+    toIndex,
+    travelClass,
+    directFare,
+    1,
+  );
+  const baseInventory = [...primaryInventory, ...alternateInventory];
+  const inventory = expandForGroup(baseInventory, travelClass);
   const journeyMinutes = scheduled.route.slice(fromIndex + 1, toIndex + 1)
     .reduce((total, code, index) => total + segmentMinutes(scheduled.route[fromIndex + index], code), 0);
 

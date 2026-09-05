@@ -9,11 +9,20 @@ import {
   type JourneyQuery,
   type JourneyRecommendation,
   type JourneySolution,
+  type JourneyPassenger,
+  type GroupStrategy,
   type LuggageLevel,
+  type TransitionMode,
   type TravellerProfile,
 } from '../lib/journey-engine';
 import { searchJourney } from '../lib/journey-client';
 import JourneyMapModal from './journey-map-modal';
+import {
+  LINKED_PASSENGERS_STORAGE_KEY,
+  PROFILE_STORAGE_KEY,
+  type LinkedPassenger,
+  type PassengerProfileData,
+} from './passenger-profile';
 import { useSiteLanguage } from './site-language';
 
 type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
@@ -62,6 +71,13 @@ type SavedPreset = {
   preferences?: PreferencePreset;
 };
 
+type ImportablePassenger = {
+  id: string;
+  name: string;
+  detail: string;
+  profile: TravellerProfile;
+};
+
 const PRESET_STORAGE_KEY = 'railsetu.saved-presets.v1';
 const PLANNER_SESSION_KEY = 'railsetu.planner-session.v1';
 
@@ -85,6 +101,9 @@ const initialForm: PlannerForm = {
   customMaxChanges: 3,
   lowerBerth: true,
   note: '',
+  passengers: [{ id: 'passenger-1', name: 'Passenger 1', profile: 'elderly', luggage: 'light', lowerBerth: true, companionId: null }],
+  groupStrategy: 'tiered',
+  transitionMode: 'synchronised',
 };
 
 function restorePlannerForm(): PlannerForm {
@@ -161,6 +180,12 @@ const mapStyle = {
   '--glare-opacity': 0.42,
 } as CSSProperties;
 
+const importPassengerStyle = {
+  '--tactile-depth': '4px',
+  '--tactile-base': '#bac7ed',
+  '--glare-opacity': 0.38,
+} as CSSProperties;
+
 const money = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
@@ -196,6 +221,9 @@ function journeyQuery(form: PlannerForm): JourneyQuery {
     luggage: form.luggage,
     lowerBerth: form.lowerBerth,
     maxChanges: changeLimitValue(form),
+    passengers: form.passengers,
+    groupStrategy: form.groupStrategy,
+    transitionMode: form.transitionMode,
   };
 }
 
@@ -321,8 +349,8 @@ function StationSwapButton({ onSwap }: { onSwap: () => void }) {
 
 export default function JourneyPlanner() {
   const { language } = useSiteLanguage();
-  const [form, setForm] = useState<PlannerForm>(restorePlannerForm);
-  const [submitted, setSubmitted] = useState<PlannerForm>(restorePlannerForm);
+  const [form, setForm] = useState<PlannerForm>(initialForm);
+  const [submitted, setSubmitted] = useState<PlannerForm>(initialForm);
   const [noteOpen, setNoteOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [presets, setPresets] = useState<SavedPreset[]>([]);
@@ -333,7 +361,10 @@ export default function JourneyPlanner() {
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('ready');
   const [mapOpen, setMapOpen] = useState(false);
   const [mapSolution, setMapSolution] = useState<JourneySolution | null>(null);
-  const [outcome, setOutcome] = useState(() => solveJourney(journeyQuery(restorePlannerForm())));
+  const [passengerImportOpen, setPassengerImportOpen] = useState(false);
+  const [importablePassengers, setImportablePassengers] = useState<ImportablePassenger[]>([]);
+  const [selectedImportIds, setSelectedImportIds] = useState<string[]>([]);
+  const [outcome, setOutcome] = useState(() => solveJourney(journeyQuery(initialForm)));
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const searchSequence = useRef(0);
   const searchRequest = useRef<AbortController | null>(null);
@@ -358,6 +389,16 @@ export default function JourneyPlanner() {
     setMapSolution(solution);
     setMapOpen(true);
   };
+
+  useEffect(() => {
+    const restored = restorePlannerForm();
+    const restoreTimer = window.setTimeout(() => {
+      setForm(restored);
+      setSubmitted(restored);
+      setOutcome(solveJourney(journeyQuery(restored)));
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, []);
 
   useEffect(() => {
     try {
@@ -448,6 +489,70 @@ export default function JourneyPlanner() {
   };
 
   const removePreset = (id: string) => persistPresets(presets.filter((preset) => preset.id !== id));
+
+  const setPassengerCount = (count: number) => {
+    setForm((current) => {
+      const passengers = current.passengers.slice(0, count);
+      while (passengers.length < count) {
+        const index = passengers.length;
+        passengers.push({
+          id: `passenger-${index + 1}`,
+          name: `Passenger ${index + 1}`,
+          profile: index === 0 ? current.profile : 'standard',
+          luggage: index === 0 ? current.luggage : 'light',
+          lowerBerth: index === 0 ? current.lowerBerth : false,
+          companionId: null,
+        });
+      }
+      const validIds = new Set(passengers.map((passenger) => passenger.id));
+      return { ...current, passengers: passengers.map((passenger) => ({ ...passenger, companionId: passenger.companionId && validIds.has(passenger.companionId) ? passenger.companionId : null })) };
+    });
+  };
+
+  const updatePassenger = (id: string, changes: Partial<JourneyPassenger>) => {
+    setForm((current) => ({
+      ...current,
+      passengers: current.passengers.map((passenger) => passenger.id === id ? { ...passenger, ...changes } : passenger),
+    }));
+  };
+
+  const openPassengerImport = () => {
+    const available: ImportablePassenger[] = [];
+    try {
+      const savedProfile = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+      if (savedProfile) {
+        const profile = JSON.parse(savedProfile) as Partial<PassengerProfileData>;
+        if (profile.fullName?.trim()) available.push({ id: 'account-holder', name: profile.fullName.trim(), detail: 'Main account holder', profile: form.profile });
+      }
+      const savedLinked = window.localStorage.getItem(LINKED_PASSENGERS_STORAGE_KEY);
+      const linked = savedLinked ? JSON.parse(savedLinked) as unknown : [];
+      if (Array.isArray(linked)) {
+        (linked as LinkedPassenger[]).filter((passenger) => passenger.verified && passenger.fullName?.trim()).forEach((passenger) => {
+          available.push({ id: passenger.id, name: passenger.fullName.trim(), detail: `${passenger.relation} · Mock Aadhaar •••• ${passenger.aadhaarLast4}`, profile: 'standard' });
+        });
+      }
+    } catch {
+      // Keep the picker usable with an empty state when device storage is unavailable.
+    }
+    setImportablePassengers(available);
+    setSelectedImportIds([]);
+    setPassengerImportOpen(true);
+  };
+
+  const toggleImportedPassenger = (id: string) => {
+    setSelectedImportIds((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : current.length < form.passengers.length ? [...current, id] : current);
+  };
+
+  const importSelectedPassengers = () => {
+    const selected = selectedImportIds.map((id) => importablePassengers.find((passenger) => passenger.id === id)).filter((passenger): passenger is ImportablePassenger => Boolean(passenger));
+    setForm((current) => ({
+      ...current,
+      passengers: current.passengers.map((passenger, index) => selected[index] ? { ...passenger, name: selected[index].name, profile: selected[index].profile } : passenger),
+    }));
+    setPassengerImportOpen(false);
+  };
 
   const closeSpeech = () => {
     speechRecognition.current?.abort();
@@ -584,6 +689,8 @@ export default function JourneyPlanner() {
       class: submitted.travelClass,
       comfort: String(solution.comfort),
       profile: submitted.profile,
+      party: solution.passengerJourneys.map((journey) => journey.passenger.name).join('|'),
+      passengerCount: String(solution.passengerJourneys.length),
       legs: solution.legs.map((leg) => [
         leg.from.code,
         leg.from.time,
@@ -700,9 +807,42 @@ export default function JourneyPlanner() {
         </div>
 
         <div className="planner-preferences-head">
-          <div><span className="mini-label">Traveller-aware planning</span><strong>Shape the journey around the person</strong></div>
+          <div><span className="mini-label">Traveller-aware planning</span><strong>Shape the journey around everyone</strong></div>
           <p>These constraints change which segmented routes qualify.</p>
         </div>
+
+        <div className="planner-passenger-selector-row">
+          <div><strong>Number of passengers</strong><small>Plan for up to six people.</small></div>
+          <label className="planner-field planner-passenger-count"><span>Passengers</span><select value={form.passengers.length} onChange={(event) => setPassengerCount(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
+        </div>
+
+        {form.passengers.length > 1 ? <section className="planner-group-builder" aria-labelledby="planner-group-title">
+          <div className="planner-group-heading">
+            <div><span className="mini-label">Travelling party</span><h3 id="planner-group-title">Who is travelling?</h3></div>
+            <span className="tactile-wrap planner-import-wrap" style={importPassengerStyle}>
+              <span className="tactile-base" aria-hidden="true" />
+              <button className="tactile-cap glare-surface planner-import-passengers" type="button" onClick={openPassengerImport}><span aria-hidden="true">↙</span> Import from profile</button>
+            </span>
+          </div>
+          <div className="planner-passenger-grid">
+            {form.passengers.map((passenger, index) => (
+              <article className="planner-passenger-card" key={passenger.id}>
+                <div className="planner-passenger-card-head"><span>{String(index + 1).padStart(2, '0')}</span><input aria-label={`Passenger ${index + 1} name`} value={passenger.name} maxLength={40} onChange={(event) => updatePassenger(passenger.id, { name: event.target.value })} /></div>
+                <div className="planner-passenger-fields">
+                  <label><span>Needs</span><select value={passenger.profile} onChange={(event) => updatePassenger(passenger.id, { profile: event.target.value as TravellerProfile })}><option value="standard">Standard traveller</option><option value="elderly">Elderly / limited mobility</option><option value="family">Child / family care</option></select></label>
+                  <label><span>Luggage</span><select value={passenger.luggage} onChange={(event) => updatePassenger(passenger.id, { luggage: event.target.value as LuggageLevel })}><option value="none">None</option><option value="light">Light</option><option value="heavy">Heavy</option></select></label>
+                  <label><span>Required companion</span><select value={passenger.companionId ?? ''} onChange={(event) => updatePassenger(passenger.id, { companionId: event.target.value || null })}><option value="">No requirement</option>{form.passengers.filter((candidate) => candidate.id !== passenger.id).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>
+                  <label className="planner-passenger-check"><input type="checkbox" checked={passenger.lowerBerth} onChange={(event) => updatePassenger(passenger.id, { lowerBerth: event.target.checked })} /><span>Prefer lower berth</span></label>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="planner-group-rules">
+            <label className="planner-field"><span>Group flexibility</span><select value={form.groupStrategy} onChange={(event) => setForm((current) => ({ ...current, groupStrategy: event.target.value as GroupStrategy }))}><option value="tiered">Tiered results · recommended</option><option value="together">Always together</option><option value="safe-split">Any safe split</option></select></label>
+            <label className="planner-field"><span>Seat transitions</span><select value={form.transitionMode} onChange={(event) => setForm((current) => ({ ...current, transitionMode: event.target.value as TransitionMode }))}><option value="synchronised">Everyone changes together</option><option value="subgroups">Stable subgroups may change separately</option></select></label>
+            <p>RailSetu never separates companions or confirms only part of the group.</p>
+          </div>
+        </section> : null}
 
         <div className="planner-preferences">
           <label className="planner-field">
@@ -810,6 +950,25 @@ export default function JourneyPlanner() {
         </div>
       </form>
 
+      {passengerImportOpen ? (
+        <div className="planner-passenger-import-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPassengerImportOpen(false); }}>
+          <section className="planner-passenger-import-dialog" role="dialog" aria-modal="true" aria-labelledby="passenger-import-title">
+            <header>
+              <div><span>Saved traveller profiles</span><h2 id="passenger-import-title">Choose who is travelling</h2><p>Select up to {form.passengers.length} people for this journey.</p></div>
+              <button type="button" onClick={() => setPassengerImportOpen(false)} aria-label="Close saved passenger picker">×</button>
+            </header>
+            <div className="planner-passenger-import-list">
+              {importablePassengers.length ? importablePassengers.map((passenger) => {
+                const selected = selectedImportIds.includes(passenger.id);
+                const disabled = !selected && selectedImportIds.length >= form.passengers.length;
+                return <button className={selected ? 'is-selected' : ''} key={passenger.id} type="button" disabled={disabled} onClick={() => toggleImportedPassenger(passenger.id)} aria-pressed={selected}><span>{passenger.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span><div><strong>{passenger.name}</strong><small>{passenger.detail}</small></div><i aria-hidden="true">{selected ? '✓' : '+'}</i></button>;
+              }) : <div className="planner-passenger-import-empty"><strong>No saved passengers yet</strong><p>Add passengers in Profile, then return here to import them.</p></div>}
+            </div>
+            <footer><span>{selectedImportIds.length} of {form.passengers.length} selected</span><button type="button" disabled={!selectedImportIds.length} onClick={importSelectedPassengers}>Add to journey <i aria-hidden="true">→</i></button></footer>
+          </section>
+        </div>
+      ) : null}
+
       {speechOpen ? (
         <div className="planner-speech-backdrop" role="presentation">
           <section className="planner-speech-modal" role="dialog" aria-modal="true" aria-labelledby="speech-dialog-title">
@@ -857,7 +1016,7 @@ export default function JourneyPlanner() {
           <div>
             <span className="mini-label">Route intelligence</span>
             <h2>{stationName(submitted.from)} <span>→</span> {stationName(submitted.to)}</h2>
-            <p>{submitted.date} · {submitted.travelClass} · ranked for {submitted.profile === 'elderly' ? 'limited mobility' : submitted.profile}</p>
+            <p>{submitted.date} · {submitted.travelClass} · {submitted.passengers.length} passenger{submitted.passengers.length === 1 ? '' : 's'} · ranked for the whole group</p>
           </div>
           <div className="planner-results-actions">
             {best ? (
@@ -885,7 +1044,7 @@ export default function JourneyPlanner() {
               <article className="planner-direct-card">
                 <span>Direct booking</span>
                 <strong>{outcome.direct?.label ?? 'Unavailable'}</strong>
-                <small>{outcome.direct ? `${money.format(outcome.direct.fare)} · confirmation uncertain` : 'No continuous berth found'}</small>
+                <small>{outcome.direct ? `${money.format(outcome.direct.fare * submitted.passengers.length)} for ${submitted.passengers.length} · group allocation uncertain` : 'No continuous berth found'}</small>
               </article>
               <span className="planner-bridge" aria-hidden="true">
                 <svg className="planner-bridge-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -897,7 +1056,7 @@ export default function JourneyPlanner() {
               <article className="planner-found-card">
                 <span>RailSetu path</span>
                 <strong>Confirmed throughout</strong>
-                <small>{best.legs.length} tickets · {best.changes} seat change · {best.highlights[0].toLowerCase()}</small>
+                <small>{best.passengerJourneys.reduce((total, journey) => total + journey.legs.length, 0)} tickets · {best.changes} shared seat change{best.changes === 1 ? '' : 's'} · {best.highlights[0].toLowerCase()}</small>
               </article>
             </div>
 
@@ -914,12 +1073,12 @@ export default function JourneyPlanner() {
                         <p>{solution.duration} total train journey</p>
                       </div>
                       <div className="planner-solution-actions">
-                        <span className="tactile-wrap planner-map-wrap" style={mapStyle}>
+                        {solution.groupArrangement !== 'split-services' ? <span className="tactile-wrap planner-map-wrap" style={mapStyle}>
                           <span className="tactile-base" aria-hidden="true" />
                           <button className="tactile-cap glare-surface planner-view-map" type="button" onClick={(event) => openMap(solution, event.currentTarget)} aria-label={`View ${solution.trainNumber} ${solution.trainName} on map`}>
                             <i aria-hidden="true">⌖</i> View on map
                           </button>
-                        </span>
+                        </span> : <span className="planner-split-label">Multiple trains</span>}
                         <div className="planner-comfort">
                           <strong>{solution.comfort}</strong>
                           <span>Comfort<br />score</span>
@@ -935,7 +1094,19 @@ export default function JourneyPlanner() {
                       </div>
                     </div>
 
-                    <div className="planner-leg-list">
+                    {solution.passengerJourneys.length > 1 ? (
+                      <div className="planner-group-allocation" aria-label="Passenger seat allocations">
+                        <div className="planner-group-allocation-head"><span>Complete group allocation</span><strong>{solution.groupArrangement === 'together' ? 'Travelling together' : solution.groupArrangement === 'subgroups' ? 'Stable subgroups' : 'Split services'}</strong><small>Exact mock seats · recheck live inventory before payment</small></div>
+                        <div className="planner-passenger-itineraries">
+                          {solution.passengerJourneys.map((journey) => (
+                            <article key={journey.passenger.id}>
+                              <header><span>{journey.passenger.name.slice(0, 2).toUpperCase()}</span><div><strong>{journey.passenger.name}</strong><small>Comfort {journey.comfort} · {journey.legs.length} ticket{journey.legs.length === 1 ? '' : 's'}</small></div></header>
+                              <div>{journey.legs.map((leg) => <span key={leg.id}><small>{leg.from.code} → {leg.to.code}</small><strong>{leg.coach} · {leg.seat} {leg.berth}</strong></span>)}</div>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : <div className="planner-leg-list">
                       {solution.legs.map((leg, legIndex) => (
                         <div className="planner-leg" key={leg.id}>
                           <div className="planner-leg-number">0{legIndex + 1}</div>
@@ -946,7 +1117,7 @@ export default function JourneyPlanner() {
                           {legIndex < solution.legs.length - 1 ? <div className="planner-change-note">Change seat at {leg.to.name}<span>{leg.coach} · {leg.seat} → {solution.legs[legIndex + 1].coach} · {solution.legs[legIndex + 1].seat}</span></div> : null}
                         </div>
                       ))}
-                    </div>
+                    </div>}
 
                     <div className="planner-solution-footer">
                       <div className="planner-highlights">{solution.highlights.map((highlight) => <span key={highlight}>✓ {highlight}</span>)}</div>
