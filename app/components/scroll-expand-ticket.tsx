@@ -1,6 +1,7 @@
 'use client';
 
 import { QRCodeSVG } from 'qrcode.react';
+import { JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { ColorPanels } from '@paper-design/shaders-react';
 import { useSearchParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -133,6 +134,21 @@ export default function ScrollExpandTicket() {
       window.prompt('Copy your RailSetu ticket link', url);
     }
   }
+
+  useEffect(() => {
+    const handleJamvanta = (event: Event) => {
+      const action = (event as CustomEvent<JamvantaAction>).detail;
+      if (action.type !== 'download_ticket') return;
+      const link = document.createElement('a');
+      link.href = downloadPath;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    };
+    window.addEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
+    return () => window.removeEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
+  }, [downloadPath]);
 
   useEffect(() => {
     if (ticketLoadPhase !== 'ready') return;

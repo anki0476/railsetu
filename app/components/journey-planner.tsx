@@ -24,6 +24,7 @@ import {
   type PassengerProfileData,
 } from './passenger-profile';
 import { useSiteLanguage } from './site-language';
+import { JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 
 type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
 type PlannerForm = Omit<JourneyQuery, 'maxChanges'> & {
@@ -703,6 +704,38 @@ export default function JourneyPlanner() {
     });
     window.location.assign(`/payment?${paymentParams.toString()}`);
   };
+
+  useEffect(() => {
+    const handleJamvanta = (event: Event) => {
+      const action = (event as CustomEvent<JamvantaAction>).detail;
+      if (action.type === 'plan_journey') {
+        setForm((current) => {
+          const nextCount = Math.max(1, Math.min(6, action.passengerCount ?? current.passengers.length));
+          const passengers = current.passengers.slice(0, nextCount);
+          while (passengers.length < nextCount) {
+            const index = passengers.length;
+            passengers.push({ id: `passenger-${index + 1}`, name: `Passenger ${index + 1}`, profile: index === 0 ? current.profile : 'standard', luggage: index === 0 ? current.luggage : 'light', lowerBerth: index === 0 ? current.lowerBerth : false, companionId: null });
+          }
+          const next: PlannerForm = {
+            ...current,
+            from: action.from && stationOptions.some((station) => station.code === action.from) ? action.from : current.from,
+            to: action.to && stationOptions.some((station) => station.code === action.to) ? action.to : current.to,
+            travelClass: action.travelClass && ['1A', '2A', '3A', '3E', 'CC', 'EC', 'SL'].includes(action.travelClass) ? action.travelClass : current.travelClass,
+            passengers,
+          };
+          if (action.search) window.setTimeout(() => runSearch(next), 0);
+          return next;
+        });
+        document.querySelector('.planner-search-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      if (action.type === 'continue_to_payment' && best) continueToPayment(best);
+    };
+    window.addEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
+    return () => window.removeEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
+  // The listener is rebound when the selected solution changes; it intentionally uses the
+  // current planner closures rather than making navigation helpers global.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [best]);
 
   return (
     <section className="planner-workspace" aria-label="RailSetu journey planner">

@@ -851,3 +851,126 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
 @media (max-width:760px) { .planner-passenger-selector-row { align-items:center; padding:12px; }.planner-passenger-selector-row .planner-passenger-count { width:104px; }.planner-group-heading { flex-direction:column; }.planner-import-passengers { width:100%; justify-content:center; }.planner-passenger-import-backdrop { padding:12px; }.planner-passenger-import-dialog { max-height:calc(100svh - 24px); border-radius:22px; }.planner-passenger-import-dialog>header { padding:19px; }.planner-passenger-import-list { max-height:55svh; padding:14px 18px; }.planner-passenger-import-dialog>footer { align-items:stretch; flex-direction:column; padding:15px 18px; }.planner-passenger-import-dialog>footer button { width:100%; }.planner-passenger-import-list>button { grid-template-columns:38px 1fr 26px; }.planner-passenger-import-list>button>span { width:36px; height:36px; } }
 @media (max-width:760px) { .planner-import-wrap { width:100%; } }
 .planner-split-label { padding:8px 11px; border-radius:999px; color:#7a4b24; background:#fff1df; font-size:8px; text-transform:uppercase; letter-spacing:.08em; }.railsetu-dark .planner-split-label { color:#ffd49f; background:#3a2a20; }
+/* Jamvanta — RailSetu's local-first bilingual voice interface. */
+.jamvanta-edge {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+.jamvanta-edge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 3px;
+  background: conic-gradient(from var(--jamvanta-angle, 0deg), #4f7dff, #b35cff, #51d7dd, #f0b95d, #4f7dff);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 14px rgba(96, 111, 255, .65));
+}
+
+.jamvanta-alive .jamvanta-edge { opacity: .62; }
+.jamvanta-listening .jamvanta-edge { opacity: 1; }
+.jamvanta-listening .jamvanta-edge::before { animation: jamvanta-edge-orbit 2.8s linear infinite; padding: 4px; }
+
+@property --jamvanta-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes jamvanta-edge-orbit { to { --jamvanta-angle: 360deg; } }
+
+.jamvanta-orb {
+  position: fixed;
+  z-index: 10001;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 76px;
+  padding: 6px 15px 6px 6px;
+  border: 1px solid rgba(111, 139, 224, .42);
+  border-radius: 999px;
+  color: #eaf0ff;
+  background: rgba(12, 24, 51, .88);
+  box-shadow: 0 18px 60px rgba(0, 8, 29, .36), inset 0 1px rgba(255,255,255,.12);
+  backdrop-filter: blur(20px) saturate(145%);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.jamvanta-orb:hover { transform: translateY(-3px); box-shadow: 0 22px 70px rgba(19, 40, 97, .48), inset 0 1px rgba(255,255,255,.16); }
+.jamvanta-orb:focus-visible { outline: 3px solid #8da7ff; outline-offset: 3px; }
+.jamvanta-orb span { font: 650 12px/1 var(--font-geist), sans-serif; white-space: nowrap; letter-spacing: .02em; }
+.jamvanta-orb.is-listening { box-shadow: 0 0 0 7px rgba(88, 117, 255, .15), 0 22px 70px rgba(71, 86, 218, .5); }
+
+.jamvanta-panel {
+  position: fixed;
+  z-index: 10000;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(112px, calc(env(safe-area-inset-bottom) + 90px));
+  width: min(390px, calc(100vw - 32px));
+  max-height: min(650px, calc(100dvh - 140px));
+  display: grid;
+  grid-template-rows: auto auto minmax(150px, 1fr) auto auto auto;
+  overflow: hidden;
+  color: #eaf0ff;
+  border: 1px solid rgba(116, 142, 221, .4);
+  border-radius: 27px;
+  background: linear-gradient(160deg, rgba(20, 35, 72, .97), rgba(8, 18, 40, .98));
+  box-shadow: 0 30px 100px rgba(0, 7, 24, .56), inset 0 1px rgba(255,255,255,.1);
+  backdrop-filter: blur(26px) saturate(145%);
+  animation: jamvanta-panel-in 240ms cubic-bezier(.2,.85,.2,1);
+}
+@keyframes jamvanta-panel-in { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+.jamvanta-panel header { display:flex; align-items:center; justify-content:space-between; padding:20px 20px 13px; border-bottom:1px solid rgba(130,150,210,.2); }
+.jamvanta-panel header div { display:grid; gap:4px; }
+.jamvanta-panel header small { color:#88a5ff; font-size:9px; font-weight:750; letter-spacing:.17em; }
+.jamvanta-panel header strong { font-size:25px; letter-spacing:-.045em; }
+.jamvanta-panel header button { width:37px; height:37px; border:1px solid rgba(135,157,218,.25); border-radius:13px; color:#b9c7eb; background:rgba(72,91,145,.18); cursor:pointer; font-size:20px; }
+.jamvanta-status { display:flex; align-items:center; gap:8px; padding:10px 20px; color:#92a2c9; font-size:10px; }
+.jamvanta-status i { width:7px; height:7px; border-radius:50%; background:#6a86e5; box-shadow:0 0 0 4px rgba(85,115,224,.12); }
+.jamvanta-status i.is-live { background:#6ee4c3; box-shadow:0 0 0 5px rgba(70,224,181,.14); animation:jamvanta-pulse 1.2s ease-in-out infinite; }
+@keyframes jamvanta-pulse { 50% { transform:scale(.65); opacity:.55; } }
+.jamvanta-conversation { overflow:auto; padding:10px 18px 16px; display:flex; flex-direction:column; gap:9px; scrollbar-width:thin; }
+.jamvanta-conversation > p { width:fit-content; max-width:86%; margin:0; padding:11px 13px; border-radius:15px; font-size:13px; line-height:1.45; }
+.jamvanta-conversation .is-user { align-self:flex-end; background:linear-gradient(135deg,#496ee0,#6e79df); color:#fff; border-bottom-right-radius:5px; }
+.jamvanta-conversation .is-assistant { background:rgba(81,102,160,.2); border:1px solid rgba(122,145,208,.2); border-bottom-left-radius:5px; }
+.jamvanta-conversation .is-working { color:#a9b9e8; animation:jamvanta-fade 1.2s ease-in-out infinite; }
+@keyframes jamvanta-fade { 50% { opacity:.45; } }
+.jamvanta-empty { margin:auto 0; padding:22px 8px; text-align:center; }
+.jamvanta-empty strong { display:block; font-size:22px; letter-spacing:-.04em; }
+.jamvanta-empty p { margin:8px 0 10px; color:#a8b5d3; font-size:12px; line-height:1.5; }
+.jamvanta-empty span { color:#89a5f5; font-size:10px; letter-spacing:.08em; }
+.jamvanta-approval { margin:0 15px 12px; padding:14px; border:1px solid rgba(241,188,90,.35); border-radius:18px; background:rgba(92,67,24,.2); }
+.jamvanta-approval > div:first-child { display:grid; gap:4px; }
+.jamvanta-approval small { color:#efc675; font-size:8px; font-weight:750; letter-spacing:.15em; }
+.jamvanta-approval strong { font-size:14px; }
+.jamvanta-approval span { color:#b7c1d9; font-size:10px; line-height:1.4; }
+.jamvanta-approval > div:last-child { display:flex; justify-content:flex-end; gap:7px; margin-top:12px; }
+.jamvanta-approval button { padding:9px 11px; border:1px solid rgba(145,161,205,.26); border-radius:10px; color:#dfe7fb; background:rgba(50,68,112,.22); cursor:pointer; font-size:10px; font-weight:700; }
+.jamvanta-approval button.is-primary { border-color:transparent; background:#5676df; color:#fff; }
+.jamvanta-panel form { display:flex; gap:8px; margin:0 15px; padding:7px; border:1px solid rgba(125,148,211,.28); border-radius:16px; background:rgba(5,14,33,.42); }
+.jamvanta-panel form:focus-within { border-color:#7897f2; box-shadow:0 0 0 3px rgba(90,121,225,.12); }
+.jamvanta-panel input { flex:1; min-width:0; border:0; outline:0; color:#eff3ff; background:transparent; padding:4px 7px; font:500 12px/1.3 var(--font-geist),sans-serif; }
+.jamvanta-panel input::placeholder { color:#7888af; }
+.jamvanta-panel form button { width:36px; height:36px; border:0; border-radius:11px; color:#18224a; background:#eaf0ff; cursor:pointer; font-size:18px; }
+.jamvanta-panel form button:disabled { opacity:.35; cursor:default; }
+.jamvanta-panel footer { padding:10px 18px 14px; color:#687a9f; text-align:center; font-size:8px; letter-spacing:.08em; text-transform:uppercase; }
+
+html:not(.railsetu-dark) .jamvanta-panel { color:#111a34; border-color:rgba(87,111,177,.28); background:linear-gradient(155deg,rgba(250,252,255,.98),rgba(230,238,255,.98)); box-shadow:0 30px 90px rgba(48,70,120,.26),inset 0 1px #fff; }
+html:not(.railsetu-dark) .jamvanta-orb { color:#172041; background:rgba(242,247,255,.9); border-color:rgba(82,108,183,.3); }
+html:not(.railsetu-dark) .jamvanta-conversation .is-assistant { background:rgba(92,119,193,.1); }
+html:not(.railsetu-dark) .jamvanta-panel input { color:#111a34; }
+
+@media (max-width: 640px) {
+  .jamvanta-orb { right:14px; bottom:max(14px,env(safe-area-inset-bottom)); min-height:68px; padding:2px; border-radius:50%; }
+  .jamvanta-orb span { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .jamvanta-panel { inset:auto 8px max(92px,calc(env(safe-area-inset-bottom) + 78px)); width:auto; max-height:min(610px,calc(100dvh - 110px)); border-radius:24px; }
+  .jamvanta-panel header { padding:17px 17px 12px; }
+  .jamvanta-conversation { min-height:170px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jamvanta-edge::before, .jamvanta-status i.is-live, .jamvanta-conversation .is-working { animation:none !important; }
+}

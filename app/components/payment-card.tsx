@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
+import { JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 
 type PaymentMode = string;
 type PaymentState = 'idle' | 'processing' | 'done';
@@ -165,6 +166,19 @@ export default function PaymentCard() {
     if (selectedMode === 'upi' || selectedMode === 'wallet') completePayment(selectedMode);
     else beginOtpVerification();
   };
+
+  useEffect(() => {
+    const handleJamvanta = (event: Event) => {
+      const action = (event as CustomEvent<JamvantaAction>).detail;
+      if (action.type === 'select_wallet') setSelectedMode('wallet');
+      if (action.type === 'pay_with_wallet') {
+        setSelectedMode('wallet');
+        completePayment('wallet');
+      }
+    };
+    window.addEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
+    return () => window.removeEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
+  });
 
   return (
     <section className="payment-card" aria-labelledby="payment-card-title">
