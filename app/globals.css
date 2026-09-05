@@ -928,6 +928,10 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
 .jamvanta-panel header small { color:#88a5ff; font-size:9px; font-weight:750; letter-spacing:.17em; }
 .jamvanta-panel header strong { font-size:25px; letter-spacing:-.045em; }
 .jamvanta-panel header button { width:37px; height:37px; border:1px solid rgba(135,157,218,.25); border-radius:13px; color:#b9c7eb; background:rgba(72,91,145,.18); cursor:pointer; font-size:20px; }
+.jamvanta-panel header .jamvanta-header-actions { display:flex; align-items:center; gap:7px; }
+.jamvanta-panel header .jamvanta-clear { width:auto; height:32px; padding:0 10px; border-radius:10px; color:#9fafd2; background:transparent; font:650 9px/1 var(--font-geist),sans-serif; }
+.jamvanta-panel header .jamvanta-clear:hover:not(:disabled) { color:#eef3ff; border-color:rgba(145,167,229,.5); }
+.jamvanta-panel header .jamvanta-clear:disabled { opacity:.34; cursor:default; }
 .jamvanta-status { display:flex; align-items:center; gap:8px; padding:10px 20px; color:#92a2c9; font-size:10px; }
 .jamvanta-status i { width:7px; height:7px; border-radius:50%; background:#6a86e5; box-shadow:0 0 0 4px rgba(85,115,224,.12); }
 .jamvanta-status i.is-live { background:#6ee4c3; box-shadow:0 0 0 5px rgba(70,224,181,.14); animation:jamvanta-pulse 1.2s ease-in-out infinite; }
@@ -965,6 +969,7 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
 .jamvanta-panel footer { padding:10px 18px 14px; color:#687a9f; text-align:center; font-size:8px; letter-spacing:.08em; text-transform:uppercase; }
 
 html:not(.railsetu-dark) .jamvanta-panel { color:#111a34; border-color:rgba(87,111,177,.28); background:linear-gradient(155deg,rgba(250,252,255,.98),rgba(230,238,255,.98)); box-shadow:0 30px 90px rgba(48,70,120,.26),inset 0 1px #fff; }
+html:not(.railsetu-dark) .jamvanta-panel header .jamvanta-clear { color:#667494; }
 html:not(.railsetu-dark) .jamvanta-orb { color:#172041; background:rgba(242,247,255,.9); border-color:rgba(82,108,183,.3); }
 html:not(.railsetu-dark) .jamvanta-conversation .is-assistant { background:rgba(92,119,193,.1); }
 html:not(.railsetu-dark) .jamvanta-payment-choices button { color:#172041; border-color:rgba(82,108,183,.22); background:rgba(92,119,193,.08); }

@@ -121,6 +121,7 @@ export default function Jamvanta() {
   const beginListeningRef = useRef<() => Promise<void>>(async () => undefined);
   const sending = useRef(false);
   const panel = useRef<HTMLElement>(null);
+  const conversation = useRef<HTMLDivElement>(null);
 
   const updateMessages = useCallback((updater: (current: Message[]) => Message[]) => {
     setMessages((current) => {
@@ -217,6 +218,14 @@ export default function Jamvanta() {
     return () => document.removeEventListener('keydown', close);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      conversation.current?.scrollTo({ top: conversation.current.scrollHeight, behavior: 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, open, paymentChoices, pending, working]);
+
   const execute = useCallback((action: JamvantaAction) => {
     if (action.type === 'list_payment_methods') {
       const choices: PaymentChoice[] = action.methodType === 'upi'
@@ -245,6 +254,17 @@ export default function Jamvanta() {
       action: { type: 'pay_with_method', mode: choice.mode, label: `${choice.label} ${choice.detail}`, approvalId: crypto.randomUUID() },
       label: `Approve ${choice.label} payment`,
     });
+  }, []);
+
+  const clearConversation = useCallback(() => {
+    stopJamvantaSpeech();
+    messagesRef.current = [];
+    latestDraft.current = '';
+    setMessages([]);
+    setDraft('');
+    setPending(null);
+    setPaymentChoices([]);
+    try { window.sessionStorage.removeItem(JAMVANTA_SESSION_KEY); } catch { /* The in-memory session is still cleared. */ }
   }, []);
 
   const send = useCallback(async (text: string, spokenLanguage?: string) => {
@@ -431,10 +451,10 @@ export default function Jamvanta() {
         <section className="jamvanta-panel" ref={panel} role="dialog" aria-label="Jamvanta voice assistant">
           <header>
             <div><small>RAILSETU VOICE</small><strong>Jamvanta</strong></div>
-            <button type="button" onClick={() => { stopListening(); setOpen(false); }} aria-label="Close Jamvanta">×</button>
+            <div className="jamvanta-header-actions"><button className="jamvanta-clear" type="button" onClick={clearConversation} disabled={working || listening || messages.length === 0} aria-label="Clear Jamvanta chat history and memory">Clear</button><button type="button" onClick={() => { stopListening(); setOpen(false); }} aria-label="Close Jamvanta">×</button></div>
           </header>
           <div className="jamvanta-status"><i className={listening ? 'is-live' : ''} />{notice}</div>
-          <div className="jamvanta-conversation" aria-live="polite">
+          <div className="jamvanta-conversation" ref={conversation} aria-live="polite">
             {messages.length === 0 ? (
               <div className="jamvanta-empty"><strong>Where should we go?</strong><p>Try “Find a train from New Delhi to Patna for two passengers.”</p><span>हिंदी, English और Hinglish</span></div>
             ) : messages.map((message) => <p className={`is-${message.role}`} key={message.id}>{message.text}</p>)}
