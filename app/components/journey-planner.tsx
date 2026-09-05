@@ -721,6 +721,7 @@ export default function JourneyPlanner() {
             from: action.from && stationOptions.some((station) => station.code === action.from) ? action.from : current.from,
             to: action.to && stationOptions.some((station) => station.code === action.to) ? action.to : current.to,
             travelClass: action.travelClass && ['1A', '2A', '3A', '3E', 'CC', 'EC', 'SL'].includes(action.travelClass) ? action.travelClass : current.travelClass,
+            date: action.date && action.date >= todayInputValue() ? action.date : current.date,
             passengers,
           };
           if (action.search) window.setTimeout(() => runSearch(next), 0);

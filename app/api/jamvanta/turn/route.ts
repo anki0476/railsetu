@@ -29,6 +29,32 @@ function passengerCount(text: string) {
   return Object.entries(words).find(([word]) => new RegExp(`\\b${word}\\b`).test(lower))?.[1];
 }
 
+function spokenDate(text: string) {
+  const lower = text.toLowerCase();
+  const now = new Date();
+  const localToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const format = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  if (/day after tomorrow/.test(lower)) { const date = new Date(localToday); date.setDate(date.getDate() + 2); return format(date); }
+  if (/tomorrow/.test(lower)) { const date = new Date(localToday); date.setDate(date.getDate() + 1); return format(date); }
+  if (/today/.test(lower)) return format(localToday);
+  const iso = lower.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+  const numeric = lower.match(/\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])(?:[/-](20\d{2}))?\b/);
+  if (numeric) return `${numeric[3] ?? localToday.getFullYear()}-${numeric[2].padStart(2, '0')}-${numeric[1].padStart(2, '0')}`;
+  const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const monthPattern = months.join('|');
+  const named = lower.match(new RegExp(`(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(${monthPattern})(?:\\s+(20\\d{2}))?|(${monthPattern})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(20\\d{2}))?`));
+  if (named) {
+    const day = Number(named[1] ?? named[5]);
+    const month = months.indexOf(named[2] ?? named[4]);
+    let year = Number(named[3] ?? named[6] ?? localToday.getFullYear());
+    let date = new Date(year, month, day);
+    if (!named[3] && !named[6] && date < localToday) date = new Date(++year, month, day);
+    if (date.getMonth() === month && date.getDate() === day) return format(date);
+  }
+  return undefined;
+}
+
 function localTurn(transcript: string, pathname: string, spokenLanguage?: string): JamvantaTurn {
   const text = transcript.trim();
   const lower = text.toLowerCase();
@@ -62,6 +88,7 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
       from: from ?? allMatches[0],
       to: to ?? allMatches.find((code) => code !== (from ?? allMatches[0])),
       passengerCount: passengerCount(text),
+      date: spokenDate(text),
       travelClass: (text.match(/\b(1A|2A|3A|3E|CC|EC|SL)\b/i)?.[1] ?? undefined)?.toUpperCase(),
       search: /find|search|ढूँढ|खोज/.test(lower),
     };
@@ -86,7 +113,7 @@ export async function POST(request: Request) {
       headers: { authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL ?? 'gpt-5-mini',
-        instructions: 'You are Jamvanta, RailSetu voice navigation. Mirror the user language (en-IN or hi-IN). Concisely explain the next action and never claim a prototype booking is real. Return only JSON matching the schema. The server separately chooses the permitted action.',
+        instructions: 'You are Jamvanta, RailSetu voice navigation. Mirror the user language (en-IN or hi-IN). Concisely explain the next action and never claim a prototype booking is real. If the user supplied a date, acknowledge it instead of asking again. When mentioning railway classes, say 3 tier AC, 2 tier AC, 1st class AC, AC chair car, executive chair car, or sleeper class; never pronounce 3A/2A/1A as amperes. Return only JSON matching the schema. The server separately chooses the permitted action.',
         input: `Page: ${pathname}\nOriginal spoken language: ${spokenLanguage || 'infer from text'}\nTranslated transcript: ${transcript}`,
         text: { format: { type: 'json_schema', name: 'jamvanta_turn', strict: true, schema: {
           type: 'object', additionalProperties: false,

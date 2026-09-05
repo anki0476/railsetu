@@ -17,10 +17,17 @@ type VoiceRecognition = {
 };
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
+let activeProviderAudio: HTMLAudioElement | null = null;
+
+function stopJamvantaSpeech() {
+  activeProviderAudio?.pause();
+  activeProviderAudio = null;
+  window.speechSynthesis?.cancel();
+}
 
 function browserSpeak(text: string, language: JamvantaTurn['language']) {
   if (!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
+  stopJamvantaSpeech();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = language;
   utterance.rate = language === 'hi-IN' ? 0.94 : 1;
@@ -28,6 +35,7 @@ function browserSpeak(text: string, language: JamvantaTurn['language']) {
 }
 
 async function speak(text: string, language: JamvantaTurn['language'], useSarvam: boolean) {
+  stopJamvantaSpeech();
   if (useSarvam) {
     try {
       const response = await fetch('/api/jamvanta/speak', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, language }) });
@@ -35,6 +43,8 @@ async function speak(text: string, language: JamvantaTurn['language'], useSarvam
       const result = await response.json() as { audio?: string; contentType?: string };
       if (!result.audio) throw new Error('Sarvam returned no audio');
       const audio = new Audio(`data:${result.contentType ?? 'audio/wav'};base64,${result.audio}`);
+      activeProviderAudio = audio;
+      audio.onended = () => { if (activeProviderAudio === audio) activeProviderAudio = null; };
       await audio.play();
       return;
     } catch {
@@ -58,6 +68,7 @@ export default function Jamvanta() {
   const recorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const latestDraft = useRef('');
+  const recorderWillSubmit = useRef(false);
   const panel = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -80,7 +91,7 @@ export default function Jamvanta() {
     document.documentElement.classList.toggle('jamvanta-listening', listening);
     return () => {
       document.documentElement.classList.remove('jamvanta-alive', 'jamvanta-listening');
-      window.speechSynthesis?.cancel();
+      stopJamvantaSpeech();
     };
   }, [listening, open]);
 
@@ -113,7 +124,7 @@ export default function Jamvanta() {
       });
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
-      setNotice(turn.mode === 'provider-ready' ? 'Provider-ready · safe RailSetu actions' : 'Local simulation · no API credits used');
+      setNotice(turn.mode === 'openai' ? 'Sarvam + OpenAI connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: turn.reply }]);
       void speak(turn.reply, turn.language, providers.sarvam);
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
@@ -148,6 +159,7 @@ export default function Jamvanta() {
           audioChunks.current = [];
           const mediaRecorder = new MediaRecorder(stream);
           recorder.current = mediaRecorder;
+          recorderWillSubmit.current = true;
           mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };
           mediaRecorder.onstop = async () => {
             stream.getTracks().forEach((track) => track.stop());
@@ -160,13 +172,16 @@ export default function Jamvanta() {
               const result = await response.json() as { transcript?: string; language?: string };
               if (result.transcript?.trim()) {
                 setDraft(result.transcript);
+                recorderWillSubmit.current = false;
                 await send(result.transcript, result.language);
                 return;
               }
             } catch {
               // Sarvam is optional locally; browser speech recognition supplies the transcript.
             }
-            if (latestDraft.current.trim()) await send(latestDraft.current);
+            const fallbackDraft = latestDraft.current;
+            recorderWillSubmit.current = false;
+            if (fallbackDraft.trim()) await send(fallbackDraft);
           };
           mediaRecorder.start();
         } else stream.getTracks().forEach((track) => track.stop());
@@ -189,7 +204,7 @@ export default function Jamvanta() {
       instance.onend = () => {
         setListening(false);
         if (recorder.current?.state === 'recording') recorder.current.stop();
-        else if (latestDraft.current.trim()) void send(latestDraft.current);
+        else if (!recorderWillSubmit.current && latestDraft.current.trim()) void send(latestDraft.current);
       };
       instance.start();
       setListening(true);
@@ -249,7 +264,7 @@ export default function Jamvanta() {
         </section>
       ) : null}
       <button className={`jamvanta-orb ${listening ? 'is-listening' : ''}`} type="button" onClick={() => listening ? stopListening() : void beginListening()} aria-label={listening ? 'Stop listening' : 'Press to speak to Jamvanta'} aria-pressed={listening}>
-        <ThinkingOrb state={listening ? 'listening' : working ? 'working' : 'breathing'} size={64} theme={dark ? 'dark' : 'light'} />
+        <ThinkingOrb state={listening ? 'listening' : working ? 'solving' : 'breathing'} size={64} theme={dark ? 'dark' : 'light'} />
         <span>{listening ? 'Listening…' : 'Press to speak'}</span>
       </button>
     </>
