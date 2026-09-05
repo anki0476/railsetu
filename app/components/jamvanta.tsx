@@ -264,7 +264,7 @@ export default function Jamvanta() {
         </section>
       ) : null}
       <button className={`jamvanta-orb ${listening ? 'is-listening' : ''}`} type="button" onClick={() => listening ? stopListening() : void beginListening()} aria-label={listening ? 'Stop listening' : 'Press to speak to Jamvanta'} aria-pressed={listening}>
-        <ThinkingOrb state={listening ? 'listening' : working ? 'solving' : 'breathing'} size={64} theme={dark ? 'dark' : 'light'} />
+        <ThinkingOrb state={listening ? 'listening' : working ? 'solving' : 'connecting'} size={64} theme={dark ? 'dark' : 'light'} />
         <span>{listening ? 'Listening…' : 'Press to speak'}</span>
       </button>
     </>

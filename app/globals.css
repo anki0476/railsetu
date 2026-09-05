@@ -27,7 +27,7 @@ html.railsetu-cursor-enabled [role='button'] {
 .interaction-layer {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 20000;
   overflow: hidden;
   pointer-events: none;
 }
