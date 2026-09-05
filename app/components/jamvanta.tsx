@@ -13,7 +13,7 @@ type VoiceRecognition = {
   stop(): void;
   abort(): void;
   onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
 };
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
@@ -71,7 +71,9 @@ export default function Jamvanta() {
   const recorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const latestDraft = useRef('');
-  const recorderWillSubmit = useRef(false);
+  const wantsListening = useRef(false);
+  const recognitionRestartTimer = useRef<number | null>(null);
+  const sending = useRef(false);
   const panel = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -136,7 +138,8 @@ export default function Jamvanta() {
 
   const send = useCallback(async (text: string, spokenLanguage?: string) => {
     const transcript = plainText(text).trim();
-    if (!transcript || working) return;
+    if (!transcript || sending.current) return;
+    sending.current = true;
     setDraft('');
     setWorking(true);
     setPending(null);
@@ -160,19 +163,31 @@ export default function Jamvanta() {
       const message = error instanceof Error ? error.message : 'Jamvanta is temporarily unavailable.';
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
     } finally {
+      sending.current = false;
       setWorking(false);
     }
-  }, [execute, providers.sarvam, updateMessages, working]);
+  }, [execute, providers.sarvam, updateMessages]);
 
   const stopListening = useCallback(() => {
-    recognition.current?.stop();
-    if (recorder.current?.state === 'recording') recorder.current.stop();
+    wantsListening.current = false;
+    if (recognitionRestartTimer.current !== null) window.clearTimeout(recognitionRestartTimer.current);
+    recognitionRestartTimer.current = null;
+    const activeRecognition = recognition.current;
     recognition.current = null;
+    try { activeRecognition?.stop(); } catch { /* Recognition may already have ended between events. */ }
+    const providerRecordingActive = recorder.current?.state === 'recording';
+    if (providerRecordingActive) recorder.current?.stop();
+    else if (latestDraft.current.trim()) void send(latestDraft.current);
     setListening(false);
-  }, []);
+    setNotice('Processing what you said…');
+  }, [send]);
 
   const beginListening = useCallback(async () => {
     setOpen(true);
+    stopJamvantaSpeech();
+    latestDraft.current = '';
+    setDraft('');
+    wantsListening.current = true;
     const recognitionConstructor = (window.SpeechRecognition ?? window.webkitSpeechRecognition) as unknown as VoiceRecognitionConstructor | undefined;
     if (!recognitionConstructor) {
       setNotice('Voice recognition is unavailable here · type below instead');
@@ -186,9 +201,9 @@ export default function Jamvanta() {
           audioChunks.current = [];
           const mediaRecorder = new MediaRecorder(stream);
           recorder.current = mediaRecorder;
-          recorderWillSubmit.current = true;
           mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };
           mediaRecorder.onstop = async () => {
+            recorder.current = null;
             stream.getTracks().forEach((track) => track.stop());
             const audio = new Blob(audioChunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
             try {
@@ -199,7 +214,6 @@ export default function Jamvanta() {
               const result = await response.json() as { transcript?: string; language?: string };
               if (result.transcript?.trim()) {
                 setDraft(plainText(result.transcript));
-                recorderWillSubmit.current = false;
                 await send(result.transcript, result.language);
                 return;
               }
@@ -207,7 +221,6 @@ export default function Jamvanta() {
               // Sarvam is optional locally; browser speech recognition supplies the transcript.
             }
             const fallbackDraft = latestDraft.current;
-            recorderWillSubmit.current = false;
             if (fallbackDraft.trim()) await send(fallbackDraft);
           };
           mediaRecorder.start();
@@ -215,7 +228,7 @@ export default function Jamvanta() {
       }
       const instance = new recognitionConstructor();
       recognition.current = instance;
-      instance.continuous = false;
+      instance.continuous = true;
       instance.interimResults = true;
       instance.lang = 'en-IN';
       instance.onresult = (event) => {
@@ -224,21 +237,32 @@ export default function Jamvanta() {
         latestDraft.current = next.trim();
         setDraft(plainText(next.trim()));
       };
-      instance.onerror = () => {
-        setNotice('I could not hear that · try again or type below');
-        setListening(false);
+      instance.onerror = (event) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          wantsListening.current = false;
+          setNotice('Microphone permission is needed · type below instead');
+          if (recorder.current?.state === 'recording') recorder.current.stop();
+          setListening(false);
+        }
       };
       instance.onend = () => {
+        if (wantsListening.current && recognition.current === instance) {
+          recognitionRestartTimer.current = window.setTimeout(() => {
+            if (!wantsListening.current || recognition.current !== instance) return;
+            try { instance.start(); } catch { /* The next browser end event will retry while recording continues. */ }
+          }, 180);
+          return;
+        }
         setListening(false);
-        if (recorder.current?.state === 'recording') recorder.current.stop();
-        else if (!recorderWillSubmit.current && latestDraft.current.trim()) void send(latestDraft.current);
       };
       instance.start();
       setListening(true);
       setNotice('Listening in English, Hindi or Hinglish…');
     } catch {
+      wantsListening.current = false;
       setNotice('Microphone permission is needed · type below instead');
       setListening(false);
+      if (recorder.current?.state === 'recording') recorder.current.stop();
     }
   }, [send]);
 
