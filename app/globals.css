@@ -947,14 +947,15 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
 .jamvanta-empty strong { display:block; font-size:22px; letter-spacing:-.04em; }
 .jamvanta-empty p { margin:8px 0 10px; color:#a8b5d3; font-size:12px; line-height:1.5; }
 .jamvanta-empty span { color:#89a5f5; font-size:10px; letter-spacing:.08em; }
-.jamvanta-approval { margin:0 15px 12px; padding:14px; border:1px solid rgba(241,188,90,.35); border-radius:18px; background:rgba(92,67,24,.2); }
-.jamvanta-approval > div:first-child { display:grid; gap:4px; }
-.jamvanta-approval small { color:#efc675; font-size:8px; font-weight:750; letter-spacing:.15em; }
-.jamvanta-approval strong { font-size:14px; }
-.jamvanta-approval span { color:#b7c1d9; font-size:10px; line-height:1.4; }
-.jamvanta-approval > div:last-child { display:flex; justify-content:flex-end; gap:7px; margin-top:12px; }
-.jamvanta-approval button { padding:9px 11px; border:1px solid rgba(145,161,205,.26); border-radius:10px; color:#dfe7fb; background:rgba(50,68,112,.22); cursor:pointer; font-size:10px; font-weight:700; }
-.jamvanta-approval button.is-primary { border-color:transparent; background:#5676df; color:#fff; }
+.jamvanta-approval { margin:0 15px 12px; padding:12px; border:1px solid rgba(129,151,211,.22); border-radius:15px; background:rgba(9,18,39,.46); }
+.jamvanta-approval-summary { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.jamvanta-approval-summary>div { display:grid; gap:3px; min-width:0; }
+.jamvanta-approval small { color:#8799c5; font-size:7px; font-weight:750; letter-spacing:.14em; }
+.jamvanta-approval strong { overflow:hidden; color:#eef3ff; font-size:11px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.jamvanta-approval-summary>b { color:#fff; font-size:16px; letter-spacing:-.035em; white-space:nowrap; }
+.jamvanta-approval-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:11px; }
+.jamvanta-approval button { min-height:34px; padding:7px 10px; border:1px solid rgba(145,161,205,.22); border-radius:9px; color:#aebbd8; background:transparent; cursor:pointer; font:650 10px/1 var(--font-geist),sans-serif; }
+.jamvanta-approval button.is-primary { border-color:#6c86e0; background:#5c77d8; color:#fff; box-shadow:0 5px 14px rgba(51,75,160,.24); }
 .jamvanta-panel form { display:flex; gap:8px; margin:0 15px; padding:7px; border:1px solid rgba(125,148,211,.28); border-radius:16px; background:rgba(5,14,33,.42); }
 .jamvanta-panel form:focus-within { border-color:#7897f2; box-shadow:0 0 0 3px rgba(90,121,225,.12); }
 .jamvanta-panel input { flex:1; min-width:0; border:0; outline:0; color:#eff3ff; background:transparent; padding:4px 7px; font:500 12px/1.3 var(--font-geist),sans-serif; }
@@ -968,6 +969,9 @@ html:not(.railsetu-dark) .jamvanta-orb { color:#172041; background:rgba(242,247,
 html:not(.railsetu-dark) .jamvanta-conversation .is-assistant { background:rgba(92,119,193,.1); }
 html:not(.railsetu-dark) .jamvanta-payment-choices button { color:#172041; border-color:rgba(82,108,183,.22); background:rgba(92,119,193,.08); }
 html:not(.railsetu-dark) .jamvanta-payment-choices span { color:#627092; }
+html:not(.railsetu-dark) .jamvanta-approval { border-color:rgba(82,108,183,.2); background:rgba(255,255,255,.54); }
+html:not(.railsetu-dark) .jamvanta-approval strong,html:not(.railsetu-dark) .jamvanta-approval-summary>b { color:#172041; }
+html:not(.railsetu-dark) .jamvanta-approval button { color:#5b6785; border-color:rgba(82,108,183,.2); }
 html:not(.railsetu-dark) .jamvanta-panel input { color:#111a34; }
 
 @media (max-width: 640px) {

@@ -22,6 +22,7 @@ type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type PaymentChoice = { mode: string; label: string; detail: string };
 const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
 const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
+const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 let activeProviderAudio: HTMLAudioElement | null = null;
 
 function stopJamvantaSpeech() {
@@ -396,6 +397,7 @@ export default function Jamvanta() {
   };
 
   if (!currentPath || currentPath === '/') return null;
+  const paymentAmount = money.format(Number(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search).get('fare')) || 0);
 
   return (
     <>
@@ -414,7 +416,7 @@ export default function Jamvanta() {
             {working ? <p className="is-assistant is-working">Jamvanta is thinking…</p> : null}
             {paymentChoices.length ? <div className="jamvanta-payment-choices" aria-label="Saved payment methods">{paymentChoices.map((choice) => <button type="button" key={choice.mode} onClick={() => choosePayment(choice)}><strong>{choice.label}</strong><span>{choice.detail}</span></button>)}</div> : null}
           </div>
-          {pending ? <div className="jamvanta-approval"><div><small>CONFIRM BEFORE ACTION</small><strong>Complete this payment?</strong><span>{pending.action.type === 'pay_with_method' ? pending.action.label : 'RailSetu Wallet'} · The exact fare shown will be debited.</span></div><div><button type="button" onClick={() => setPending(null)}>Not now</button><button type="button" className="is-primary" onClick={() => void approve()}>{pending.label}</button></div></div> : null}
+          {pending ? <div className="jamvanta-approval"><div className="jamvanta-approval-summary"><div><small>PAYMENT APPROVAL</small><strong>{pending.action.type === 'pay_with_method' ? pending.action.label : 'RailSetu Wallet'}</strong></div><b>{paymentAmount}</b></div><div className="jamvanta-approval-actions"><button type="button" onClick={() => setPending(null)}>Cancel</button><button type="button" className="is-primary" aria-label={pending.label} onClick={() => void approve()}>Approve</button></div></div> : null}
           <form onSubmit={submit}>
             <input value={draft} onChange={(event) => setDraft(plainText(event.target.value))} maxLength={800} placeholder="Tell Jamvanta what to do…" aria-label="Message Jamvanta" />
             <button type="submit" disabled={!draft.trim() || working} aria-label="Send to Jamvanta">↑</button>
