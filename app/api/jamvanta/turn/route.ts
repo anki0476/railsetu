@@ -113,7 +113,7 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
     action = { type: 'pay_with_method', mode: `card-${last4}`, label: `Card ending ${last4}`, approvalId: crypto.randomUUID() };
     reply = hindi ? `अंतिम अंक ${last4} वाला कार्ड चुना गया है। भुगतान के लिए मंज़ूरी दें।` : `The card ending ${last4} is selected. Approve when you are ready to pay.`;
     return { reply, language, action, requiresApproval: true, approvalLabel: 'Approve card payment' };
-  } else if (pathname.includes('payment') && /(?:use|choose|select).*(?:railsetu|upi)|railsetu@upi/.test(lower)) {
+  } else if (pathname.includes('payment') && /(?:use|choose|select).*railsetu(?:\s+upi)?|railsetu@upi/.test(lower)) {
     action = { type: 'pay_with_method', mode: 'upi', label: 'UPI · railsetu@upi', approvalId: crypto.randomUUID() };
     reply = hindi ? 'रेलसेतु यूपीआई चुना गया है। भुगतान के लिए मंज़ूरी दें।' : 'RailSetu UPI is selected. Approve when you are ready to pay.';
     return { reply, language, action, requiresApproval: true, approvalLabel: 'Approve UPI payment' };

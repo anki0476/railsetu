@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
-import { JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
+import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 
 type PaymentMode = string;
@@ -129,6 +129,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
     });
     setSelectedMode(card.id);
     closeCardDialog();
+    dispatchJamvantaFeedback(`Card ending ${card.last4} has been added and selected. Say “use card ending ${card.last4}” when you are ready to continue.`);
   };
 
   const completePayment = useCallback((mode: PaymentMode) => {
@@ -183,6 +184,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
         setSelectedMode(requestedMode);
         completePayment(requestedMode);
       }
+      if (action.type === 'add_payment_method' && action.methodType === 'card') setCardDialogOpen(true);
     };
     window.addEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
     return () => window.removeEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);

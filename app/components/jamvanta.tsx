@@ -20,11 +20,37 @@ type VoiceRecognition = {
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type PaymentChoice = { mode: string; label: string; detail: string };
+type PaymentFlow = { methodType: 'upi' | 'card'; choices: PaymentChoice[]; awaiting: 'choice' | 'custom-upi' };
 const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
+const JAMVANTA_PAYMENT_FLOW_KEY = 'railsetu.jamvanta-payment-flow.v1';
 const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 let activeProviderAudio: HTMLAudioElement | null = null;
 let activeSpeechFinish: (() => void) | null = null;
+
+function savedPaymentChoices(methodType: 'upi' | 'card') {
+  const choices: PaymentChoice[] = methodType === 'upi'
+    ? [{ mode: 'upi', label: 'RailSetu UPI', detail: 'railsetu@upi' }]
+    : [
+        { mode: 'visa', label: 'Visa', detail: 'Ending 6756' },
+        { mode: 'mastercard', label: 'Mastercard', detail: 'Ending 4632' },
+      ];
+  if (methodType === 'card') {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('railsetu.mock-cards.v1') ?? '[]') as Array<{ id?: string; last4?: string; mark?: string }>;
+      saved.forEach((card) => {
+        if (card.id && /^\d{4}$/.test(card.last4 ?? '')) choices.push({ mode: card.id, label: plainText(card.mark ?? 'Card'), detail: `Ending ${card.last4}` });
+      });
+    } catch { /* Built-in card choices remain available. */ }
+  }
+  return choices;
+}
+
+function paymentChoicePrompt(methodType: 'upi' | 'card', choices: PaymentChoice[]) {
+  if (methodType === 'upi') return `Your saved UPI option is ${choices[0].detail}. Would you like to use it or add your own UPI ID?`;
+  const available = choices.map((choice) => `${choice.label} ${choice.detail.toLowerCase()}`).join(', ');
+  return `Your saved cards are ${available}. Which one would you like to use, or would you like to add another card?`;
+}
 
 function stopJamvantaSpeech() {
   activeProviderAudio?.pause();
@@ -121,6 +147,7 @@ export default function Jamvanta() {
   const beginListeningRef = useRef<() => Promise<void>>(async () => undefined);
   const sending = useRef(false);
   const suggestedAction = useRef<JamvantaAction | null>(null);
+  const paymentFlow = useRef<PaymentFlow | null>(null);
   const speechSequence = useRef(0);
   const panel = useRef<HTMLElement>(null);
   const conversation = useRef<HTMLDivElement>(null);
@@ -136,6 +163,16 @@ export default function Jamvanta() {
 
   useEffect(() => {
     setCurrentPath(window.location.pathname);
+  }, []);
+
+  useEffect(() => {
+    if (window.location.pathname !== '/payment') return;
+    try {
+      const restored = JSON.parse(window.sessionStorage.getItem(JAMVANTA_PAYMENT_FLOW_KEY) ?? 'null') as PaymentFlow | null;
+      if (!restored || (restored.methodType !== 'upi' && restored.methodType !== 'card') || !Array.isArray(restored.choices)) return;
+      paymentFlow.current = restored;
+      setPaymentChoices(restored.choices);
+    } catch { /* A fresh payment conversation remains available. */ }
   }, []);
 
   useEffect(() => {
@@ -230,20 +267,10 @@ export default function Jamvanta() {
 
   const execute = useCallback((action: JamvantaAction) => {
     if (action.type === 'list_payment_methods') {
-      const choices: PaymentChoice[] = action.methodType === 'upi'
-        ? [{ mode: 'upi', label: 'RailSetu UPI', detail: 'railsetu@upi' }]
-        : [
-            { mode: 'visa', label: 'Visa', detail: 'Ending 6756' },
-            { mode: 'mastercard', label: 'Mastercard', detail: 'Ending 4632' },
-          ];
-      if (action.methodType === 'card') {
-        try {
-          const saved = JSON.parse(window.localStorage.getItem('railsetu.mock-cards.v1') ?? '[]') as Array<{ id?: string; last4?: string; mark?: string }>;
-          saved.forEach((card) => {
-            if (card.id && /^\d{4}$/.test(card.last4 ?? '')) choices.push({ mode: card.id, label: plainText(card.mark ?? 'Card'), detail: `Ending ${card.last4}` });
-          });
-        } catch { /* Built-in card choices remain available. */ }
-      }
+      const choices = savedPaymentChoices(action.methodType);
+      const flow: PaymentFlow = { methodType: action.methodType, choices, awaiting: 'choice' };
+      paymentFlow.current = flow;
+      try { window.sessionStorage.setItem(JAMVANTA_PAYMENT_FLOW_KEY, JSON.stringify(flow)); } catch { /* In-memory flow still works. */ }
       setPaymentChoices(choices);
       return;
     }
@@ -270,6 +297,8 @@ export default function Jamvanta() {
   }, [providers.sarvam, updateMessages]);
 
   const choosePayment = useCallback((choice: PaymentChoice) => {
+    paymentFlow.current = null;
+    try { window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY); } catch { /* In-memory flow is already cleared. */ }
     setPaymentChoices([]);
     setPending({
       action: { type: 'pay_with_method', mode: choice.mode, label: `${choice.label} ${choice.detail}`, approvalId: crypto.randomUUID() },
@@ -281,18 +310,81 @@ export default function Jamvanta() {
     stopJamvantaSpeech();
     speechSequence.current += 1;
     suggestedAction.current = null;
+    paymentFlow.current = null;
     messagesRef.current = [];
     latestDraft.current = '';
     setMessages([]);
     setDraft('');
     setPending(null);
     setPaymentChoices([]);
-    try { window.sessionStorage.removeItem(JAMVANTA_SESSION_KEY); } catch { /* The in-memory session is still cleared. */ }
+    try {
+      window.sessionStorage.removeItem(JAMVANTA_SESSION_KEY);
+      window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY);
+    } catch { /* The in-memory session is still cleared. */ }
   }, []);
 
   const send = useCallback(async (text: string, spokenLanguage?: string) => {
     const transcript = plainText(text).trim();
     if (!transcript || sending.current) return;
+    const activePaymentFlow = paymentFlow.current;
+    if (activePaymentFlow) {
+      const normalized = transcript.toLowerCase();
+      const wantsAnother = /\b(add|new|another|my own|own)\b|नया|अपना/.test(normalized);
+      if (wantsAnother && activePaymentFlow.methodType === 'card') {
+        paymentFlow.current = null;
+        try { window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY); } catch { /* In-memory flow is already cleared. */ }
+        setPaymentChoices([]);
+        const reply = 'I opened the secure card form. Add the card there, then tell me to use it.';
+        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
+        execute({ type: 'add_payment_method', methodType: 'card' });
+        return;
+      }
+      if (wantsAnother && activePaymentFlow.methodType === 'upi') {
+        const nextFlow: PaymentFlow = { ...activePaymentFlow, awaiting: 'custom-upi' };
+        paymentFlow.current = nextFlow;
+        try { window.sessionStorage.setItem(JAMVANTA_PAYMENT_FLOW_KEY, JSON.stringify(nextFlow)); } catch { /* In-memory flow still works. */ }
+        setPaymentChoices([]);
+        const reply = 'Tell me the UPI ID you want to use.';
+        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
+        const sequence = ++speechSequence.current;
+        void speak(reply, 'en-IN', providers.sarvam).then(() => {
+          if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
+        });
+        return;
+      }
+      if (activePaymentFlow.awaiting === 'custom-upi') {
+        const spokenUpi = normalized.replace(/\s+at\s+/g, '@').replace(/\s+/g, '');
+        const upiId = spokenUpi.match(/[a-z0-9._-]{2,}@[a-z0-9.-]{2,}/)?.[0];
+        if (upiId) {
+          updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
+          choosePayment({ mode: `upi-${upiId}`, label: 'UPI', detail: upiId });
+          return;
+        }
+        const reply = 'I could not confirm that UPI ID. Please say it again, including the handle after “at”.';
+        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
+        const sequence = ++speechSequence.current;
+        void speak(reply, 'en-IN', providers.sarvam).then(() => {
+          if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
+        });
+        return;
+      }
+      const chosen = activePaymentFlow.choices.find((choice) => {
+        const lastFour = choice.detail.match(/\d{4}/)?.[0];
+        return (lastFour && normalized.includes(lastFour)) || normalized.includes(choice.label.toLowerCase()) || normalized.includes(choice.detail.toLowerCase());
+      }) ?? (activePaymentFlow.choices.length === 1 && /\b(yes|use it|use this|saved|continue|okay|ok)\b|हाँ|हां/.test(normalized) ? activePaymentFlow.choices[0] : undefined);
+      if (chosen) {
+        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
+        choosePayment(chosen);
+        return;
+      }
+      const reply = paymentChoicePrompt(activePaymentFlow.methodType, activePaymentFlow.choices);
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
+      const sequence = ++speechSequence.current;
+      void speak(reply, 'en-IN', providers.sarvam).then(() => {
+        if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
+      });
+      return;
+    }
     const suggestion = suggestedAction.current;
     if (suggestion && /^(yes|yeah|yep|sure|ok(?:ay)?|continue|go ahead|do it|please do|haan|ha|हाँ|हां|ठीक है)[.! ]*$/i.test(transcript)) {
       suggestedAction.current = null;
@@ -338,7 +430,9 @@ export default function Jamvanta() {
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
       setNotice(turn.mode === 'openai' ? 'Sarvam + OpenAI connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
-      const safeReply = plainText(turn.reply);
+      const safeReply = turn.action?.type === 'list_payment_methods'
+        ? paymentChoicePrompt(turn.action.methodType, savedPaymentChoices(turn.action.methodType))
+        : plainText(turn.reply);
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: safeReply }]);
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
       else if (turn.action) execute(turn.action);
@@ -358,7 +452,7 @@ export default function Jamvanta() {
         }, 180);
       }
     }
-  }, [execute, providers.sarvam, updateMessages]);
+  }, [choosePayment, execute, providers.sarvam, updateMessages]);
 
   const stopListening = useCallback(() => {
     wantsListening.current = false;
@@ -512,7 +606,7 @@ export default function Jamvanta() {
               <div className="jamvanta-empty"><strong>Where should we go?</strong><p>Try “Find a train from New Delhi to Patna for two passengers.”</p><span>हिंदी, English और Hinglish</span></div>
             ) : messages.map((message) => <p className={`is-${message.role}`} key={message.id}>{message.text}</p>)}
             {working ? <p className="is-assistant is-working">Jamvanta is thinking…</p> : null}
-            {paymentChoices.length ? <div className="jamvanta-payment-choices" aria-label="Saved payment methods">{paymentChoices.map((choice) => <button type="button" key={choice.mode} onClick={() => choosePayment(choice)}><strong>{choice.label}</strong><span>{choice.detail}</span></button>)}</div> : null}
+            {paymentChoices.length ? <div className="jamvanta-payment-choices" aria-label="Saved payment methods">{paymentChoices.map((choice) => <button type="button" key={choice.mode} onClick={() => choosePayment(choice)}><strong>{choice.label}</strong><span>{choice.detail}</span></button>)}<button type="button" onClick={() => void send(paymentFlow.current?.methodType === 'card' ? 'Add another card' : 'Add my own UPI ID')}><strong>Add your own</strong><span>{paymentFlow.current?.methodType === 'card' ? 'New card' : 'New UPI ID'}</span></button></div> : null}
           </div>
           {pending ? <div className="jamvanta-approval"><div className="jamvanta-approval-summary"><div><small>PAYMENT APPROVAL</small><strong>{pending.action.type === 'pay_with_method' ? pending.action.label : 'RailSetu Wallet'}</strong></div><b>{paymentAmount}</b></div><div className="jamvanta-approval-actions"><button type="button" onClick={() => setPending(null)}>Cancel</button><button type="button" className="is-primary" aria-label={pending.label} onClick={() => void approve()}>Approve</button></div></div> : null}
           <form onSubmit={submit}>
