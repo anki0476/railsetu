@@ -98,14 +98,38 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
   return { reply, language, action };
 }
 
+type ConversationMessage = { role: 'user' | 'assistant'; text: string };
+
+function conversationContext(history: ConversationMessage[], transcript: string) {
+  const userTurns = history.filter((message) => message.role === 'user').map((message) => message.text).slice(-6);
+  return [...userTurns, transcript].join('\n');
+}
+
+function mergeJourneyAction(remembered: Extract<JamvantaAction, { type: 'plan_journey' }>, current: Extract<JamvantaAction, { type: 'plan_journey' }>) {
+  const suppliedNow = Object.fromEntries(Object.entries(current).filter(([, value]) => value !== undefined));
+  return { ...remembered, ...suppliedNow } as Extract<JamvantaAction, { type: 'plan_journey' }>;
+}
+
 export async function POST(request: Request) {
-  const body = await request.json() as { transcript?: string; pathname?: string; spokenLanguage?: string };
+  const body = await request.json() as { transcript?: string; pathname?: string; spokenLanguage?: string; history?: ConversationMessage[] };
   const transcript = String(body.transcript ?? '').slice(0, 800);
   const pathname = String(body.pathname ?? '/');
   if (!transcript.trim()) return NextResponse.json({ error: 'Transcript is required.' }, { status: 400 });
 
   const spokenLanguage = String(body.spokenLanguage ?? '');
-  const fallback = localTurn(transcript, pathname, spokenLanguage);
+  const history = Array.isArray(body.history)
+    ? body.history.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-12).map((message) => ({ role: message.role, text: message.text.slice(0, 800) }))
+    : [];
+  const context = conversationContext(history, transcript);
+  const currentTurn = localTurn(transcript, pathname, spokenLanguage);
+  const rememberedTurn = localTurn(context, pathname, spokenLanguage);
+  const hasRememberedJourney = rememberedTurn.action?.type === 'plan_journey';
+  const suppliesJourneyDetail = Boolean(spokenDate(transcript) || passengerCount(transcript) || /\b(1A|2A|3A|3E|CC|EC|SL)\b/i.test(transcript));
+  const fallback = (!currentTurn.action && hasRememberedJourney && suppliesJourneyDetail)
+    ? { ...rememberedTurn, language: currentTurn.language }
+    : currentTurn.action?.type === 'plan_journey' && hasRememberedJourney
+      ? { ...currentTurn, action: mergeJourneyAction(rememberedTurn.action as Extract<JamvantaAction, { type: 'plan_journey' }>, currentTurn.action) }
+      : currentTurn;
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ ...fallback, mode: 'local-simulation' });
   try {
     const response = await fetch('https://api.openai.com/v1/responses', {
@@ -114,7 +138,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL ?? 'gpt-5-mini',
         instructions: 'You are Jamvanta, RailSetu voice navigation. Mirror the user language (en-IN or hi-IN). Concisely explain the next action and never claim a prototype booking is real. If the user supplied a date, acknowledge it instead of asking again. When mentioning railway classes, say 3 tier AC, 2 tier AC, 1st class AC, AC chair car, executive chair car, or sleeper class; never pronounce 3A/2A/1A as amperes. Return only JSON matching the schema. The server separately chooses the permitted action.',
-        input: `Page: ${pathname}\nOriginal spoken language: ${spokenLanguage || 'infer from text'}\nTranslated transcript: ${transcript}`,
+        input: `Page: ${pathname}\nOriginal spoken language: ${spokenLanguage || 'infer from text'}\nConversation in this browser session:\n${history.map((message) => `${message.role}: ${message.text}`).join('\n')}\nuser: ${transcript}\nReply only to the final user message while retaining all journey details already supplied in this session. Do not ask again for a station, date, class, or passenger count already present above.`,
         text: { format: { type: 'json_schema', name: 'jamvanta_turn', strict: true, schema: {
           type: 'object', additionalProperties: false,
           properties: {

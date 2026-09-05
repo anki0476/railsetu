@@ -17,6 +17,7 @@ type VoiceRecognition = {
 };
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
+const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
 let activeProviderAudio: HTMLAudioElement | null = null;
 
 function stopJamvantaSpeech() {
@@ -64,12 +65,35 @@ export default function Jamvanta() {
   const [notice, setNotice] = useState('Local simulation · add provider keys when ready');
   const [dark, setDark] = useState(false);
   const [providers, setProviders] = useState({ sarvam: false, openai: false, approval: true });
+  const messagesRef = useRef<Message[]>([]);
   const recognition = useRef<VoiceRecognition | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const latestDraft = useRef('');
   const recorderWillSubmit = useRef(false);
   const panel = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.sessionStorage.getItem(JAMVANTA_SESSION_KEY) ?? '[]') as Message[];
+      if (Array.isArray(stored)) {
+        const restored = stored.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-20);
+        messagesRef.current = restored;
+        setMessages(restored);
+      }
+    } catch {
+      // A fresh in-memory conversation still works if session storage is unavailable.
+    }
+  }, []);
+
+  const updateMessages = useCallback((updater: (current: Message[]) => Message[]) => {
+    setMessages((current) => {
+      const next = updater(current).slice(-20);
+      messagesRef.current = next;
+      try { window.sessionStorage.setItem(JAMVANTA_SESSION_KEY, JSON.stringify(next)); } catch { /* Keep the current tab's in-memory context. */ }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     void fetch('/api/jamvanta/status').then((response) => response.json()).then((status: { sarvam?: boolean; openai?: boolean; approval?: boolean }) => {
@@ -115,27 +139,28 @@ export default function Jamvanta() {
     setDraft('');
     setWorking(true);
     setPending(null);
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
+    const history = messagesRef.current.slice(-12).map(({ role, text: messageText }) => ({ role, text: messageText }));
+    updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
     try {
       const response = await fetch('/api/jamvanta/turn', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ transcript, spokenLanguage, pathname: window.location.pathname, search: window.location.search }),
+        body: JSON.stringify({ transcript, spokenLanguage, pathname: window.location.pathname, search: window.location.search, history }),
       });
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
       setNotice(turn.mode === 'openai' ? 'Sarvam + OpenAI connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: turn.reply }]);
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: turn.reply }]);
       void speak(turn.reply, turn.language, providers.sarvam);
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
       else if (turn.action) execute(turn.action);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Jamvanta is temporarily unavailable.';
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
     } finally {
       setWorking(false);
     }
-  }, [execute, providers.sarvam, working]);
+  }, [execute, providers.sarvam, updateMessages, working]);
 
   const stopListening = useCallback(() => {
     recognition.current?.stop();
@@ -225,10 +250,10 @@ export default function Jamvanta() {
       const verified = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: prepared.token }) }).then((response) => response.json()) as { approved?: boolean };
       if (!verified.approved) throw new Error('Approval expired. Please try again.');
       execute(pending.action);
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: 'Approved. Completing the mock wallet payment now.' }]);
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: 'Approved. Completing the mock wallet payment now.' }]);
       setPending(null);
     } catch (error) {
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: error instanceof Error ? error.message : 'Approval failed.' }]);
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: error instanceof Error ? error.message : 'Approval failed.' }]);
     } finally {
       setWorking(false);
     }
