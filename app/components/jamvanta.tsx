@@ -24,22 +24,33 @@ const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
 const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 let activeProviderAudio: HTMLAudioElement | null = null;
+let activeSpeechFinish: (() => void) | null = null;
 
 function stopJamvantaSpeech() {
   activeProviderAudio?.pause();
   activeProviderAudio = null;
   window.speechSynthesis?.cancel();
+  activeSpeechFinish?.();
+  activeSpeechFinish = null;
 }
 
 function browserSpeak(text: string, language: JamvantaTurn['language']) {
   if (!('speechSynthesis' in window)) return Promise.resolve();
   stopJamvantaSpeech();
   return new Promise<void>((resolve) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (activeSpeechFinish === finish) activeSpeechFinish = null;
+      resolve();
+    };
+    activeSpeechFinish = finish;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language;
     utterance.rate = language === 'hi-IN' ? 0.94 : 1;
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
+    utterance.onend = finish;
+    utterance.onerror = finish;
     window.speechSynthesis.speak(utterance);
   });
 }
@@ -55,15 +66,29 @@ async function speak(text: string, language: JamvantaTurn['language'], useSarvam
       const audio = new Audio(`data:${result.contentType ?? 'audio/wav'};base64,${result.audio}`);
       activeProviderAudio = audio;
       await new Promise<void>((resolve, reject) => {
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          if (activeSpeechFinish === finish) activeSpeechFinish = null;
+          resolve();
+        };
+        const fail = (error: unknown) => {
+          if (finished) return;
+          finished = true;
+          if (activeSpeechFinish === finish) activeSpeechFinish = null;
+          reject(error);
+        };
+        activeSpeechFinish = finish;
         audio.onended = () => {
           if (activeProviderAudio === audio) activeProviderAudio = null;
-          resolve();
+          finish();
         };
         audio.onerror = () => {
           if (activeProviderAudio === audio) activeProviderAudio = null;
-          reject(new Error('Sarvam audio playback failed'));
+          fail(new Error('Sarvam audio playback failed'));
         };
-        void audio.play().catch(reject);
+        void audio.play().catch(fail);
       });
       return;
     } catch {
@@ -244,10 +269,10 @@ export default function Jamvanta() {
       setNotice(turn.mode === 'openai' ? 'Sarvam + OpenAI connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
       const safeReply = plainText(turn.reply);
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: safeReply }]);
-      await speak(safeReply, turn.language, providers.sarvam);
-      listenAfterReply = !turn.requiresApproval;
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
       else if (turn.action) execute(turn.action);
+      listenAfterReply = !turn.requiresApproval;
+      await speak(safeReply, turn.language, providers.sarvam);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Jamvanta is temporarily unavailable.';
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
