@@ -18,13 +18,30 @@ type VoiceRecognition = {
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 
-function speak(text: string, language: JamvantaTurn['language']) {
+function browserSpeak(text: string, language: JamvantaTurn['language']) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = language;
   utterance.rate = language === 'hi-IN' ? 0.94 : 1;
   window.speechSynthesis.speak(utterance);
+}
+
+async function speak(text: string, language: JamvantaTurn['language'], useSarvam: boolean) {
+  if (useSarvam) {
+    try {
+      const response = await fetch('/api/jamvanta/speak', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, language }) });
+      if (!response.ok) throw new Error('Sarvam speech unavailable');
+      const result = await response.json() as { audio?: string; contentType?: string };
+      if (!result.audio) throw new Error('Sarvam returned no audio');
+      const audio = new Audio(`data:${result.contentType ?? 'audio/wav'};base64,${result.audio}`);
+      await audio.play();
+      return;
+    } catch {
+      // The device voice is a resilient fallback when provider audio cannot play.
+    }
+  }
+  browserSpeak(text, language);
 }
 
 export default function Jamvanta() {
@@ -36,11 +53,20 @@ export default function Jamvanta() {
   const [pending, setPending] = useState<{ action: JamvantaAction; label: string } | null>(null);
   const [notice, setNotice] = useState('Local simulation · add provider keys when ready');
   const [dark, setDark] = useState(false);
+  const [providers, setProviders] = useState({ sarvam: false, openai: false, approval: true });
   const recognition = useRef<VoiceRecognition | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const latestDraft = useRef('');
   const panel = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    void fetch('/api/jamvanta/status').then((response) => response.json()).then((status: { sarvam?: boolean; openai?: boolean; approval?: boolean }) => {
+      const next = { sarvam: Boolean(status.sarvam), openai: Boolean(status.openai), approval: Boolean(status.approval) };
+      setProviders(next);
+      setNotice(next.sarvam && next.openai ? 'Sarvam + OpenAI connected' : 'Local simulation · add provider keys when ready');
+    }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains('railsetu-dark'));
@@ -89,7 +115,7 @@ export default function Jamvanta() {
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
       setNotice(turn.mode === 'provider-ready' ? 'Provider-ready · safe RailSetu actions' : 'Local simulation · no API credits used');
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: turn.reply }]);
-      speak(turn.reply, turn.language);
+      void speak(turn.reply, turn.language, providers.sarvam);
       if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
       else if (turn.action) execute(turn.action);
     } catch (error) {
@@ -98,7 +124,7 @@ export default function Jamvanta() {
     } finally {
       setWorking(false);
     }
-  }, [execute, working]);
+  }, [execute, providers.sarvam, working]);
 
   const stopListening = useCallback(() => {
     recognition.current?.stop();
