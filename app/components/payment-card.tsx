@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
@@ -131,7 +131,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
     closeCardDialog();
   };
 
-  const completePayment = (mode: PaymentMode) => {
+  const completePayment = useCallback((mode: PaymentMode) => {
     if (paymentState !== 'idle') return;
     if (mode === 'wallet') {
       if (walletBalance < fare) return;
@@ -146,7 +146,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
         window.location.assign(`/ticket?${ticketParams.toString()}`);
       }, 850);
     }, 1450);
-  };
+  }, [fare, params, paymentState, train, walletBalance]);
 
   const beginOtpVerification = () => {
     setOtpValue('');
@@ -175,10 +175,18 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
         setSelectedMode('wallet');
         completePayment('wallet');
       }
+      if (action.type === 'pay_with_method') {
+        const requestedMode = action.mode.startsWith('card-')
+          ? addedCards.find((card) => card.last4 === action.mode.slice(5))?.id
+          : action.mode;
+        if (!requestedMode) return;
+        setSelectedMode(requestedMode);
+        completePayment(requestedMode);
+      }
     };
     window.addEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
     return () => window.removeEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
-  });
+  }, [addedCards, completePayment]);
 
   return (
     <section className="payment-card" aria-labelledby="payment-card-title">

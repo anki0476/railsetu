@@ -72,6 +72,29 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
     action = { type: 'pay_with_wallet', approvalId: crypto.randomUUID() };
     reply = hindi ? 'रेलसेतु वॉलेट से भुगतान करने से पहले आपकी मंज़ूरी चाहिए।' : 'I need your approval before paying from the RailSetu Wallet.';
     return { reply, language, action, requiresApproval: true, approvalLabel: 'Approve wallet payment' };
+  } else if (pathname.includes('payment') && /(?:use|choose|select|pay).*(?:6756|visa)/.test(lower)) {
+    action = { type: 'pay_with_method', mode: 'visa', label: 'Visa ending 6756', approvalId: crypto.randomUUID() };
+    reply = hindi ? 'वीज़ा कार्ड, जिसके अंतिम अंक 6756 हैं, चुना गया है। भुगतान के लिए मंज़ूरी दें।' : 'Visa ending 6756 is selected. Approve when you are ready to pay.';
+    return { reply, language, action, requiresApproval: true, approvalLabel: 'Approve Visa payment' };
+  } else if (pathname.includes('payment') && /(?:use|choose|select|pay).*(?:4632|mastercard)/.test(lower)) {
+    action = { type: 'pay_with_method', mode: 'mastercard', label: 'Mastercard ending 4632', approvalId: crypto.randomUUID() };
+    reply = hindi ? 'मास्टरकार्ड, जिसके अंतिम अंक 4632 हैं, चुना गया है। भुगतान के लिए मंज़ूरी दें।' : 'Mastercard ending 4632 is selected. Approve when you are ready to pay.';
+    return { reply, language, action, requiresApproval: true, approvalLabel: 'Approve Mastercard payment' };
+  } else if (pathname.includes('payment') && /(?:use|choose|select).*(?:card)?.*\b(\d{4})\b/.test(lower)) {
+    const last4 = lower.match(/\b(\d{4})\b/)?.[1] ?? '';
+    action = { type: 'pay_with_method', mode: `card-${last4}`, label: `Card ending ${last4}`, approvalId: crypto.randomUUID() };
+    reply = hindi ? `अंतिम अंक ${last4} वाला कार्ड चुना गया है। भुगतान के लिए मंज़ूरी दें।` : `The card ending ${last4} is selected. Approve when you are ready to pay.`;
+    return { reply, language, action, requiresApproval: true, approvalLabel: 'Approve card payment' };
+  } else if (pathname.includes('payment') && /(?:use|choose|select).*(?:railsetu|upi)|railsetu@upi/.test(lower)) {
+    action = { type: 'pay_with_method', mode: 'upi', label: 'UPI · railsetu@upi', approvalId: crypto.randomUUID() };
+    reply = hindi ? 'रेलसेतु यूपीआई चुना गया है। भुगतान के लिए मंज़ूरी दें।' : 'RailSetu UPI is selected. Approve when you are ready to pay.';
+    return { reply, language, action, requiresApproval: true, approvalLabel: 'Approve UPI payment' };
+  } else if (pathname.includes('payment') && /(?:pay|payment).*(?:upi)|(?:upi).*(?:pay|payment)/.test(lower)) {
+    action = { type: 'list_payment_methods', methodType: 'upi' };
+    reply = hindi ? 'आपके सेव किए हुए यूपीआई विकल्प नीचे हैं। जिसे उपयोग करना है उसका नाम बोलें या चुनें।' : 'Here are your saved UPI options. Say or tap the one you want to use.';
+  } else if (pathname.includes('payment') && /(?:pay|payment).*(?:card)|(?:card).*(?:pay|payment)/.test(lower)) {
+    action = { type: 'list_payment_methods', methodType: 'card' };
+    reply = hindi ? 'आपके सेव किए हुए कार्ड नीचे हैं। अंतिम चार अंक बोलें या कार्ड चुनें।' : 'Here are your saved cards. Say the last four digits or tap a card.';
   } else if (/continue|payment|भुगतान|आगे/.test(lower) && pathname.includes('planner')) {
     action = { type: 'continue_to_payment' };
     reply = hindi ? 'चुनी हुई यात्रा को भुगतान पेज पर ले जा रहा हूँ।' : 'Taking the selected journey to payment.';

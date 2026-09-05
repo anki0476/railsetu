@@ -19,6 +19,7 @@ type VoiceRecognition = {
 };
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
+type PaymentChoice = { mode: string; label: string; detail: string };
 const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
 const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
 let activeProviderAudio: HTMLAudioElement | null = null;
@@ -81,6 +82,8 @@ export default function Jamvanta() {
   const [notice, setNotice] = useState('Local simulation · add provider keys when ready');
   const [dark, setDark] = useState(false);
   const [providers, setProviders] = useState({ sarvam: false, openai: false, approval: true });
+  const [paymentChoices, setPaymentChoices] = useState<PaymentChoice[]>([]);
+  const [currentPath, setCurrentPath] = useState('');
   const messagesRef = useRef<Message[]>([]);
   const recognition = useRef<VoiceRecognition | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -103,6 +106,10 @@ export default function Jamvanta() {
   }, []);
 
   useEffect(() => {
+    setCurrentPath(window.location.pathname);
+  }, []);
+
+  useEffect(() => {
     try {
       const stored = JSON.parse(window.sessionStorage.getItem(JAMVANTA_SESSION_KEY) ?? '[]') as Message[];
       if (Array.isArray(stored)) {
@@ -120,13 +127,11 @@ export default function Jamvanta() {
     if (window.location.pathname === '/payment' && params.get('jamvanta') === '1') {
       params.delete('jamvanta');
       window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
-      const action: JamvantaAction = { type: 'pay_with_wallet', approvalId: crypto.randomUUID() };
-      const message = 'I found the best complete route and brought you to payment. Approve the RailSetu Wallet payment when you are ready.';
+      const message = 'I found the best complete route and brought you to payment. Would you like to use UPI, a saved card, or your RailSetu Wallet?';
       const timer = window.setTimeout(() => {
         setOpen(true);
-        setPending({ action, label: 'Approve wallet payment' });
         updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
-        void speak(message, 'en-IN', false);
+        void speak(message, 'en-IN', false).then(() => beginListeningRef.current());
       }, 350);
       return () => window.clearTimeout(timer);
     }
@@ -187,7 +192,33 @@ export default function Jamvanta() {
   }, [open]);
 
   const execute = useCallback((action: JamvantaAction) => {
+    if (action.type === 'list_payment_methods') {
+      const choices: PaymentChoice[] = action.methodType === 'upi'
+        ? [{ mode: 'upi', label: 'RailSetu UPI', detail: 'railsetu@upi' }]
+        : [
+            { mode: 'visa', label: 'Visa', detail: 'Ending 6756' },
+            { mode: 'mastercard', label: 'Mastercard', detail: 'Ending 4632' },
+          ];
+      if (action.methodType === 'card') {
+        try {
+          const saved = JSON.parse(window.localStorage.getItem('railsetu.mock-cards.v1') ?? '[]') as Array<{ id?: string; last4?: string; mark?: string }>;
+          saved.forEach((card) => {
+            if (card.id && /^\d{4}$/.test(card.last4 ?? '')) choices.push({ mode: card.id, label: plainText(card.mark ?? 'Card'), detail: `Ending ${card.last4}` });
+          });
+        } catch { /* Built-in card choices remain available. */ }
+      }
+      setPaymentChoices(choices);
+      return;
+    }
     routeJamvantaAction(action);
+  }, []);
+
+  const choosePayment = useCallback((choice: PaymentChoice) => {
+    setPaymentChoices([]);
+    setPending({
+      action: { type: 'pay_with_method', mode: choice.mode, label: `${choice.label} ${choice.detail}`, approvalId: crypto.randomUUID() },
+      label: `Approve ${choice.label} payment`,
+    });
   }, []);
 
   const send = useCallback(async (text: string, spokenLanguage?: string) => {
@@ -197,6 +228,7 @@ export default function Jamvanta() {
     setDraft('');
     setWorking(true);
     setPending(null);
+    setPaymentChoices([]);
     const history = messagesRef.current.slice(-12).map(({ role, text: messageText }) => ({ role, text: messageText }));
     updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
     let listenAfterReply = false;
@@ -337,18 +369,19 @@ export default function Jamvanta() {
   }, [beginListening]);
 
   const approve = async () => {
-    if (!pending || pending.action.type !== 'pay_with_wallet') return;
+    if (!pending || (pending.action.type !== 'pay_with_wallet' && pending.action.type !== 'pay_with_method')) return;
     setWorking(true);
     try {
       const amount = Number(new URLSearchParams(window.location.search).get('fare')) || 0;
-      if (getWalletBalance() < amount) throw new Error('Your RailSetu Wallet balance is too low for this fare. Add money or choose another payment method.');
-      const prepared = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation: 'wallet-payment', amount }) }).then((response) => response.json()) as { token?: string };
+      if (pending.action.type === 'pay_with_wallet' && getWalletBalance() < amount) throw new Error('Your RailSetu Wallet balance is too low for this fare. Add money or choose another payment method.');
+      const operation = pending.action.type === 'pay_with_wallet' ? 'wallet-payment' : `payment-${pending.action.mode}`;
+      const prepared = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation, amount }) }).then((response) => response.json()) as { token?: string };
       if (!prepared.token) throw new Error('Approval could not be prepared.');
       const verified = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: prepared.token }) }).then((response) => response.json()) as { approved?: boolean };
       if (!verified.approved) throw new Error('Approval expired. Please try again.');
       window.sessionStorage.setItem(JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY, '1');
       execute(pending.action);
-      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: 'Approved. Completing the mock wallet payment now.' }]);
+      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: 'Approved. Completing the payment now.' }]);
       setPending(null);
     } catch (error) {
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: error instanceof Error ? error.message : 'Approval failed.' }]);
@@ -361,6 +394,8 @@ export default function Jamvanta() {
     event.preventDefault();
     void send(draft);
   };
+
+  if (!currentPath || currentPath === '/') return null;
 
   return (
     <>
@@ -377,8 +412,9 @@ export default function Jamvanta() {
               <div className="jamvanta-empty"><strong>Where should we go?</strong><p>Try “Find a train from New Delhi to Patna for two passengers.”</p><span>हिंदी, English और Hinglish</span></div>
             ) : messages.map((message) => <p className={`is-${message.role}`} key={message.id}>{message.text}</p>)}
             {working ? <p className="is-assistant is-working">Jamvanta is thinking…</p> : null}
+            {paymentChoices.length ? <div className="jamvanta-payment-choices" aria-label="Saved payment methods">{paymentChoices.map((choice) => <button type="button" key={choice.mode} onClick={() => choosePayment(choice)}><strong>{choice.label}</strong><span>{choice.detail}</span></button>)}</div> : null}
           </div>
-          {pending ? <div className="jamvanta-approval"><div><small>CONFIRM BEFORE ACTION</small><strong>Pay from RailSetu Wallet?</strong><span>The exact fare shown on this payment page will be debited.</span></div><div><button type="button" onClick={() => setPending(null)}>Not now</button><button type="button" className="is-primary" onClick={() => void approve()}>{pending.label}</button></div></div> : null}
+          {pending ? <div className="jamvanta-approval"><div><small>CONFIRM BEFORE ACTION</small><strong>Complete this payment?</strong><span>{pending.action.type === 'pay_with_method' ? pending.action.label : 'RailSetu Wallet'} · The exact fare shown will be debited.</span></div><div><button type="button" onClick={() => setPending(null)}>Not now</button><button type="button" className="is-primary" onClick={() => void approve()}>{pending.label}</button></div></div> : null}
           <form onSubmit={submit}>
             <input value={draft} onChange={(event) => setDraft(plainText(event.target.value))} maxLength={800} placeholder="Tell Jamvanta what to do…" aria-label="Message Jamvanta" />
             <button type="submit" disabled={!draft.trim() || working} aria-label="Send to Jamvanta">↑</button>

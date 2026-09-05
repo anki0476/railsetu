@@ -3,6 +3,8 @@ export type JamvantaAction =
   | { type: 'continue_to_payment' }
   | { type: 'select_wallet' }
   | { type: 'pay_with_wallet'; approvalId: string }
+  | { type: 'list_payment_methods'; methodType: 'upi' | 'card' }
+  | { type: 'pay_with_method'; mode: string; label: string; approvalId: string }
   | { type: 'download_ticket' }
   | { type: 'navigate'; path: '/planner' | '/about' | '/' };
 
