@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
-import { dispatchJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
+import { dispatchJamvantaAction, routeJamvantaAction, takePendingJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
+import { getWalletBalance } from '../lib/wallet';
 
 type VoiceRecognition = {
   continuous: boolean;
@@ -19,6 +20,7 @@ type VoiceRecognition = {
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
+const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
 let activeProviderAudio: HTMLAudioElement | null = null;
 
 function stopJamvantaSpeech() {
@@ -76,6 +78,15 @@ export default function Jamvanta() {
   const sending = useRef(false);
   const panel = useRef<HTMLElement>(null);
 
+  const updateMessages = useCallback((updater: (current: Message[]) => Message[]) => {
+    setMessages((current) => {
+      const next = updater(current).slice(-20);
+      messagesRef.current = next;
+      try { window.sessionStorage.setItem(JAMVANTA_SESSION_KEY, JSON.stringify(next)); } catch { /* Keep the current tab's in-memory context. */ }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     try {
       const stored = JSON.parse(window.sessionStorage.getItem(JAMVANTA_SESSION_KEY) ?? '[]') as Message[];
@@ -89,13 +100,41 @@ export default function Jamvanta() {
     }
   }, []);
 
-  const updateMessages = useCallback((updater: (current: Message[]) => Message[]) => {
-    setMessages((current) => {
-      const next = updater(current).slice(-20);
-      messagesRef.current = next;
-      try { window.sessionStorage.setItem(JAMVANTA_SESSION_KEY, JSON.stringify(next)); } catch { /* Keep the current tab's in-memory context. */ }
-      return next;
-    });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (window.location.pathname === '/payment' && params.get('jamvanta') === '1') {
+      params.delete('jamvanta');
+      window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+      const action: JamvantaAction = { type: 'pay_with_wallet', approvalId: crypto.randomUUID() };
+      const message = 'I found the best complete route and brought you to payment. Approve the RailSetu Wallet payment when you are ready.';
+      const timer = window.setTimeout(() => {
+        setOpen(true);
+        setPending({ action, label: 'Approve wallet payment' });
+        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
+        void speak(message, 'en-IN', false);
+      }, 350);
+      return () => window.clearTimeout(timer);
+    }
+    if (window.location.pathname === '/ticket' && window.sessionStorage.getItem(JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY) === '1') {
+      window.sessionStorage.removeItem(JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY);
+      const timer = window.setTimeout(() => {
+        setOpen(true);
+        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: 'Payment complete. Your ticket download is starting now.' }]);
+        dispatchJamvantaAction({ type: 'download_ticket' });
+      }, 1800);
+      return () => window.clearTimeout(timer);
+    }
+  }, [updateMessages]);
+
+  useEffect(() => {
+    const pendingAction = takePendingJamvantaAction();
+    if (!pendingAction) return;
+    const timer = window.setTimeout(() => {
+      setOpen(true);
+      setNotice('Continuing your journey…');
+      dispatchJamvantaAction(pendingAction);
+    }, 250);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -132,8 +171,7 @@ export default function Jamvanta() {
   }, [open]);
 
   const execute = useCallback((action: JamvantaAction) => {
-    if (action.type === 'navigate') window.location.assign(action.path);
-    else dispatchJamvantaAction(action);
+    routeJamvantaAction(action);
   }, []);
 
   const send = useCallback(async (text: string, spokenLanguage?: string) => {
@@ -271,10 +309,12 @@ export default function Jamvanta() {
     setWorking(true);
     try {
       const amount = Number(new URLSearchParams(window.location.search).get('fare')) || 0;
+      if (getWalletBalance() < amount) throw new Error('Your RailSetu Wallet balance is too low for this fare. Add money or choose another payment method.');
       const prepared = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation: 'wallet-payment', amount }) }).then((response) => response.json()) as { token?: string };
       if (!prepared.token) throw new Error('Approval could not be prepared.');
       const verified = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: prepared.token }) }).then((response) => response.json()) as { approved?: boolean };
       if (!verified.approved) throw new Error('Approval expired. Please try again.');
+      window.sessionStorage.setItem(JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY, '1');
       execute(pending.action);
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: 'Approved. Completing the mock wallet payment now.' }]);
       setPending(null);

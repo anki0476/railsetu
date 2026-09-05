@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Suspense } from 'react';
 import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
@@ -10,16 +11,24 @@ export const metadata: Metadata = {
   description: 'Review a RailSetu journey and preview its mock payment experience.',
 };
 
-export default function PaymentPage() {
+type PaymentPageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+export default async function PaymentPage({ searchParams }: PaymentPageProps) {
+  const resolved = await searchParams;
+  const serialized = new URLSearchParams();
+  Object.entries(resolved).forEach(([key, value]) => {
+    if (typeof value === 'string') serialized.set(key, value);
+    else value?.forEach((entry) => serialized.append(key, entry));
+  });
   return (
     <main className="payment-page">
       <span className="payment-ambient payment-ambient-one" aria-hidden="true" />
       <span className="payment-ambient payment-ambient-two" aria-hidden="true" />
       <nav className="nav-wrap payment-nav" aria-label="Payment navigation">
-        <a className="brand" href="/" aria-label="RailSetu landing page">
+        <Link className="brand" href="/" aria-label="RailSetu landing page">
           <BrandMark />
           <BrandTextType />
-        </a>
+        </Link>
         <span className="payment-nav-context"><i /> Prototype checkout</span>
         <TactileGlareLink
           className="nav-cta"
@@ -39,7 +48,7 @@ export default function PaymentPage() {
           <p>Choose a mock payment mode and preview the final step of the RailSetu journey.</p>
         </header>
         <Suspense fallback={<div className="payment-card payment-card-fallback" aria-label="Loading payment details" />}>
-          <PaymentCard />
+          <PaymentCard initialSearch={serialized.toString()} />
         </Suspense>
       </section>
     </main>

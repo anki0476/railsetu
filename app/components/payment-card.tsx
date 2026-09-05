@@ -1,7 +1,6 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
 import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
@@ -28,8 +27,8 @@ const modes: Array<{ id: PaymentMode; label: string; detail: string; mark: strin
   { id: 'mastercard', label: 'Card', detail: '•••• 4632', mark: 'MASTERCARD' },
 ];
 
-export default function PaymentCard() {
-  const params = useSearchParams();
+export default function PaymentCard({ initialSearch }: { initialSearch: string }) {
+  const params = useMemo(() => new URLSearchParams(initialSearch), [initialSearch]);
   const [selectedMode, setSelectedMode] = useState<PaymentMode>('upi');
   const [walletBalance, setWalletBalance] = useState(0);
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');

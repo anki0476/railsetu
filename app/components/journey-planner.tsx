@@ -623,7 +623,7 @@ export default function JourneyPlanner() {
     setSpeechOpen(false);
   };
 
-  const runSearch = (nextSubmission: PlannerForm) => {
+  const runSearch = (nextSubmission: PlannerForm, autoContinue = false) => {
     searchSequence.current += 1;
     const sequence = searchSequence.current;
     searchRequest.current?.abort();
@@ -659,6 +659,9 @@ export default function JourneyPlanner() {
           setSubmitted(nextSubmission);
           setOutcome(nextOutcome);
           setSearchPhase('idle');
+          if (autoContinue && nextOutcome.solutions[0]) {
+            searchTimers.current.push(setTimeout(() => continueToPayment(nextOutcome.solutions[0], nextSubmission, true), 450));
+          }
         }, completionDelay));
       });
   };
@@ -679,16 +682,16 @@ export default function JourneyPlanner() {
     runSearch(nextSubmission);
   };
 
-  const continueToPayment = (solution: NonNullable<typeof best>) => {
+  const continueToPayment = (solution: NonNullable<typeof best>, journey = submitted, jamvantaAutopilot = false) => {
     const paymentParams = new URLSearchParams({
       fare: String(solution.fare),
       train: `${solution.trainNumber} · ${solution.trainName}`,
-      from: submitted.from,
-      fromName: stationName(submitted.from),
-      to: submitted.to,
-      toName: stationName(submitted.to),
-      date: submitted.date,
-      class: submitted.travelClass,
+      from: journey.from,
+      fromName: stationName(journey.from),
+      to: journey.to,
+      toName: stationName(journey.to),
+      date: journey.date,
+      class: journey.travelClass,
       comfort: String(solution.comfort),
       profile: submitted.profile,
       party: solution.passengerJourneys.map((journey) => journey.passenger.name).join('|'),
@@ -703,6 +706,7 @@ export default function JourneyPlanner() {
         leg.berth,
       ].join('~')).join('|'),
     });
+    if (jamvantaAutopilot) paymentParams.set('jamvanta', '1');
     window.location.assign(`/payment?${paymentParams.toString()}`);
   };
 
@@ -725,7 +729,7 @@ export default function JourneyPlanner() {
             date: action.date && action.date >= todayInputValue() ? action.date : current.date,
             passengers,
           };
-          if (action.search) window.setTimeout(() => runSearch(next), 0);
+          if (action.search) window.setTimeout(() => runSearch(next, action.autoContinue), 0);
           return next;
         });
         document.querySelector('.planner-search-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });

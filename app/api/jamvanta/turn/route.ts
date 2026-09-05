@@ -61,6 +61,7 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
   const lower = text.toLowerCase();
   const hindi = spokenLanguage === 'hi-IN' || /[\u0900-\u097f]/.test(text);
   const language: JamvantaTurn['language'] = hindi ? 'hi-IN' : 'en-IN';
+  const matchedStations = stations.filter(([, names]) => names.some((name) => lower.includes(name))).map(([code]) => code);
   let action: JamvantaAction | undefined;
   let reply = hindi ? 'मैं आपकी रेलसेतु यात्रा में मदद कर सकता हूँ।' : 'I can help with your RailSetu journey.';
 
@@ -80,18 +81,20 @@ function localTurn(transcript: string, pathname: string, spokenLanguage?: string
   } else if (/about|रेलसेतु के बारे/.test(lower)) {
     action = { type: 'navigate', path: '/about' };
     reply = hindi ? 'रेलसेतु के बारे में पेज खोल रहा हूँ।' : 'Opening About RailSetu.';
-  } else if (/plan|find|search|journey|train|यात्रा|ट्रेन|ढूँढ|खोज/.test(lower)) {
+  } else if (/plan|find|search|journey|train|यात्रा|ट्रेन|ढूँढ|खोज/.test(lower) || matchedStations.length >= 2) {
     const from = findStation(text, ['from ', 'से ', 'leaving ']);
     const to = findStation(text, ['to ', 'तक ', 'for ']);
-    const allMatches = stations.filter(([, names]) => names.some((name) => lower.includes(name))).map(([code]) => code);
+    const allMatches = matchedStations;
+    const date = spokenDate(text);
     action = {
       type: 'plan_journey',
       from: from ?? allMatches[0],
       to: to ?? allMatches.find((code) => code !== (from ?? allMatches[0])),
       passengerCount: passengerCount(text),
-      date: spokenDate(text),
+      date,
       travelClass: (text.match(/\b(1A|2A|3A|3E|CC|EC|SL)\b/i)?.[1] ?? undefined)?.toUpperCase(),
-      search: /find|search|ढूँढ|खोज/.test(lower),
+      search: /find|search|ढूँढ|खोज/.test(lower) || Boolean(date && allMatches.length >= 2),
+      autoContinue: Boolean(date && allMatches.length >= 2),
     };
     reply = hindi ? 'मैंने यात्रा की जानकारी तैयार कर दी है। खोजने से पहले विवरण जाँच लें।' : 'I have prepared the journey details. Please check them before searching.';
   }
