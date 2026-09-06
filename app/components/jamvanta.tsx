@@ -135,7 +135,6 @@ export default function Jamvanta() {
   const [dark, setDark] = useState(false);
   const [providers, setProviders] = useState({ sarvam: false, openai: false, approval: true });
   const [paymentChoices, setPaymentChoices] = useState<PaymentChoice[]>([]);
-  const [currentPath, setCurrentPath] = useState('');
   const messagesRef = useRef<Message[]>([]);
   const recognition = useRef<VoiceRecognition | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -159,10 +158,6 @@ export default function Jamvanta() {
       try { window.sessionStorage.setItem(JAMVANTA_SESSION_KEY, JSON.stringify(next)); } catch { /* Keep the current tab's in-memory context. */ }
       return next;
     });
-  }, []);
-
-  useEffect(() => {
-    setCurrentPath(window.location.pathname);
   }, []);
 
   useEffect(() => {
@@ -590,7 +585,6 @@ export default function Jamvanta() {
     void send(draft);
   };
 
-  if (!currentPath || currentPath === '/' || currentPath === '/about' || currentPath.startsWith('/about/')) return null;
   const paymentAmount = money.format(Number(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search).get('fare')) || 0);
 
   return (

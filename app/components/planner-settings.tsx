@@ -2,16 +2,16 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
-import PassengerProfile from './passenger-profile';
-import JourneyHistory from './journey-history';
-import RailSetuWallet from './railsetu-wallet';
-import TransactionHistory from './transaction-history';
 import { useSiteLanguage } from './site-language';
 import { HandCoinsIcon, LogInIcon, SlidersHorizontalIcon, WalletIcon } from './ui/animated-icons';
 
 type SiteTheme = 'light' | 'dark';
 
 const Auth10 = dynamic(() => import('./ui/auth-10'), { ssr: false });
+const PassengerProfile = dynamic(() => import('./passenger-profile'), { ssr: false });
+const JourneyHistory = dynamic(() => import('./journey-history'), { ssr: false });
+const RailSetuWallet = dynamic(() => import('./railsetu-wallet'), { ssr: false });
+const TransactionHistory = dynamic(() => import('./transaction-history'), { ssr: false });
 
 const THEME_STORAGE_KEY = 'railsetu.theme.v1';
 const LEGACY_THEME_STORAGE_KEY = 'railsetu.planner-theme.v1';

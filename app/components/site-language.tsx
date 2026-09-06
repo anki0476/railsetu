@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { translateHindi } from '../lib/hindi-translations';
 
 export type SiteLanguage = 'en' | 'hi';
 
@@ -23,6 +22,13 @@ const ignoredParents = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
 const textStates = new WeakMap<Text, RenderState>();
 const attributeStates = new WeakMap<Element, Map<string, RenderState>>();
 const SiteLanguageContext = createContext<SiteLanguageContextValue | null>(null);
+let translateHindi = (text: string) => text;
+let hindiTranslations: Promise<typeof import('../lib/hindi-translations')> | null = null;
+
+function loadHindiTranslations() {
+  hindiTranslations ??= import('../lib/hindi-translations');
+  return hindiTranslations;
+}
 
 function readLanguage(): SiteLanguage {
   try {
@@ -117,23 +123,36 @@ export function SiteLanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
     document.documentElement.classList.toggle('railsetu-hindi', language === 'hi');
-    localizeSubtree(document.documentElement, language);
+    let observer: MutationObserver | null = null;
+    let cancelled = false;
 
-    const observer = new MutationObserver((records) => {
-      records.forEach((record) => {
-        if (record.type === 'characterData') localizeTextNode(record.target as Text, language);
-        if (record.type === 'attributes') localizeElementAttributes(record.target as Element, language);
-        record.addedNodes.forEach((node) => localizeSubtree(node, language));
+    const beginLocalization = () => {
+      if (cancelled) return;
+      localizeSubtree(document.documentElement, language);
+      observer = new MutationObserver((records) => {
+        records.forEach((record) => {
+          if (record.type === 'characterData') localizeTextNode(record.target as Text, language);
+          if (record.type === 'attributes') localizeElementAttributes(record.target as Element, language);
+          record.addedNodes.forEach((node) => localizeSubtree(node, language));
+        });
       });
-    });
-    observer.observe(document.documentElement, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: [...LOCALIZED_ATTRIBUTES],
-    });
-    return () => observer.disconnect();
+      observer.observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: [...LOCALIZED_ATTRIBUTES],
+      });
+    };
+
+    if (language === 'hi') {
+      void loadHindiTranslations().then((module) => {
+        translateHindi = module.translateHindi;
+        beginLocalization();
+      });
+    } else beginLocalization();
+
+    return () => { cancelled = true; observer?.disconnect(); };
   }, [language]);
 
   const setLanguage = useCallback((nextLanguage: SiteLanguage) => {

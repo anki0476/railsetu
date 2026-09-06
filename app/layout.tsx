@@ -3,7 +3,7 @@ import { Geist } from 'next/font/google';
 import GlobalInteractionEffects from './components/global-interaction-effects';
 import SiteSettings from './components/planner-settings';
 import { SiteLanguageProvider } from './components/site-language';
-import Jamvanta from './components/jamvanta';
+import JamvantaLoader from './components/jamvanta-loader';
 import './globals.css';
 
 const geist = Geist({
@@ -47,7 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {children}
           <SiteSettings />
           <GlobalInteractionEffects />
-          <Jamvanta />
+          <JamvantaLoader />
         </SiteLanguageProvider>
       </body>
     </html>
