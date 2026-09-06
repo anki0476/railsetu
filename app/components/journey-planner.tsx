@@ -94,7 +94,12 @@ function todayInputValue() {
 const initialForm: PlannerForm = {
   from: 'NDLS',
   to: 'PNBE',
-  date: todayInputValue(),
+  // Keep the server and browser's first render identical. Sites freezes Date
+  // during static rendering, so computing "today" here produced 1970-01-01 in
+  // the HTML and the real date in the browser, forcing React to rehydrate this
+  // whole interactive subtree. restorePlannerForm supplies the real date once
+  // the component has mounted.
+  date: '',
   travelClass: '3A',
   profile: 'elderly',
   coachPreference: 'same',
@@ -379,7 +384,7 @@ export default function JourneyPlanner() {
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
   const best = outcome.solutions[0];
-  const minimumJourneyDate = todayInputValue();
+  const [minimumJourneyDate, setMinimumJourneyDate] = useState('');
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
   const closeMap = useCallback(() => {
     setMapOpen(false);
@@ -395,6 +400,7 @@ export default function JourneyPlanner() {
   useEffect(() => {
     const restored = restorePlannerForm();
     const restoreTimer = window.setTimeout(() => {
+      setMinimumJourneyDate(todayInputValue());
       setForm(restored);
       setSubmitted(restored);
       setOutcome(solveJourney(journeyQuery(restored)));

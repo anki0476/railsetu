@@ -62,9 +62,12 @@ function parseLegs(value: string | null): TicketLeg[] {
 }
 
 function paymentLabel(mode: string) {
+  if (mode === 'wallet') return 'RailSetu Wallet';
   if (mode === 'visa') return 'Visa •••• 6756';
   if (mode === 'mastercard') return 'Mastercard •••• 4632';
-  return 'UPI · railsetu@upi';
+  if (mode === 'upi') return 'UPI · railsetu@upi';
+  if (mode.startsWith('upi-')) return `UPI · ${mode.slice(4)}`;
+  return 'Saved card';
 }
 
 export default function ScrollExpandTicket() {

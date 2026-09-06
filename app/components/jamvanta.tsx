@@ -495,9 +495,11 @@ export default function Jamvanta() {
             stream.getTracks().forEach((track) => track.stop());
             const audio = new Blob(audioChunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
             try {
-              const form = new FormData();
-              form.append('audio', audio, 'jamvanta.webm');
-              const response = await fetch('/api/jamvanta/transcribe', { method: 'POST', body: form });
+              const response = await fetch('/api/jamvanta/transcribe', {
+                method: 'POST',
+                headers: { 'content-type': audio.type || 'audio/webm' },
+                body: audio,
+              });
               if (!response.ok) throw new Error('fallback');
               const result = await response.json() as { transcript?: string; language?: string };
               if (result.transcript?.trim()) {

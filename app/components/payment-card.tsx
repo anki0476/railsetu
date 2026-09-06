@@ -38,15 +38,18 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
   const [cardDraft, setCardDraft] = useState<CardDraft>(EMPTY_CARD);
   const [cardError, setCardError] = useState('');
   const [cardScanState, setCardScanState] = useState<CardScanState>('idle');
-  const [addedCards, setAddedCards] = useState<AddedCard[]>(() => {
-    if (typeof window === 'undefined') return [];
+  const [addedCards, setAddedCards] = useState<AddedCard[]>([]);
+
+  useEffect(() => {
     try {
       const stored = JSON.parse(window.localStorage.getItem(SAVED_CARD_STORAGE_KEY) ?? '[]') as AddedCard[];
-      return Array.isArray(stored) ? stored.slice(0, 3) : [];
+      if (!Array.isArray(stored)) return;
+      const restoreTimer = window.setTimeout(() => setAddedCards(stored.slice(0, 3)), 0);
+      return () => window.clearTimeout(restoreTimer);
     } catch {
-      return [];
+      // Built-in payment options remain available when storage is unavailable.
     }
-  });
+  }, []);
   const paymentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const otpTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
