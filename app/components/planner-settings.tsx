@@ -108,6 +108,7 @@ export default function SiteSettings() {
   const [walletOpen, setWalletOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [animatedTile, setAnimatedTile] = useState<'wallet' | 'more' | 'login' | null>(null);
   const moreSettingsSnapshot = useSyncExternalStore(
     subscribeToMoreSettings,
     () => `${readLocalToggle(CURSOR_STORAGE_KEY, true)}:${readLocalToggle(CALENDAR_STORAGE_KEY, false)}`,
@@ -208,9 +209,13 @@ export default function SiteSettings() {
               className="planner-settings-option"
               type="button"
               aria-haspopup="dialog"
+              onPointerEnter={() => setAnimatedTile('wallet')}
+              onPointerLeave={() => setAnimatedTile(null)}
+              onFocus={() => setAnimatedTile('wallet')}
+              onBlur={() => setAnimatedTile(null)}
               onClick={() => { setOpen(false); setWalletOpen(true); }}
             >
-              <span className="planner-settings-option-icon"><WalletIcon /></span>
+              <span className="planner-settings-option-icon"><WalletIcon active={animatedTile === 'wallet'} /></span>
               <span className="planner-settings-option-copy"><strong>Wallet</strong><small>Refunds and balance</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
@@ -235,9 +240,13 @@ export default function SiteSettings() {
               type="button"
               aria-expanded={moreOpen}
               aria-controls="railsetu-more-options"
+              onPointerEnter={() => setAnimatedTile('more')}
+              onPointerLeave={() => setAnimatedTile(null)}
+              onFocus={() => setAnimatedTile('more')}
+              onBlur={() => setAnimatedTile(null)}
               onClick={() => setMoreOpen((current) => !current)}
             >
-              <span className="planner-settings-option-icon"><SlidersHorizontalIcon /></span>
+              <span className="planner-settings-option-icon"><SlidersHorizontalIcon active={animatedTile === 'more'} /></span>
               <span className="planner-settings-option-copy"><strong>More options</strong><small>Cursor and calendar</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
@@ -269,9 +278,13 @@ export default function SiteSettings() {
               className="planner-settings-option planner-login-option"
               type="button"
               aria-haspopup="dialog"
+              onPointerEnter={() => setAnimatedTile('login')}
+              onPointerLeave={() => setAnimatedTile(null)}
+              onFocus={() => setAnimatedTile('login')}
+              onBlur={() => setAnimatedTile(null)}
               onClick={() => { setOpen(false); setAuthOpen(true); }}
             >
-              <span className="planner-settings-option-icon"><LogInIcon /></span>
+              <span className="planner-settings-option-icon"><LogInIcon active={animatedTile === 'login'} /></span>
               <span className="planner-settings-option-copy"><strong>Login / Sign up</strong><small>Prototype passenger account</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>

@@ -7,9 +7,10 @@ type AnimatedIconProps = Omit<HTMLAttributes<HTMLSpanElement>, 'color'> & {
   size?: number;
   duration?: number;
   color?: string;
+  active?: boolean;
 };
 
-function useHoverAnimation() {
+function useHoverAnimation(active?: boolean) {
   const controls = useAnimation();
   const reducedMotion = useReducedMotion();
   const start = useCallback(() => {
@@ -18,15 +19,20 @@ function useHoverAnimation() {
   const stop = useCallback(() => {
     void controls.start('normal');
   }, [controls]);
+  useEffect(() => {
+    if (active) start();
+    else if (active === false) stop();
+  }, [active, start, stop]);
   return { controls, start, stop, reducedMotion };
 }
 
-function IconShell({ className, color, style, onMouseEnter, onMouseLeave, children, ...props }: AnimatedIconProps) {
+function IconShell({ className, color, style, active: _active, onMouseEnter, onMouseLeave, children, ...props }: AnimatedIconProps) {
+  void _active;
   return <span className={className} style={{ color, ...style }} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} {...props}>{children}</span>;
 }
 
-export function WalletIcon({ size = 18, duration = 1, ...props }: AnimatedIconProps) {
-  const { controls, start, stop } = useHoverAnimation();
+export function WalletIcon({ size = 18, duration = 1, active, ...props }: AnimatedIconProps) {
+  const { controls, start, stop } = useHoverAnimation(active);
   const body: Variants = { normal: { strokeDashoffset: 0, opacity: 1 }, animate: { strokeDashoffset: [80, 0], opacity: [.4, 1], transition: { duration: .8 * duration, ease: 'easeInOut' } } };
   const flap: Variants = { normal: { rotate: 0 }, animate: { rotate: [-6, 0, -3, 0], transition: { duration: .9 * duration, ease: 'easeInOut', delay: .2 } } };
   const swipe: Variants = { normal: { x: 0, opacity: 0 }, animate: { x: [0, 6, 0], opacity: [0, 1, 0], transition: { duration: .8 * duration, ease: 'easeInOut', delay: .45 } } };
@@ -39,8 +45,8 @@ export function WalletIcon({ size = 18, duration = 1, ...props }: AnimatedIconPr
   </IconShell>;
 }
 
-export function LogInIcon({ size = 18, duration = 1, ...props }: AnimatedIconProps) {
-  const { controls, start, stop } = useHoverAnimation();
+export function LogInIcon({ size = 18, duration = 1, active, ...props }: AnimatedIconProps) {
+  const { controls, start, stop } = useHoverAnimation(active);
   const icon: Variants = { normal: { scale: 1, rotate: 0 }, animate: { scale: [1, 1.1, .95, 1], rotate: [0, -3, 2, 0], transition: { duration: .9 * duration, ease: 'easeInOut' } } };
   const arrow: Variants = { normal: { x: 0, opacity: 1 }, animate: { x: [-8, 2, 0], opacity: [0, 1, 1], transition: { duration: .6 * duration, ease: 'easeOut' } } };
   const door: Variants = { normal: { pathLength: 1 }, animate: { pathLength: [0, 1], transition: { duration: .7 * duration, ease: 'easeInOut', delay: .1 } } };
@@ -51,8 +57,8 @@ export function LogInIcon({ size = 18, duration = 1, ...props }: AnimatedIconPro
   </IconShell>;
 }
 
-export function SlidersHorizontalIcon({ size = 18, duration = 1, ...props }: AnimatedIconProps) {
-  const { controls, start, stop } = useHoverAnimation();
+export function SlidersHorizontalIcon({ size = 18, duration = 1, active, ...props }: AnimatedIconProps) {
+  const { controls, start, stop } = useHoverAnimation(active);
   const track: Variants = { normal: { opacity: 1 }, animate: { opacity: [1, .6, 1], transition: { duration: .6 * duration, ease: 'easeInOut' } } };
   const knob: Variants = { normal: { x: 0 }, animate: (direction: number) => ({ x: [0, direction * 3, 0], transition: { duration: .7 * duration, ease: 'easeInOut', delay: Math.abs(direction) * .05 } }) };
   return <IconShell {...props} onMouseEnter={start} onMouseLeave={stop}>
@@ -63,8 +69,8 @@ export function SlidersHorizontalIcon({ size = 18, duration = 1, ...props }: Ani
   </IconShell>;
 }
 
-export function InfoIcon({ size = 11, duration = 1, ...props }: AnimatedIconProps) {
-  const { controls, start, stop } = useHoverAnimation();
+export function InfoIcon({ size = 11, duration = 1, active, ...props }: AnimatedIconProps) {
+  const { controls, start, stop } = useHoverAnimation(active);
   const ring: Variants = { normal: { pathLength: 1, rotate: 0 }, animate: { pathLength: [0, 1], rotate: [0, 8, 0], transition: { duration: .7 * duration, ease: 'easeInOut' } } };
   const mark: Variants = { normal: { y: 0, opacity: 1 }, animate: { y: [3, -1, 0], opacity: [0, 1, 1], transition: { duration: .55 * duration, delay: .18 } } };
   return <IconShell {...props} onMouseEnter={start} onMouseLeave={stop}>
@@ -91,8 +97,8 @@ export function ScanLineIcon({ size = 18, duration = 1, ...props }: AnimatedIcon
   </motion.svg></IconShell>;
 }
 
-export function UploadIcon({ size = 18, duration = 1, ...props }: AnimatedIconProps) {
-  const { controls, start, stop } = useHoverAnimation();
+export function UploadIcon({ size = 18, duration = 1, active, ...props }: AnimatedIconProps) {
+  const { controls, start, stop } = useHoverAnimation(active);
   const shaft: Variants = { normal: { strokeDashoffset: 0, opacity: 1 }, animate: { strokeDashoffset: [30, 0], opacity: [.4, 1], transition: { duration: .6 * duration, ease: 'easeInOut' } } };
   const head: Variants = { normal: { y: 0, opacity: 1, scale: 1 }, animate: { y: [2, -2, 0], scale: [1, 1.05, 1], opacity: [.6, 1], transition: { duration: .6 * duration, ease: 'easeInOut', delay: .05 } } };
   const tray: Variants = { normal: { strokeDashoffset: 0, opacity: 1 }, animate: { strokeDashoffset: [60, 0], opacity: [.3, 1], transition: { duration: .6 * duration, ease: 'easeInOut', delay: .1 } } };
@@ -101,8 +107,8 @@ export function UploadIcon({ size = 18, duration = 1, ...props }: AnimatedIconPr
   </motion.svg></IconShell>;
 }
 
-export function CameraIcon({ size = 18, duration = 1, ...props }: AnimatedIconProps) {
-  const { controls, start, stop } = useHoverAnimation();
+export function CameraIcon({ size = 18, duration = 1, active, ...props }: AnimatedIconProps) {
+  const { controls, start, stop } = useHoverAnimation(active);
   const lens: Variants = { normal: { scale: 1 }, animate: { scale: [1, .45, 1.15, 1], transition: { duration: .8 * duration, ease: [.34, 1.4, .64, 1] } } };
   return <IconShell {...props} onMouseEnter={start} onMouseLeave={stop}><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" /><motion.circle cx="12" cy="13" r="3" variants={lens} initial="normal" animate={controls} style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />

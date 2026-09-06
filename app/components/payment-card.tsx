@@ -40,6 +40,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
   const [cardError, setCardError] = useState('');
   const [cardScanState, setCardScanState] = useState<CardScanState>('idle');
   const [addedCards, setAddedCards] = useState<AddedCard[]>([]);
+  const [animatedScanTile, setAnimatedScanTile] = useState<'upload' | 'camera' | null>(null);
 
   useEffect(() => {
     try {
@@ -267,8 +268,8 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
             <div className={`payment-card-scan is-${cardScanState}`}>
               <button type="button" aria-expanded={cardScanState !== 'idle'} aria-controls="payment-card-scan-options" onClick={() => setCardScanState((current) => current === 'idle' ? 'choosing' : 'idle')}><span aria-hidden="true"><ScanLineIcon /></span><strong>Scan Card</strong><i aria-hidden="true">⌄</i></button>
               {cardScanState !== 'idle' ? <div id="payment-card-scan-options" className="payment-card-scan-options">
-                <label><input type="file" accept="image/*" onChange={mockAutofillFromCardImage} /><span aria-hidden="true"><UploadIcon /></span><div><strong>Upload card photo</strong><small>Choose a clear image from this device</small></div></label>
-                <label><input type="file" accept="image/*" capture="environment" onChange={mockAutofillFromCardImage} /><span aria-hidden="true"><CameraIcon /></span><div><strong>Use camera</strong><small>Take a clear picture of the card</small></div></label>
+                <label onPointerEnter={() => setAnimatedScanTile('upload')} onPointerLeave={() => setAnimatedScanTile(null)}><input type="file" accept="image/*" onFocus={() => setAnimatedScanTile('upload')} onBlur={() => setAnimatedScanTile(null)} onChange={mockAutofillFromCardImage} /><span aria-hidden="true"><UploadIcon active={animatedScanTile === 'upload'} /></span><div><strong>Upload card photo</strong><small>Choose a clear image from this device</small></div></label>
+                <label onPointerEnter={() => setAnimatedScanTile('camera')} onPointerLeave={() => setAnimatedScanTile(null)}><input type="file" accept="image/*" capture="environment" onFocus={() => setAnimatedScanTile('camera')} onBlur={() => setAnimatedScanTile(null)} onChange={mockAutofillFromCardImage} /><span aria-hidden="true"><CameraIcon active={animatedScanTile === 'camera'} /></span><div><strong>Use camera</strong><small>Take a clear picture of the card</small></div></label>
               </div> : null}
               {cardScanState === 'filled' ? <p role="status">Demo details filled. The image was not uploaded or stored.</p> : null}
             </div>
