@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import AboutScrollIsland from '../components/about-scroll-island';
 import BrandMark from '../components/brand-mark';
 import BrandTextType from '../components/brand-text-type';
 import TactileGlareLink from '../components/tactile-glare-link';
@@ -42,6 +43,13 @@ const adversarialChecks = [
   ['Injected ticket script markup', 'Escaped', 'No execution'],
 ];
 
+const updateTopics = [
+  { id: 'updates-introduction', title: 'Update documentation' },
+  { id: 'performance', title: 'Performance audit' },
+  { id: 'security', title: 'Security audit' },
+  { id: 'updates-scope', title: 'Living document' },
+];
+
 export default function UpdatesPage() {
   return (
     <main className="updates-page">
@@ -55,7 +63,9 @@ export default function UpdatesPage() {
         </TactileGlareLink>
       </nav>
 
-      <header className="updates-hero">
+      <AboutScrollIsland topics={updateTopics} label="Update documentation index" />
+
+      <header className="updates-hero" id="updates-introduction">
         <div>
           <p className="section-kicker">RailSetu update documentation</p>
           <h1>Measured changes.<br /><span>Verifiable results.</span></h1>
@@ -65,11 +75,6 @@ export default function UpdatesPage() {
           <p>A transparent record of how the prototype was tested, what changed, and where its boundaries remain.</p>
         </div>
       </header>
-
-      <nav className="updates-index" aria-label="Audit index">
-        <a href="#performance"><span>01</span><strong>Performance audit</strong><small>Loading speed and latency</small></a>
-        <a href="#security"><span>02</span><strong>Security audit</strong><small>Application attack surface</small></a>
-      </nav>
 
       <section className="updates-audit" id="performance" aria-labelledby="performance-title">
         <header className="updates-audit-heading">
@@ -153,7 +158,7 @@ export default function UpdatesPage() {
         </aside>
       </section>
 
-      <footer className="updates-footer">
+      <footer className="updates-footer" id="updates-scope">
         <div><span>Living document</span><p>Future RailSetu changes will be added here as separate, dated records.</p></div>
         <Link href="/about">Return to the project story <b aria-hidden="true">→</b></Link>
       </footer>

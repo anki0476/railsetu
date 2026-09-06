@@ -1,21 +1,19 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react';
 
 export type AboutScrollTopic = {
   id: string;
   title: string;
 };
 
-export default function AboutScrollIsland({ topics }: { topics: AboutScrollTopic[] }) {
-  const [mounted, setMounted] = useState(false);
+export default function AboutScrollIsland({ topics, label = 'About page index' }: { topics: AboutScrollTopic[]; label?: string }) {
+  const mounted = useSyncExternalStore(() => () => undefined, () => true, () => false);
   const [open, setOpen] = useState(false);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    setMounted(true);
-
     const updateProgress = () => {
       const maximum = document.documentElement.scrollHeight - window.innerHeight;
       setProgress(maximum > 0 ? Math.min(100, Math.max(0, (window.scrollY / maximum) * 100)) : 0);
@@ -51,7 +49,7 @@ export default function AboutScrollIsland({ topics }: { topics: AboutScrollTopic
   return createPortal(
     <>
       {open ? <button className="about-scroll-island-backdrop" type="button" aria-label="Close page index" onClick={() => setOpen(false)} /> : null}
-      <aside className={`about-scroll-island ${open ? 'is-open' : ''}`} aria-label="About page index">
+      <aside className={`about-scroll-island ${open ? 'is-open' : ''}`} aria-label={label}>
         <button
           className="about-scroll-island-trigger"
           type="button"
