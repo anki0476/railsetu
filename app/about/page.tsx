@@ -70,7 +70,7 @@ export default function AboutPage() {
         <TactileGlareLink
           className="nav-cta"
           wrapperClassName="nav-about-wrap"
-          href="/"
+          href="/planner"
           baseColor="#aebfdf"
           depth={4}
           glareOpacity={0.2}

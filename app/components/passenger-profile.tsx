@@ -8,6 +8,9 @@ export interface PassengerProfileData {
   email: string;
   aadhaarNumber: string;
   contactNumber: string;
+  gender: string;
+  age: string;
+  digiLockerLinked: boolean;
   lastUpdated: string;
 }
 
@@ -16,6 +19,9 @@ export interface LinkedPassenger {
   fullName: string;
   relation: string;
   aadhaarLast4: string;
+  gender: string;
+  age: string;
+  digiLockerLinked: boolean;
   verified: boolean;
 }
 
@@ -23,6 +29,9 @@ interface LinkedPassengerDraft {
   fullName: string;
   relation: string;
   mockAadhaar: string;
+  gender: string;
+  age: string;
+  digiLockerLinked: boolean;
 }
 
 interface PassengerProfileProps {
@@ -37,12 +46,20 @@ const defaultProfile: PassengerProfileData = {
   email: 'mock.passenger@example.com',
   aadhaarNumber: 'XXXX XXXX 1234',
   contactNumber: '+91 90000 00000',
+  gender: 'Prefer not to say',
+  age: '',
+  digiLockerLinked: false,
   lastUpdated: 'Not saved yet',
 };
 
 type SaveStatus = 'idle' | 'loading' | 'success' | 'saved';
 type VerificationStatus = 'idle' | 'checking' | 'verified';
-const emptyLinkedPassenger: LinkedPassengerDraft = { fullName: '', relation: 'Parent', mockAadhaar: 'XXXX XXXX 5678' };
+const emptyLinkedPassenger: LinkedPassengerDraft = { fullName: '', relation: 'Parent', mockAadhaar: 'XXXX XXXX 5678', gender: 'Prefer not to say', age: '', digiLockerLinked: false };
+
+function ageInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 3);
+  return digits ? String(Math.min(120, Math.max(1, Number(digits)))) : '';
+}
 
 function EditIcon() {
   return (
@@ -70,6 +87,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
   const [passengerPendingRemoval, setPassengerPendingRemoval] = useState<string | null>(null);
   const [linkedPassengerDraft, setLinkedPassengerDraft] = useState<LinkedPassengerDraft>(emptyLinkedPassenger);
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
+  const [digiLockerStatus, setDigiLockerStatus] = useState<VerificationStatus>('idle');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const saveTimers = useRef<number[]>([]);
 
@@ -98,6 +116,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
     setAddingPassenger(false);
     setPassengerPendingRemoval(null);
     setVerificationStatus('idle');
+    setDigiLockerStatus('idle');
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const handleEscape = (event: KeyboardEvent) => {
@@ -155,6 +174,16 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
     saveTimers.current.push(window.setTimeout(() => setVerificationStatus('verified'), 900));
   };
 
+  const linkMockDigiLocker = (forLinkedPassenger: boolean) => {
+    if (digiLockerStatus !== 'idle') return;
+    setDigiLockerStatus('checking');
+    saveTimers.current.push(window.setTimeout(() => {
+      if (forLinkedPassenger) setLinkedPassengerDraft((current) => ({ ...current, digiLockerLinked: true }));
+      else setDraft((current) => ({ ...current, digiLockerLinked: true }));
+      setDigiLockerStatus('verified');
+    }, 900));
+  };
+
   const addLinkedPassenger = () => {
     if (verificationStatus !== 'verified' || !linkedPassengerDraft.fullName.trim()) return;
     const nextPassenger: LinkedPassenger = {
@@ -162,6 +191,9 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
       fullName: linkedPassengerDraft.fullName.trim(),
       relation: linkedPassengerDraft.relation,
       aadhaarLast4: linkedPassengerDraft.mockAadhaar.replace(/\D/g, '').slice(-4).padStart(4, '0'),
+      gender: linkedPassengerDraft.gender,
+      age: linkedPassengerDraft.age,
+      digiLockerLinked: linkedPassengerDraft.digiLockerLinked,
       verified: true,
     };
     const nextPassengers = [...linkedPassengers, nextPassenger];
@@ -173,6 +205,7 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
     }
     setLinkedPassengerDraft(emptyLinkedPassenger);
     setVerificationStatus('idle');
+    setDigiLockerStatus('idle');
     setAddingPassenger(false);
   };
 
@@ -200,21 +233,28 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
         <section className="passenger-linked-editor" role="dialog" aria-modal="true" aria-labelledby="linked-passenger-title">
           <header>
             <div><span>Additional traveller</span><h2 id="linked-passenger-title">Add a passenger</h2></div>
-            <button type="button" aria-label="Return to profile" onClick={() => { setAddingPassenger(false); setVerificationStatus('idle'); }}>×</button>
+            <button type="button" aria-label="Return to profile" onClick={() => { setAddingPassenger(false); setVerificationStatus('idle'); setDigiLockerStatus('idle'); }}>×</button>
           </header>
           <div className="passenger-linked-body">
             <form onSubmit={(event) => { event.preventDefault(); addLinkedPassenger(); }}>
               <label><span>Passenger name</span><input value={linkedPassengerDraft.fullName} maxLength={80} onChange={(event) => { setLinkedPassengerDraft((current) => ({ ...current, fullName: plainText(event.target.value, 80) })); setVerificationStatus('idle'); }} placeholder="Mock passenger name" autoComplete="off" /></label>
               <label><span>Relation to account holder</span><select value={linkedPassengerDraft.relation} onChange={(event) => setLinkedPassengerDraft((current) => ({ ...current, relation: event.target.value }))}><option>Parent</option><option>Spouse</option><option>Child</option><option>Sibling</option><option>Friend</option><option>Other</option></select></label>
-              <label><span>Mock Aadhaar number</span><input value={linkedPassengerDraft.mockAadhaar} onChange={(event) => { setLinkedPassengerDraft((current) => ({ ...current, mockAadhaar: event.target.value.replace(/[^\dXx ]/g, '').slice(0, 14) })); setVerificationStatus('idle'); }} inputMode="numeric" autoComplete="off" aria-describedby="linked-aadhaar-note" /><small id="linked-aadhaar-note">Prototype only. Never enter a real Aadhaar number.</small></label>
+              <label><span>Gender</span><select value={linkedPassengerDraft.gender} onChange={(event) => setLinkedPassengerDraft((current) => ({ ...current, gender: event.target.value }))}><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label>
+              <label><span>Age</span><input type="number" min="1" max="120" value={linkedPassengerDraft.age} onChange={(event) => setLinkedPassengerDraft((current) => ({ ...current, age: ageInput(event.target.value) }))} inputMode="numeric" placeholder="Age in years" /></label>
+              <label className="passenger-linked-aadhaar"><span>Mock Aadhaar number</span><input value={linkedPassengerDraft.mockAadhaar} onChange={(event) => { setLinkedPassengerDraft((current) => ({ ...current, mockAadhaar: event.target.value.replace(/[^\dXx ]/g, '').slice(0, 14) })); setVerificationStatus('idle'); }} inputMode="numeric" autoComplete="off" aria-describedby="linked-aadhaar-note" /><small id="linked-aadhaar-note">Prototype only. Never enter a real Aadhaar number.</small></label>
               <div className={`passenger-mock-verification is-${verificationStatus}`}>
                 <span aria-hidden="true">{verificationStatus === 'verified' ? '✓' : '✦'}</span>
                 <div><strong>{verificationStatus === 'verified' ? 'Mock Aadhaar verified' : verificationStatus === 'checking' ? 'Checking mock identity…' : 'Mock Aadhaar verification'}</strong><small>No government service is contacted.</small></div>
                 <button type="button" onClick={verifyMockAadhaar} disabled={verificationStatus !== 'idle' || !linkedPassengerDraft.fullName.trim()}>{verificationStatus === 'verified' ? 'Verified' : verificationStatus === 'checking' ? 'Checking…' : 'Verify mock'}</button>
               </div>
+              <div className={`passenger-digilocker-link is-${linkedPassengerDraft.digiLockerLinked ? 'verified' : digiLockerStatus}`}>
+                <span aria-hidden="true">▣</span>
+                <div><strong>{linkedPassengerDraft.digiLockerLinked ? 'Mock DigiLocker linked' : digiLockerStatus === 'checking' ? 'Connecting to mock DigiLocker…' : 'Link mock DigiLocker'}</strong><small>Demonstration only. No government service or real document is accessed.</small></div>
+                <button type="button" onClick={() => linkMockDigiLocker(true)} disabled={digiLockerStatus !== 'idle' || linkedPassengerDraft.digiLockerLinked}>{linkedPassengerDraft.digiLockerLinked ? 'Linked' : digiLockerStatus === 'checking' ? 'Connecting…' : 'Link'}</button>
+              </div>
             </form>
           </div>
-          <footer><span>Only the name, relation, and last four mock digits are saved on this device.</span><div><button type="button" onClick={() => setAddingPassenger(false)}>Cancel</button><button type="button" onClick={addLinkedPassenger} disabled={verificationStatus !== 'verified'}>Add passenger</button></div></footer>
+          <footer><span>Profile details and mock-link status are saved only on this device.</span><div><button type="button" onClick={() => setAddingPassenger(false)}>Cancel</button><button type="button" onClick={addLinkedPassenger} disabled={verificationStatus !== 'verified'}>Add passenger</button></div></footer>
         </section>
       ) : !editing ? (
         <section className="passenger-profile-card" role="dialog" aria-modal="true" aria-labelledby="passenger-profile-title">
@@ -225,12 +265,14 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
           <div className="passenger-profile-summary">
             <span>{profile.email}</span>
             <span>{profile.contactNumber}</span>
+            {profile.age ? <span>{profile.age} years · {profile.gender}</span> : <span>{profile.gender}</span>}
+            {profile.digiLockerLinked ? <span>✓ Mock DigiLocker linked</span> : null}
           </div>
           <div className="passenger-linked-section">
-            <div className="passenger-linked-heading"><div><strong>Other passengers</strong><small>Saved on this device</small></div><button type="button" onClick={() => { setLinkedPassengerDraft(emptyLinkedPassenger); setVerificationStatus('idle'); setAddingPassenger(true); }}>＋ Add</button></div>
+            <div className="passenger-linked-heading"><div><strong>Other passengers</strong><small>Saved on this device</small></div><button type="button" onClick={() => { setLinkedPassengerDraft(emptyLinkedPassenger); setVerificationStatus('idle'); setDigiLockerStatus('idle'); setAddingPassenger(true); }}>＋ Add</button></div>
             {linkedPassengers.length ? <div className="passenger-linked-list">{linkedPassengers.map((passenger) => {
               const isPendingRemoval = passengerPendingRemoval === passenger.id;
-              return <article key={passenger.id}><span aria-hidden="true">{passenger.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span><div><strong>{passenger.fullName}</strong><small>{passenger.relation} · Mock Aadhaar •••• {passenger.aadhaarLast4}</small></div><div className="passenger-linked-actions"><i aria-label="Mock Aadhaar verified">✓</i><button className={isPendingRemoval ? 'is-confirming' : ''} type="button" onClick={() => removeLinkedPassenger(passenger.id)} aria-label={isPendingRemoval ? `Confirm removal of ${passenger.fullName}` : `Remove ${passenger.fullName}`}>{isPendingRemoval ? 'Remove?' : '×'}</button></div></article>;
+              return <article key={passenger.id}><span aria-hidden="true">{passenger.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span><div><strong>{passenger.fullName}</strong><small>{passenger.relation}{passenger.age ? ` · ${passenger.age} years` : ''} · {passenger.gender || 'Gender not set'} · Mock Aadhaar •••• {passenger.aadhaarLast4}{passenger.digiLockerLinked ? ' · DigiLocker linked' : ''}</small></div><div className="passenger-linked-actions"><i aria-label="Mock Aadhaar verified">✓</i><button className={isPendingRemoval ? 'is-confirming' : ''} type="button" onClick={() => removeLinkedPassenger(passenger.id)} aria-label={isPendingRemoval ? `Confirm removal of ${passenger.fullName}` : `Remove ${passenger.fullName}`}>{isPendingRemoval ? 'Remove?' : '×'}</button></div></article>;
             })}</div> : <p className="passenger-linked-empty">Add family or companions for faster journey planning.</p>}
           </div>
           <button className="passenger-profile-edit" type="button" onClick={() => setEditing(true)}>
@@ -262,6 +304,19 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
                 <span>Contact number</span>
                 <input type="tel" value={draft.contactNumber} onChange={(event) => updateDraft('contactNumber', event.target.value)} autoComplete="tel" />
               </label>
+              <label>
+                <span>Gender</span>
+                <select value={draft.gender} onChange={(event) => updateDraft('gender', event.target.value)}><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select>
+              </label>
+              <label>
+                <span>Age</span>
+                <input type="number" min="1" max="120" value={draft.age} onChange={(event) => updateDraft('age', ageInput(event.target.value))} inputMode="numeric" placeholder="Age in years" />
+              </label>
+              <div className={`passenger-digilocker-link is-${draft.digiLockerLinked ? 'verified' : digiLockerStatus}`}>
+                <span aria-hidden="true">▣</span>
+                <div><strong>{draft.digiLockerLinked ? 'Mock DigiLocker linked' : digiLockerStatus === 'checking' ? 'Connecting to mock DigiLocker…' : 'Link mock DigiLocker'}</strong><small>Simulation only. No real DigiLocker account or document is accessed.</small></div>
+                <button type="button" onClick={() => linkMockDigiLocker(false)} disabled={digiLockerStatus !== 'idle' || draft.digiLockerLinked}>{draft.digiLockerLinked ? 'Linked' : digiLockerStatus === 'checking' ? 'Connecting…' : 'Link'}</button>
+              </div>
             </form>
             <aside aria-label="Profile preview">
               <span>Preview</span>
@@ -271,6 +326,8 @@ export default function PassengerProfile({ isOpen, onClose }: PassengerProfilePr
               <dl>
                 <div><dt>Aadhaar</dt><dd>{draft.aadhaarNumber || 'Not added'}</dd></div>
                 <div><dt>Contact</dt><dd>{draft.contactNumber || 'Not added'}</dd></div>
+                <div><dt>Age / gender</dt><dd>{draft.age ? `${draft.age} · ${draft.gender}` : draft.gender}</dd></div>
+                <div><dt>DigiLocker</dt><dd>{draft.digiLockerLinked ? 'Mock linked' : 'Not linked'}</dd></div>
               </dl>
             </aside>
           </div>

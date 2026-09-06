@@ -531,13 +531,13 @@ export default function JourneyPlanner() {
       const savedProfile = window.localStorage.getItem(PROFILE_STORAGE_KEY);
       if (savedProfile) {
         const profile = JSON.parse(savedProfile) as Partial<PassengerProfileData>;
-        if (profile.fullName?.trim()) available.push({ id: 'account-holder', name: plainText(profile.fullName, 40).trim(), detail: 'Main account holder', profile: form.profile });
+        if (profile.fullName?.trim()) available.push({ id: 'account-holder', name: plainText(profile.fullName, 40).trim(), detail: `Main account holder${profile.age ? ` · ${profile.age} years` : ''}${profile.digiLockerLinked ? ' · DigiLocker linked' : ''}`, profile: form.profile });
       }
       const savedLinked = window.localStorage.getItem(LINKED_PASSENGERS_STORAGE_KEY);
       const linked = savedLinked ? JSON.parse(savedLinked) as unknown : [];
       if (Array.isArray(linked)) {
         (linked as LinkedPassenger[]).filter((passenger) => passenger.verified && passenger.fullName?.trim()).forEach((passenger) => {
-          available.push({ id: passenger.id, name: passenger.fullName.trim(), detail: `${passenger.relation} · Mock Aadhaar •••• ${passenger.aadhaarLast4}`, profile: 'standard' });
+          available.push({ id: passenger.id, name: passenger.fullName.trim(), detail: `${passenger.relation}${passenger.age ? ` · ${passenger.age} years` : ''}${passenger.digiLockerLinked ? ' · DigiLocker linked' : ''} · Mock Aadhaar •••• ${passenger.aadhaarLast4}`, profile: 'standard' });
         });
       }
     } catch {
