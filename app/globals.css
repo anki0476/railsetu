@@ -658,6 +658,7 @@ body,
 .hero-shell :is(.nav-wrap,.hero-copy,.ticket-pixel-swap,.product-stage,.journey-card,.traveller-mode,.mode-tag,.status-pill,.floating-note),
 .why-section,.why-section .principles article,.intro-carousel-section,.intro-carousel,.intro-visual-card,.intro-carousel-arrows button,.intro-carousel-dots button,.faq-section,.faq-item,.faq-item button,.faq-chevron,
 .about-page :is(.nav-wrap,.about-hero,.about-feature,.about-steps article,.about-care,.about-clarity,.about-clarity-list article,.about-footer),
+.updates-page :is(.nav-wrap,.updates-hero,.updates-audit,.updates-audit-grid article,.updates-security-result,.updates-verification,.updates-footer),
 .payment-page :is(.nav-wrap,.payment-heading,.payment-card,.payment-wallet-icon,.payment-card-close,.payment-journey-summary,.payment-modes,.payment-mode,.payment-mode-copy,.payment-add-card),
 .ticket-reveal-page :is(.ticket-scroll-stage,.ticket-expand-frame,.ticket-back-home,.ticket-scan-label,.ticket-scroll-hint,.rail-ticket,.rail-ticket-route,.rail-ticket-meta>div,.rail-ticket-legs,.rail-ticket-section-title,.rail-ticket-leg,.rail-ticket-seat,.rail-ticket-footer) {
   transition-property:color,background-color,border-color,box-shadow,fill,stroke;
@@ -665,22 +666,22 @@ body,
   transition-timing-function:ease;
 }
 
-.hero-shell::after,.about-page::after,.payment-page::after,.ticket-scroll-stage::after {
+.hero-shell::after,.about-page::after,.updates-page::after,.payment-page::after,.ticket-scroll-stage::after {
   content:''; position:absolute; z-index:0; inset:0; pointer-events:none; opacity:0; transition:opacity .65s ease;
 }
-.about-page::after,.payment-page::after { position:fixed; }
-.hero-shell::after,.about-page::after,.payment-page::after,.ticket-scroll-stage::after { background:linear-gradient(135deg,#070b17 0%,#10182d 38%,#171a38 72%,#25295b 100%); }
+.about-page::after,.updates-page::after,.payment-page::after { position:fixed; }
+.hero-shell::after,.about-page::after,.updates-page::after,.payment-page::after,.ticket-scroll-stage::after { background:linear-gradient(135deg,#070b17 0%,#10182d 38%,#171a38 72%,#25295b 100%); }
 .ticket-expand-frame { z-index:1; }
 
 html.railsetu-dark { --ink:#f2f5ff; }
 html.railsetu-dark body { color:#eef2ff; background:#070b17; }
-.railsetu-dark .hero-shell::after,.railsetu-dark .about-page::after,.railsetu-dark .payment-page::after,.railsetu-dark .ticket-scroll-stage::after { opacity:1; }
-.railsetu-dark .hero-shell::before,.railsetu-dark .about-page::before,.railsetu-dark .payment-page::before,.railsetu-dark .ticket-scroll-stage::before { opacity:.1; }
-.railsetu-dark :is(.hero-shell,.about-page,.payment-page) .brand { color:#f2f5ff; }
-.railsetu-dark :is(.hero-shell,.about-page,.payment-page) .nav-wrap { border-color:rgba(177,194,242,.16); }
-.railsetu-dark :is(.hero-shell,.about-page,.payment-page) .nav-cta { color:#dce4f6; border-color:rgba(174,191,239,.22); background-color:rgba(27,37,68,.56); }
-.railsetu-dark :is(.hero-shell,.about-page,.payment-page) .nav-cta:hover:not(:active) { background-color:rgba(45,59,98,.82); }
-.railsetu-dark :is(.hero-shell,.about-page,.payment-page) .tactile-base { background:#202b4b!important; }
+.railsetu-dark .hero-shell::after,.railsetu-dark .about-page::after,.railsetu-dark .updates-page::after,.railsetu-dark .payment-page::after,.railsetu-dark .ticket-scroll-stage::after { opacity:1; }
+.railsetu-dark .hero-shell::before,.railsetu-dark .about-page::before,.railsetu-dark .updates-page::before,.railsetu-dark .payment-page::before,.railsetu-dark .ticket-scroll-stage::before { opacity:.1; }
+.railsetu-dark :is(.hero-shell,.about-page,.updates-page,.payment-page) .brand { color:#f2f5ff; }
+.railsetu-dark :is(.hero-shell,.about-page,.updates-page,.payment-page) .nav-wrap { border-color:rgba(177,194,242,.16); }
+.railsetu-dark :is(.hero-shell,.about-page,.updates-page,.payment-page) .nav-cta { color:#dce4f6; border-color:rgba(174,191,239,.22); background-color:rgba(27,37,68,.56); }
+.railsetu-dark :is(.hero-shell,.about-page,.updates-page,.payment-page) .nav-cta:hover:not(:active) { background-color:rgba(45,59,98,.82); }
+.railsetu-dark :is(.hero-shell,.about-page,.updates-page,.payment-page) .tactile-base { background:#202b4b!important; }
 
 .railsetu-dark .hero-shell { color:#f1f4ff; }
 .railsetu-dark .hero-shell .ambient-one { background:rgba(49,83,174,.34); }
