@@ -6,6 +6,7 @@ import {
   journeyCacheKey,
   parseJourneyRequest,
 } from '../../../lib/journey-request';
+import { ApiRequestError, enforceRateLimit, requireSameOrigin, secureJson } from '../../../lib/api-security';
 
 const CACHE_TTL_MS = 60_000;
 const MAX_CACHE_ENTRIES = 250;
@@ -61,6 +62,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    requireSameOrigin(request);
+    const limited = enforceRateLimit(request, 'journey-search', 60);
+    if (limited) return limited;
     const rawBody = await request.text();
     if (new TextEncoder().encode(rawBody).byteLength > JOURNEY_REQUEST_LIMIT_BYTES) {
       return json({ error: { code: 'request_too_large', message: 'Journey request is too large.' } }, 413, requestId);
@@ -98,6 +102,7 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
+    if (error instanceof ApiRequestError) return secureJson({ error: { code: 'request_rejected', message: error.message } }, { status: error.status });
     if (error instanceof JourneyRequestError) {
       return json({ error: { code: error.code, message: error.message } }, 400, requestId);
     }

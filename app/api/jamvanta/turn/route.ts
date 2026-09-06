@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server';
 import type { JamvantaAction, JamvantaTurn } from '../../../lib/jamvanta';
 import { plainText } from '../../../lib/plain-text';
 import { stationOptions } from '../../../lib/journey-engine';
+import { ApiRequestError, apiError, enforceRateLimit, readJsonBody, requireSameOrigin, secureJson } from '../../../lib/api-security';
+
+const MAX_BODY_BYTES = 24_000;
+const allowedPaths = new Set(['/', '/about', '/planner', '/payment', '/ticket', '/comfort-score']);
 
 const spokenAliases: Record<string, string[]> = {
   NDLS: ['delhi', 'नई दिल्ली', 'दिल्ली'], PNBE: ['patna', 'पटना'], CNB: ['kanpur', 'कानपुर'],
@@ -178,10 +181,17 @@ function mergeJourneyAction(remembered: Extract<JamvantaAction, { type: 'plan_jo
 }
 
 export async function POST(request: Request) {
-  const body = await request.json() as { transcript?: string; pathname?: string; spokenLanguage?: string; history?: ConversationMessage[] };
+  try {
+  requireSameOrigin(request);
+  const limited = enforceRateLimit(request, 'jamvanta-turn', 24);
+  if (limited) return limited;
+  const value = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiRequestError(400, 'Invalid Jamvanta request.');
+  const body = value as { transcript?: string; pathname?: string; spokenLanguage?: string; history?: ConversationMessage[] };
   const transcript = plainText(body.transcript);
-  const pathname = String(body.pathname ?? '/');
-  if (!transcript.trim()) return NextResponse.json({ error: 'Transcript is required.' }, { status: 400 });
+  const requestedPath = String(body.pathname ?? '/').split('?')[0];
+  const pathname = allowedPaths.has(requestedPath) ? requestedPath : '/';
+  if (!transcript.trim()) return secureJson({ error: 'Transcript is required.' }, { status: 400 });
 
   const spokenLanguage = String(body.spokenLanguage ?? '');
   const history = Array.isArray(body.history)
@@ -197,7 +207,7 @@ export async function POST(request: Request) {
     : currentTurn.action?.type === 'plan_journey' && hasRememberedJourney
       ? { ...currentTurn, action: mergeJourneyAction(rememberedTurn.action as Extract<JamvantaAction, { type: 'plan_journey' }>, currentTurn.action) }
       : currentTurn;
-  if (!process.env.OPENAI_API_KEY) return NextResponse.json({ ...fallback, mode: 'local-simulation' });
+  if (!process.env.OPENAI_API_KEY) return secureJson({ ...fallback, mode: 'local-simulation' });
   try {
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -213,6 +223,7 @@ export async function POST(request: Request) {
           }, required: ['reply', 'language'],
         } } },
       }),
+      signal: AbortSignal.timeout(20_000),
     });
     if (!response.ok) throw new Error('provider request failed');
     const result = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
@@ -220,8 +231,11 @@ export async function POST(request: Request) {
     if (!raw) throw new Error('provider returned no result');
     const providerTurn = JSON.parse(raw) as Pick<JamvantaTurn, 'reply' | 'language'>;
     providerTurn.reply = plainText(providerTurn.reply);
-    return NextResponse.json({ ...fallback, ...providerTurn, reply: fallback.clarification ? fallback.reply : providerTurn.reply, mode: 'openai' });
+    return secureJson({ ...fallback, ...providerTurn, reply: fallback.clarification ? fallback.reply : providerTurn.reply, mode: 'openai' });
   } catch {
-    return NextResponse.json({ ...fallback, mode: 'local-fallback' });
+    return secureJson({ ...fallback, mode: 'local-fallback' });
+  }
+  } catch (error) {
+    return apiError(error, 'Jamvanta is temporarily unavailable.');
   }
 }
