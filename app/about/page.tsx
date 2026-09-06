@@ -63,10 +63,10 @@ export default function AboutPage() {
   return (
     <main className="about-page">
       <nav className="nav-wrap about-nav" aria-label="About navigation">
-        <a className="brand" href="/" aria-label="RailSetu home">
+        <Link className="brand" href="/" aria-label="RailSetu home">
           <BrandMark />
           <BrandTextType />
-        </a>
+        </Link>
         <TactileGlareLink
           className="nav-cta"
           wrapperClassName="nav-about-wrap"
@@ -84,11 +84,14 @@ export default function AboutPage() {
       <section className="about-hero" id="about-introduction">
         <p className="section-kicker">About RailSetu</p>
         <h1>One waitlisted ticket.<br /><span>A route that still works.</span></h1>
-        <p>
+        <p className="about-hero-copy">
           RailSetu is a passenger-first journey planner for Indian train travellers.
           When a direct ticket is waitlisted, it looks for confirmed segments on the
           same train and explains the changes as one simple journey.
         </p>
+        <Link className="about-update-link" href="/updates">
+          Read the update documentation <span>Security + performance audits</span><b aria-hidden="true">→</b>
+        </Link>
       </section>
 
       <section className="about-grid" id="about-overview" aria-label="Project overview">
