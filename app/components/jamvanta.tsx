@@ -590,7 +590,7 @@ export default function Jamvanta() {
     void send(draft);
   };
 
-  if (!currentPath || currentPath === '/') return null;
+  if (!currentPath || currentPath === '/' || currentPath === '/about' || currentPath.startsWith('/about/')) return null;
   const paymentAmount = money.format(Number(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search).get('fare')) || 0);
 
   return (
