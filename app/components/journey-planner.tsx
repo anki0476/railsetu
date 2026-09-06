@@ -26,6 +26,7 @@ import {
 import { useSiteLanguage } from './site-language';
 import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
+import { InfoIcon } from './ui/animated-icons';
 
 type ChangeLimit = 'one' | 'two' | 'any' | 'custom';
 type PlannerForm = Omit<JourneyQuery, 'maxChanges'> & {
@@ -1142,7 +1143,7 @@ export default function JourneyPlanner() {
                           <strong>{solution.comfort}</strong>
                           <span>Comfort<br />score</span>
                           <a className="planner-comfort-info" href="/comfort-score" aria-label={'Learn how the comfort score of ' + solution.comfort + ' is calculated'}>
-                            i
+                            <InfoIcon />
                             <span className="planner-comfort-tooltip" role="tooltip">
                               <b>{solution.comfortDetails.label}</b>
                               <small>{solution.comfortDetails.summary}</small>

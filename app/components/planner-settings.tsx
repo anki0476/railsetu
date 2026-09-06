@@ -6,6 +6,7 @@ import PassengerProfile from './passenger-profile';
 import JourneyHistory from './journey-history';
 import RailSetuWallet from './railsetu-wallet';
 import { useSiteLanguage } from './site-language';
+import { LogInIcon, SlidersHorizontalIcon, WalletIcon } from './ui/animated-icons';
 
 type SiteTheme = 'light' | 'dark';
 
@@ -89,10 +90,6 @@ function HistorySettingsIcon() {
   );
 }
 
-function WalletSettingsIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H19a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 17.5Z"/><path d="M4 7h16M15 11h5v4h-5a2 2 0 0 1 0-4Z"/></svg>;
-}
-
 function LanguageSettingsIcon() {
   return (
     <svg className="planner-settings-language-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -100,20 +97,6 @@ function LanguageSettingsIcon() {
       <path className="planner-settings-language-orbits" d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
     </svg>
   );
-}
-
-function MoreSettingsIcon() {
-  return (
-    <svg className="planner-settings-sliders-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <g className="planner-slider-one"><line x1="21" x2="14" y1="4" y2="4" /><line x1="10" x2="3" y1="4" y2="4" /><line className="planner-slider-knob" x1="14" x2="14" y1="2" y2="6" /></g>
-      <g className="planner-slider-two"><line x1="21" x2="12" y1="12" y2="12" /><line x1="8" x2="3" y1="12" y2="12" /><line className="planner-slider-knob" x1="8" x2="8" y1="10" y2="14" /></g>
-      <g className="planner-slider-three"><line x1="3" x2="12" y1="20" y2="20" /><line x1="16" x2="21" y1="20" y2="20" /><line className="planner-slider-knob" x1="16" x2="16" y1="18" y2="22" /></g>
-    </svg>
-  );
-}
-
-function LoginSettingsIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></svg>;
 }
 
 export default function SiteSettings() {
@@ -227,7 +210,7 @@ export default function SiteSettings() {
               aria-haspopup="dialog"
               onClick={() => { setOpen(false); setWalletOpen(true); }}
             >
-              <span className="planner-settings-option-icon"><WalletSettingsIcon /></span>
+              <span className="planner-settings-option-icon"><WalletIcon /></span>
               <span className="planner-settings-option-copy"><strong>Wallet</strong><small>Refunds and balance</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
@@ -254,7 +237,7 @@ export default function SiteSettings() {
               aria-controls="railsetu-more-options"
               onClick={() => setMoreOpen((current) => !current)}
             >
-              <span className="planner-settings-option-icon"><MoreSettingsIcon /></span>
+              <span className="planner-settings-option-icon"><SlidersHorizontalIcon /></span>
               <span className="planner-settings-option-copy"><strong>More options</strong><small>Cursor and calendar</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
@@ -288,7 +271,7 @@ export default function SiteSettings() {
               aria-haspopup="dialog"
               onClick={() => { setOpen(false); setAuthOpen(true); }}
             >
-              <span className="planner-settings-option-icon"><LoginSettingsIcon /></span>
+              <span className="planner-settings-option-icon"><LogInIcon /></span>
               <span className="planner-settings-option-copy"><strong>Login / Sign up</strong><small>Prototype passenger account</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>

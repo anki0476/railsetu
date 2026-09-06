@@ -6,6 +6,7 @@ import { OTPField, OTPFieldInput } from './ui/otp-field';
 import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
 import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
+import { CameraIcon, ScanLineIcon, UploadIcon } from './ui/animated-icons';
 
 type PaymentMode = string;
 type PaymentState = 'idle' | 'processing' | 'done';
@@ -264,10 +265,10 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
             </div>
             <div className="payment-add-card-heading"><small>Prototype card</small><h2 id="payment-add-card-title">Add a mock card</h2><p>For demonstration only. Do not enter real financial information.</p></div>
             <div className={`payment-card-scan is-${cardScanState}`}>
-              <button type="button" aria-expanded={cardScanState !== 'idle'} aria-controls="payment-card-scan-options" onClick={() => setCardScanState((current) => current === 'idle' ? 'choosing' : 'idle')}><span aria-hidden="true">▣</span><strong>Scan Card</strong><i aria-hidden="true">⌄</i></button>
+              <button type="button" aria-expanded={cardScanState !== 'idle'} aria-controls="payment-card-scan-options" onClick={() => setCardScanState((current) => current === 'idle' ? 'choosing' : 'idle')}><span aria-hidden="true"><ScanLineIcon /></span><strong>Scan Card</strong><i aria-hidden="true">⌄</i></button>
               {cardScanState !== 'idle' ? <div id="payment-card-scan-options" className="payment-card-scan-options">
-                <label><input type="file" accept="image/*" onChange={mockAutofillFromCardImage} /><span aria-hidden="true">↑</span><div><strong>Upload card photo</strong><small>Choose a clear image from this device</small></div></label>
-                <label><input type="file" accept="image/*" capture="environment" onChange={mockAutofillFromCardImage} /><span aria-hidden="true">◎</span><div><strong>Use camera</strong><small>Take a clear picture of the card</small></div></label>
+                <label><input type="file" accept="image/*" onChange={mockAutofillFromCardImage} /><span aria-hidden="true"><UploadIcon /></span><div><strong>Upload card photo</strong><small>Choose a clear image from this device</small></div></label>
+                <label><input type="file" accept="image/*" capture="environment" onChange={mockAutofillFromCardImage} /><span aria-hidden="true"><CameraIcon /></span><div><strong>Use camera</strong><small>Take a clear picture of the card</small></div></label>
               </div> : null}
               {cardScanState === 'filled' ? <p role="status">Demo details filled. The image was not uploaded or stored.</p> : null}
             </div>
