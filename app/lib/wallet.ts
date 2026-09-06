@@ -1,8 +1,11 @@
+import { addTransaction } from './transactions';
+
 export interface WalletTransaction {
   id: string;
   amount: number;
   label: string;
   createdAt: number;
+  reference?: string;
 }
 
 const WALLET_KEY = 'railsetu.wallet.v1';
@@ -26,6 +29,7 @@ export function addWalletTransaction(transaction: WalletTransaction) {
     const next = [transaction, ...readWallet()].slice(0, 24);
     window.localStorage.setItem(WALLET_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event(WALLET_EVENT));
+    addTransaction({ ...transaction, kind: transaction.id.startsWith('refund-') ? 'refund' : transaction.amount < 0 ? 'payment' : 'topup', method: 'RailSetu Wallet' });
   } catch {
     // Wallet remains a no-data prototype if storage is unavailable.
   }

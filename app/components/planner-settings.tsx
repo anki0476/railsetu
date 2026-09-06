@@ -5,8 +5,9 @@ import dynamic from 'next/dynamic';
 import PassengerProfile from './passenger-profile';
 import JourneyHistory from './journey-history';
 import RailSetuWallet from './railsetu-wallet';
+import TransactionHistory from './transaction-history';
 import { useSiteLanguage } from './site-language';
-import { LogInIcon, SlidersHorizontalIcon, WalletIcon } from './ui/animated-icons';
+import { HandCoinsIcon, LogInIcon, SlidersHorizontalIcon, WalletIcon } from './ui/animated-icons';
 
 type SiteTheme = 'light' | 'dark';
 
@@ -106,9 +107,10 @@ export default function SiteSettings() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  const [transactionsOpen, setTransactionsOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [animatedTile, setAnimatedTile] = useState<'wallet' | 'more' | 'login' | null>(null);
+  const [animatedTile, setAnimatedTile] = useState<'wallet' | 'transactions' | 'more' | 'login' | null>(null);
   const moreSettingsSnapshot = useSyncExternalStore(
     subscribeToMoreSettings,
     () => `${readLocalToggle(CURSOR_STORAGE_KEY, true)}:${readLocalToggle(CALENDAR_STORAGE_KEY, false)}`,
@@ -219,6 +221,20 @@ export default function SiteSettings() {
               <span className="planner-settings-option-copy"><strong>Wallet</strong><small>Refunds and balance</small></span>
               <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
             </button>
+            <button
+              className="planner-settings-option"
+              type="button"
+              aria-haspopup="dialog"
+              onPointerEnter={() => setAnimatedTile('transactions')}
+              onPointerLeave={() => setAnimatedTile(null)}
+              onFocus={() => setAnimatedTile('transactions')}
+              onBlur={() => setAnimatedTile(null)}
+              onClick={() => { setOpen(false); setTransactionsOpen(true); }}
+            >
+              <span className="planner-settings-option-icon"><HandCoinsIcon active={animatedTile === 'transactions'} /></span>
+              <span className="planner-settings-option-copy"><strong>Transaction History</strong><small>Payments, refunds and receipts</small></span>
+              <span className="planner-settings-option-arrow" aria-hidden="true">›</span>
+            </button>
             <div className="planner-language-option">
               <span className="planner-settings-option-icon"><LanguageSettingsIcon /></span>
               <span className="planner-settings-option-copy"><strong>Website language</strong><small>English or Hindi</small></span>
@@ -315,6 +331,7 @@ export default function SiteSettings() {
       <PassengerProfile isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
       <JourneyHistory isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />
       <RailSetuWallet isOpen={walletOpen} onClose={() => setWalletOpen(false)} />
+      <TransactionHistory isOpen={transactionsOpen} onClose={() => setTransactionsOpen(false)} />
       <Auth10 open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );

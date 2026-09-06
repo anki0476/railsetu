@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clearTicketHistory, readTicketHistory, updateTicketInHistory, type TicketHistoryItem } from '../lib/ticket-history';
 import { addWalletRefund } from '../lib/wallet';
+import { addTransaction } from '../lib/transactions';
 
 interface JourneyHistoryProps { isOpen: boolean; onClose: () => void; }
 type HistoryFilter = 'all' | 'upcoming' | 'cancelled' | 'completed';
@@ -77,6 +78,7 @@ export default function JourneyHistory({ isOpen, onClose }: JourneyHistoryProps)
     const cancelledAt = Date.now();
     updateTicketInHistory(cancelling.id, { status: 'cancelled', cancelledAt, refundAmount: quote.refund, refundDestination: destination });
     if (destination === 'wallet' && quote.refund > 0) addWalletRefund({ id: `refund-${cancelling.id}`, amount: quote.refund, label: `Refund · ${cancelling.train}`, createdAt: cancelledAt });
+    else if (quote.refund > 0) addTransaction({ id: `refund-${cancelling.id}`, kind: 'refund', amount: quote.refund, label: `Refund · ${cancelling.train}`, method: 'Original payment source', createdAt: cancelledAt, reference: cancelling.id });
     setItems(readTicketHistory()); setCancelling(null); setFilter('cancelled');
   };
 

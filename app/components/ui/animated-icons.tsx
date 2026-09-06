@@ -114,3 +114,28 @@ export function CameraIcon({ size = 18, duration = 1, active, ...props }: Animat
     <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" /><motion.circle cx="12" cy="13" r="3" variants={lens} initial="normal" animate={controls} style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
   </svg></IconShell>;
 }
+
+export function HandCoinsIcon({ size = 18, duration = 1, active, ...props }: AnimatedIconProps) {
+  const groupControls = useAnimation();
+  const coinsControls = useAnimation();
+  const handControls = useAnimation();
+  const reducedMotion = useReducedMotion();
+  const start = useCallback(() => {
+    if (reducedMotion) return;
+    void groupControls.start('animate');
+    void coinsControls.start('animate');
+    void handControls.start('animate');
+  }, [coinsControls, groupControls, handControls, reducedMotion]);
+  const stop = useCallback(() => {
+    void groupControls.start('normal');
+    void coinsControls.start('normal');
+    void handControls.start('normal');
+  }, [coinsControls, groupControls, handControls]);
+  useEffect(() => { if (active) start(); else if (active === false) stop(); }, [active, start, stop]);
+  const group: Variants = { normal: { scale: 1, rotate: 0 }, animate: { scale: [1, 1.06, .98, 1], rotate: [0, -2, 1, 0], transition: { duration: .9 * duration, ease: [.22, 1, .36, 1] } } };
+  const coins: Variants = { normal: { scale: 1, opacity: 1, y: 0 }, animate: { scale: [.7, 1.02, 1], opacity: [0, 1, 1], y: [-6, 0], transition: { duration: .6 * duration, ease: 'easeOut', delay: .1 } } };
+  const hand: Variants = { normal: { pathLength: 1, opacity: 1, y: 0 }, animate: { pathLength: [0, 1], opacity: [.5, 1], y: [2, 0], transition: { duration: .9 * duration, ease: 'easeInOut', delay: .2 } } };
+  return <IconShell {...props} active={active} onMouseEnter={start} onMouseLeave={stop}><motion.svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" initial="normal" animate={groupControls} variants={group} aria-hidden="true">
+    <motion.path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17" initial="normal" animate={handControls} variants={hand} /><motion.path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9" initial="normal" animate={handControls} variants={hand} /><motion.path d="m2 16 6 6" initial="normal" animate={handControls} variants={hand} /><motion.circle cx="16" cy="9" r="2.9" initial="normal" animate={coinsControls} variants={coins} /><motion.circle cx="6" cy="5" r="3" initial="normal" animate={coinsControls} variants={coins} />
+  </motion.svg></IconShell>;
+}

@@ -6,6 +6,7 @@ import { OTPField, OTPFieldInput } from './ui/otp-field';
 import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
 import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
+import { addTransaction } from '../lib/transactions';
 import { CameraIcon, ScanLineIcon, UploadIcon } from './ui/animated-icons';
 
 type PaymentMode = string;
@@ -61,6 +62,8 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
   const train = params.get('train') ?? '12310 · Magadh Express';
   const from = params.get('from') ?? 'NDLS';
   const to = params.get('to') ?? 'PNBE';
+  const journeyDate = params.get('date') ?? '';
+  const ticketReference = `RS-${train.split('·')[0].trim()}-${from}${to}-${journeyDate.replaceAll('-', '')}`;
 
   useEffect(() => {
     const refreshWallet = () => setWalletBalance(getWalletBalance());
@@ -141,7 +144,11 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
     if (paymentState !== 'idle') return;
     if (mode === 'wallet') {
       if (walletBalance < fare) return;
-      addWalletTransaction({ id: `payment-${window.crypto.randomUUID()}`, amount: -fare, label: `Ticket · ${train}`, createdAt: Date.now() });
+      addWalletTransaction({ id: `payment-${ticketReference}`, amount: -fare, label: `Ticket · ${train}`, createdAt: Date.now(), reference: ticketReference });
+    } else {
+      const savedCard = addedCards.find((card) => card.id === mode);
+      const method = mode === 'upi' ? 'UPI · railsetu@upi' : mode === 'visa' ? 'Visa · •••• 6756' : mode === 'mastercard' ? 'Mastercard · •••• 4632' : savedCard ? `${savedCard.mark} · •••• ${savedCard.last4}` : 'Saved payment method';
+      addTransaction({ id: `payment-${ticketReference}`, kind: 'payment', amount: -fare, label: `Ticket · ${train}`, method, createdAt: Date.now(), reference: ticketReference });
     }
     setPaymentState('processing');
     paymentTimer.current = setTimeout(() => {
@@ -152,7 +159,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
         window.location.assign(`/ticket?${ticketParams.toString()}`);
       }, 850);
     }, 1450);
-  }, [fare, params, paymentState, train, walletBalance]);
+  }, [addedCards, fare, params, paymentState, ticketReference, train, walletBalance]);
 
   const beginOtpVerification = () => {
     setOtpValue('');
