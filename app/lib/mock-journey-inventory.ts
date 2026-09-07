@@ -5,12 +5,10 @@ import type {
   JourneyInventoryProvider,
   JourneyInventorySnapshot,
   ScheduledStation,
-  StationOption,
   TrainInventoryRecord,
   TravelClass,
 } from './journey-inventory-provider';
-
-type StationDefinition = StationOption & { latitude: number; longitude: number };
+import { stationByCode, stationDefinitions } from './station-catalog';
 
 type ServiceBlueprint = {
   numbers: readonly [outbound: string, inbound: string];
@@ -27,45 +25,6 @@ const OVERNIGHT_CLASSES = ['1A', '2A', '3A', '3E', 'SL'] as const satisfies read
 const EXPRESS_CLASSES = ['2A', '3A', '3E', 'SL'] as const satisfies readonly TravelClass[];
 const MIXED_CLASSES = ['2A', '3A', '3E', 'SL', 'CC'] as const satisfies readonly TravelClass[];
 
-const stationDefinitions: readonly StationDefinition[] = [
-  { code: 'NDLS', name: 'New Delhi', latitude: 28.6429, longitude: 77.2195 },
-  { code: 'ALJN', name: 'Aligarh Junction', latitude: 27.8899, longitude: 78.0748 },
-  { code: 'CNB', name: 'Kanpur Junction', latitude: 26.4547, longitude: 80.3519 },
-  { code: 'PRYJ', name: 'Prayagraj Junction', latitude: 25.4358, longitude: 81.8463 },
-  { code: 'PNBE', name: 'Patna Junction', latitude: 25.6027, longitude: 85.1373 },
-  { code: 'HWH', name: 'Howrah Junction', latitude: 22.5839, longitude: 88.3428 },
-  { code: 'VGLJ', name: 'Virangana Lakshmibai Jhansi', latitude: 25.4333, longitude: 78.5535 },
-  { code: 'REWA', name: 'Rewa', latitude: 24.5362, longitude: 81.3042 },
-  { code: 'BPL', name: 'Bhopal Junction', latitude: 23.2685, longitude: 77.4139 },
-  { code: 'ET', name: 'Itarsi Junction', latitude: 22.6117, longitude: 77.7623 },
-  { code: 'BTC', name: 'Balaghat Junction', latitude: 21.8129, longitude: 80.1838 },
-  { code: 'NGP', name: 'Nagpur Junction', latitude: 21.1539, longitude: 79.0882 },
-  { code: 'RJN', name: 'Rajnandgaon', latitude: 21.0972, longitude: 81.0302 },
-  { code: 'DURG', name: 'Durg Junction', latitude: 21.1907, longitude: 81.2849 },
-  { code: 'R', name: 'Raipur Junction', latitude: 21.2560, longitude: 81.6296 },
-  { code: 'BSP', name: 'Bilaspur Junction', latitude: 22.0546, longitude: 82.1732 },
-  { code: 'BSL', name: 'Bhusaval Junction', latitude: 21.0456, longitude: 75.7886 },
-  { code: 'CSMT', name: 'Mumbai CSMT', latitude: 18.9398, longitude: 72.8355 },
-  { code: 'BDTS', name: 'Bandra Terminus', latitude: 19.0623, longitude: 72.8406 },
-  { code: 'ST', name: 'Surat', latitude: 21.2049, longitude: 72.8411 },
-  { code: 'BRC', name: 'Vadodara Junction', latitude: 22.3107, longitude: 73.1812 },
-  { code: 'ADI', name: 'Ahmedabad Junction', latitude: 23.0260, longitude: 72.6003 },
-  { code: 'BHUJ', name: 'Bhuj', latitude: 23.2530, longitude: 69.6693 },
-  { code: 'PUNE', name: 'Pune Junction', latitude: 18.5289, longitude: 73.8744 },
-  { code: 'SUR', name: 'Solapur', latitude: 17.6649, longitude: 75.8930 },
-  { code: 'KLBG', name: 'Kalaburagi', latitude: 17.3297, longitude: 76.8343 },
-  { code: 'WADI', name: 'Wadi Junction', latitude: 17.0513, longitude: 76.9905 },
-  { code: 'HYB', name: 'Hyderabad Deccan', latitude: 17.3924, longitude: 78.4674 },
-  { code: 'BZA', name: 'Vijayawada Junction', latitude: 16.5184, longitude: 80.6193 },
-  { code: 'PURI', name: 'Puri', latitude: 19.8076, longitude: 85.8352 },
-  { code: 'MAS', name: 'MGR Chennai Central', latitude: 13.0822, longitude: 80.2755 },
-  { code: 'KPD', name: 'Katpadi Junction', latitude: 12.9723, longitude: 79.1384 },
-  { code: 'JTJ', name: 'Jolarpettai Junction', latitude: 12.5700, longitude: 78.5744 },
-  { code: 'KJM', name: 'Krishnarajapuram', latitude: 13.0007, longitude: 77.6758 },
-  { code: 'SBC', name: 'KSR Bengaluru', latitude: 12.9784, longitude: 77.5720 },
-  { code: 'LDH', name: 'Ludhiana Junction', latitude: 30.9120, longitude: 75.8480 },
-  { code: 'JAT', name: 'Jammu Tawi', latitude: 32.7069, longitude: 74.8806 },
-];
 
 const services: readonly ServiceBlueprint[] = [
   {
@@ -95,8 +54,6 @@ const services: readonly ServiceBlueprint[] = [
   { numbers: ['22955', '22956'], name: 'Kutch Express', route: ['BDTS', 'ST', 'BRC', 'ADI', 'BHUJ'], departures: ['17:45', '20:15'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12843', '12844'], name: 'Puri Ahmedabad Express', route: ['PURI', 'R', 'DURG', 'RJN', 'NGP', 'BSL', 'ST', 'BRC', 'ADI'], departures: ['17:30', '18:40'], classes: OVERNIGHT_CLASSES },
 ];
-
-const stationByCode = new Map(stationDefinitions.map((station) => [station.code, station]));
 
 function hash(value: string) {
   let result = 2166136261;

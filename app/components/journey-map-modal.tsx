@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { JourneySolution } from '../lib/journey-engine';
+import { stationByCode } from '../lib/station-catalog';
 
 type JourneyMapModalProps = { open: boolean; onClose: () => void; solution: JourneySolution; sharePath: string };
 type MapPoint = { code: string; name: string; time: string; latitude: number; longitude: number };
@@ -18,29 +19,152 @@ type MapStyle = CSSProperties & {
 const TILE_SIZE = 256;
 const MIN_ZOOM = 4;
 const MAX_ZOOM = 10;
-const stationCoordinates: Record<string, { latitude: number; longitude: number }> = {
-  NDLS: { latitude: 28.6428, longitude: 77.2197 },
-  ALJN: { latitude: 27.8815, longitude: 78.0746 },
-  CNB: { latitude: 26.4549, longitude: 80.3514 },
-  PRYJ: { latitude: 25.4358, longitude: 81.8463 },
-  PNBE: { latitude: 25.6026, longitude: 85.1376 },
-  HWH: { latitude: 22.5839, longitude: 88.3428 },
-  BPL: { latitude: 23.2685, longitude: 77.4139 },
-  NGP: { latitude: 21.1539, longitude: 79.0882 },
-  CSMT: { latitude: 18.9398, longitude: 72.8355 },
-  PUNE: { latitude: 18.5289, longitude: 73.8743 },
-  SUR: { latitude: 17.6599, longitude: 75.9064 },
-  KLBG: { latitude: 17.3297, longitude: 76.8343 },
-  WADI: { latitude: 17.0514, longitude: 76.9903 },
-  HYB: { latitude: 17.392, longitude: 78.467 },
-  BZA: { latitude: 16.5184, longitude: 80.6193 },
-  MAS: { latitude: 13.0822, longitude: 80.2753 },
-  KPD: { latitude: 12.9724, longitude: 79.1384 },
-  JTJ: { latitude: 12.5843, longitude: 78.5746 },
-  KJM: { latitude: 13.0005, longitude: 77.6754 },
-  SBC: { latitude: 12.9784, longitude: 77.5726 },
-};
 const segmentColors = ['#4f6fe7', '#9a63e8', '#2d9d73', '#e78b4f'];
+
+type GoogleMapInstance = { fitBounds: (bounds: unknown, padding?: number) => void; setOptions: (options: Record<string, unknown>) => void };
+type GoogleMarker = { addListener: (event: string, handler: () => void) => void; setMap: (map: null) => void };
+type GooglePolyline = { setMap: (map: null) => void };
+type GoogleInfoWindow = { open: (options: { anchor: GoogleMarker; map: GoogleMapInstance }) => void; close: () => void };
+type GoogleMapsApi = {
+  Map: new (node: HTMLElement, options: Record<string, unknown>) => GoogleMapInstance;
+  Marker: new (options: Record<string, unknown>) => GoogleMarker;
+  Polyline: new (options: Record<string, unknown>) => GooglePolyline;
+  InfoWindow: new (options: { content: string }) => GoogleInfoWindow;
+  LatLngBounds: new () => { extend: (point: { lat: number; lng: number }) => void };
+};
+
+declare global {
+  interface Window { google?: { maps: GoogleMapsApi }; __railsetuGoogleMapsPromise?: Promise<GoogleMapsApi> }
+}
+
+const GOOGLE_MAPS_SCRIPT_ID = 'railsetu-google-maps';
+
+function loadGoogleMaps(apiKey: string) {
+  if (window.google?.maps) return Promise.resolve(window.google.maps);
+  if (window.__railsetuGoogleMapsPromise) return window.__railsetuGoogleMapsPromise;
+  window.__railsetuGoogleMapsPromise = new Promise<GoogleMapsApi>((resolve, reject) => {
+    const existing = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
+    const script = existing ?? document.createElement('script');
+    const timeout = window.setTimeout(() => reject(new Error('Google Maps timed out.')), 12000);
+    script.addEventListener('load', () => {
+      window.clearTimeout(timeout);
+      if (window.google?.maps) resolve(window.google.maps);
+      else reject(new Error('Google Maps did not initialise.'));
+    }, { once: true });
+    script.addEventListener('error', () => {
+      window.clearTimeout(timeout);
+      reject(new Error('Google Maps could not be loaded.'));
+    }, { once: true });
+    if (!existing) {
+      script.id = GOOGLE_MAPS_SCRIPT_ID;
+      script.async = true;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async`;
+      document.head.appendChild(script);
+    }
+  }).catch((error) => {
+    window.__railsetuGoogleMapsPromise = undefined;
+    throw error;
+  });
+  return window.__railsetuGoogleMapsPromise;
+}
+
+const lightMapStyles = [
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels', stylers: [{ saturation: -70 }, { lightness: 18 }] },
+  { featureType: 'water', stylers: [{ color: '#cbdcf2' }] },
+  { featureType: 'landscape', stylers: [{ color: '#edf2f8' }] },
+];
+const darkMapStyles = [
+  { elementType: 'geometry', stylers: [{ color: '#111a2f' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#9aa8c4' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#111a2f' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#25324a' }] },
+  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#091426' }] },
+];
+
+function escapeMapText(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] ?? character);
+}
+
+function GoogleRouteMap({ points, solution, onFailure }: { points: MapPoint[]; solution: JourneySolution; onFailure: () => void }) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+    if (!canvas || !apiKey) { onFailure(); return; }
+    let disposed = false;
+    const cleanups: Array<() => void> = [];
+    loadGoogleMaps(apiKey).then((maps) => {
+      if (disposed) return;
+      const dark = document.documentElement.classList.contains('railsetu-dark');
+      const map = new maps.Map(canvas, {
+        center: { lat: points[0].latitude, lng: points[0].longitude },
+        zoom: 6,
+        styles: dark ? darkMapStyles : lightMapStyles,
+        backgroundColor: dark ? '#111a2f' : '#edf2f8',
+        clickableIcons: false,
+        fullscreenControl: false,
+        mapTypeControl: false,
+        streetViewControl: false,
+        gestureHandling: 'greedy',
+      });
+      const bounds = new maps.LatLngBounds();
+      const infoWindows: GoogleInfoWindow[] = [];
+      points.forEach((point, index) => {
+        const position = { lat: point.latitude, lng: point.longitude };
+        bounds.extend(position);
+        const role = index === 0 ? 'Board' : index === points.length - 1 ? 'Arrive' : 'Seat change';
+        const marker = new maps.Marker({
+          map,
+          position,
+          title: `${point.name} (${point.code}) · ${role} at ${point.time}`,
+          label: { text: String(index + 1), color: '#ffffff', fontSize: '10px', fontWeight: '700' },
+          icon: {
+            path: 'M12 2C7.6 2 4 5.6 4 10c0 5.7 8 12 8 12s8-6.3 8-12c0-4.4-3.6-8-8-8z',
+            fillColor: segmentColors[Math.max(0, index - 1) % segmentColors.length],
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: index > 0 && index < points.length - 1 ? 3 : 2,
+            scale: index > 0 && index < points.length - 1 ? 1.35 : 1.15,
+            anchor: { x: 12, y: 22 },
+            labelOrigin: { x: 12, y: 10 },
+          },
+        });
+        const inbound = index > 0 ? solution.legs[index - 1] : solution.legs[0];
+        const info = new maps.InfoWindow({ content: `<div class="railsetu-map-info"><small>${escapeMapText(role)}</small><strong>${escapeMapText(point.name)}</strong><span>${escapeMapText(point.code)} · ${escapeMapText(point.time)}</span>${inbound ? `<b>${escapeMapText(inbound.coach)} · ${escapeMapText(inbound.seat)} ${escapeMapText(inbound.berth)}</b>` : ''}</div>` });
+        infoWindows.push(info);
+        marker.addListener('click', () => {
+          infoWindows.forEach((window) => window.close());
+          info.open({ anchor: marker, map });
+        });
+        cleanups.push(() => marker.setMap(null));
+      });
+      points.slice(0, -1).forEach((point, index) => {
+        const next = points[index + 1];
+        const shadow = new maps.Polyline({ map, path: [{ lat: point.latitude, lng: point.longitude }, { lat: next.latitude, lng: next.longitude }], geodesic: true, strokeColor: dark ? '#080d19' : '#ffffff', strokeOpacity: .72, strokeWeight: 10 });
+        const line = new maps.Polyline({ map, path: [{ lat: point.latitude, lng: point.longitude }, { lat: next.latitude, lng: next.longitude }], geodesic: true, strokeColor: segmentColors[index % segmentColors.length], strokeOpacity: .95, strokeWeight: 6 });
+        cleanups.push(() => shadow.setMap(null), () => line.setMap(null));
+      });
+      map.fitBounds(bounds, 72);
+      const themeObserver = new MutationObserver(() => {
+        const isDark = document.documentElement.classList.contains('railsetu-dark');
+        map.setOptions({ styles: isDark ? darkMapStyles : lightMapStyles, backgroundColor: isDark ? '#111a2f' : '#edf2f8' });
+      });
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+      cleanups.push(() => themeObserver.disconnect());
+      setLoading(false);
+    }).catch(() => { if (!disposed) onFailure(); });
+    return () => { disposed = true; cleanups.forEach((cleanup) => cleanup()); };
+  }, [onFailure, points, solution]);
+
+  return <div className="journey-map-google-shell"><div ref={canvasRef} className="journey-map-google" role="group" aria-label="Interactive Google map of the selected RailSetu journey" />{loading ? <div className="journey-map-loading" role="status"><i /> Loading Google route map…</div> : null}</div>;
+}
 
 function project(latitude: number, longitude: number, zoom: number) {
   const worldSize = TILE_SIZE * 2 ** zoom;
@@ -169,13 +293,17 @@ function RouteMap({ points }: { points: MapPoint[] }) {
 export default function JourneyMapModal({ open, onClose, solution, sharePath }: JourneyMapModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle');
+  const [googleMapFailed, setGoogleMapFailed] = useState(false);
+  const useFallbackMap = useCallback(() => setGoogleMapFailed(true), []);
   const mapPoints = useMemo(() => {
     const rawStops = solution.legs.length ? [solution.legs[0].from, ...solution.legs.map((leg) => leg.to)] : [];
     return rawStops.flatMap((stop) => {
-      const coordinate = stationCoordinates[stop.code];
+      const coordinate = stationByCode.get(stop.code);
       return coordinate ? [{ ...stop, ...coordinate }] : [];
     });
   }, [solution]);
+
+  useEffect(() => { if (open) setGoogleMapFailed(false); }, [open, solution.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -226,7 +354,9 @@ export default function JourneyMapModal({ open, onClose, solution, sharePath }: 
         </header>
 
         <div className="journey-map-body">
-          <RouteMap points={mapPoints} />
+          {googleMapFailed || !process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+            ? <RouteMap points={mapPoints} />
+            : <GoogleRouteMap points={mapPoints} solution={solution} onFailure={useFallbackMap} />}
           <aside className="journey-map-legend" aria-label="Seat segments">
             <span className="mini-label">Seat segments</span>
             <h3>{solution.passengerJourneys.length > 1 ? `${solution.passengerJourneys.length} passengers. One coordinated route.` : `One train. ${solution.legs.length} confirmed seats.`}</h3>
