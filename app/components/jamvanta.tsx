@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { BorderBeam } from 'border-beam';
 import { ThinkingOrb } from 'thinking-orbs';
 import { dispatchJamvantaAction, JAMVANTA_FEEDBACK_EVENT, routeJamvantaAction, takePendingJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
@@ -589,7 +590,21 @@ export default function Jamvanta() {
 
   return (
     <>
-      <div className="jamvanta-edge" aria-hidden="true" />
+      <BorderBeam
+        active={listening}
+        borderRadius={18}
+        className={`jamvanta-edge ${listening ? 'is-listening' : ''}`}
+        colorVariant="ocean"
+        duration={2.65}
+        hueRange={16}
+        saturation={1.45}
+        size="md"
+        strength={0.82}
+        theme={dark ? 'dark' : 'light'}
+        aria-hidden="true"
+      >
+        <div className="jamvanta-edge-surface" />
+      </BorderBeam>
       {open ? (
         <section className="jamvanta-panel" ref={panel} role="dialog" aria-label="Jamvanta voice assistant">
           <header>
