@@ -62,6 +62,13 @@ function getGoogleMapsKey() {
   return window.__railsetuGoogleMapsKeyPromise;
 }
 
+function resetGoogleMapsLoader() {
+  document.getElementById(GOOGLE_MAPS_SCRIPT_ID)?.remove();
+  window.__railsetuGoogleMapsPromise = undefined;
+  window.__railsetuGoogleMapsKeyPromise = undefined;
+  window.__railsetuGoogleMapsReady = undefined;
+}
+
 function loadGoogleMaps(apiKey: string) {
   if (window.google?.maps) return Promise.resolve(window.google.maps);
   if (window.__railsetuGoogleMapsPromise) return window.__railsetuGoogleMapsPromise;
@@ -137,17 +144,16 @@ function GoogleRouteMap({ points, solution, onFailure }: { points: MapPoint[]; s
     let disposed = false;
     const cleanups: Array<() => void> = [];
     const initialise = async () => {
-      const apiKey = await getGoogleMapsKey();
       let lastError: unknown;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
+          const apiKey = await getGoogleMapsKey();
           return await loadGoogleMaps(apiKey);
         } catch (error) {
           lastError = error;
-          if (disposed || attempt === 1) break;
-          document.getElementById(GOOGLE_MAPS_SCRIPT_ID)?.remove();
-          window.__railsetuGoogleMapsPromise = undefined;
-          await new Promise((resolve) => window.setTimeout(resolve, 250));
+          if (disposed || attempt === 2) break;
+          resetGoogleMapsLoader();
+          await new Promise((resolve) => window.setTimeout(resolve, 350 * (attempt + 1)));
         }
       }
       throw lastError;
