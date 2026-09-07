@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { BorderBeam } from 'border-beam';
 import { ThinkingOrb } from 'thinking-orbs';
+import { TypingIndicator } from './assistant-ui/elements/typing-indicator';
 import { dispatchJamvantaAction, JAMVANTA_FEEDBACK_EVENT, routeJamvantaAction, takePendingJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 import { getWalletBalance } from '../lib/wallet';
@@ -618,7 +619,7 @@ export default function Jamvanta() {
             {messages.length === 0 ? (
               <div className="jamvanta-empty"><strong>Where should we go?</strong><p>Try “Find a train from New Delhi to Patna for two passengers.”</p><span>हिंदी, English और Hinglish</span></div>
             ) : messages.map((message) => <p className={`is-${message.role}`} key={message.id}>{message.text}</p>)}
-            {working ? <p className="is-assistant is-working">Jamvanta is thinking…</p> : null}
+            {working ? <TypingIndicator variant="bare" className="jamvanta-typing" /> : null}
             {paymentChoices.length ? <div className="jamvanta-payment-choices" aria-label="Saved payment methods">{paymentChoices.map((choice) => <button type="button" key={choice.mode} onClick={() => choosePayment(choice)}><strong>{choice.label}</strong><span>{choice.detail}</span></button>)}<button type="button" onClick={() => void send(paymentFlow.current?.methodType === 'card' ? 'Add another card' : 'Add my own UPI ID')}><strong>Add your own</strong><span>{paymentFlow.current?.methodType === 'card' ? 'New card' : 'New UPI ID'}</span></button></div> : null}
           </div>
           {pending ? <div className="jamvanta-approval"><div className="jamvanta-approval-summary"><div><small>PAYMENT APPROVAL</small><strong>{pending.action.type === 'pay_with_method' ? pending.action.label : 'RailSetu Wallet'}</strong></div><b>{paymentAmount}</b></div><div className="jamvanta-approval-actions"><button type="button" onClick={() => setPending(null)}>Cancel</button><button type="button" className="is-primary" aria-label={pending.label} onClick={() => void approve()}>Approve</button></div></div> : null}

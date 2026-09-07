@@ -990,7 +990,8 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
 .jamvanta-conversation > p { width:fit-content; max-width:86%; margin:0; padding:11px 13px; border-radius:15px; font-size:13px; line-height:1.45; }
 .jamvanta-conversation .is-user { align-self:flex-end; background:linear-gradient(135deg,#496ee0,#6e79df); color:#fff; border-bottom-right-radius:5px; }
 .jamvanta-conversation .is-assistant { background:rgba(81,102,160,.2); border:1px solid rgba(122,145,208,.2); border-bottom-left-radius:5px; }
-.jamvanta-conversation .is-working { color:#a9b9e8; animation:jamvanta-fade 1.2s ease-in-out infinite; }
+.jamvanta-typing { align-self:flex-start; display:flex; align-items:center; gap:5px; min-width:54px; padding:13px 15px; border:1px solid rgba(122,145,208,.2); border-radius:15px 15px 15px 5px; background:rgba(81,102,160,.2); }
+.jamvanta-typing>span { width:6px; height:6px; border-radius:50%; background:#a9b9e8; box-shadow:0 0 8px rgba(137,165,244,.25); }
 .jamvanta-payment-choices { display:grid; gap:7px; margin-top:3px; }
 .jamvanta-payment-choices button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:11px 12px; border:1px solid rgba(126,151,220,.27); border-radius:13px; color:#eef3ff; background:rgba(72,96,161,.18); cursor:pointer; text-align:left; transition:transform .18s ease,border-color .18s ease,background .18s ease; }
 .jamvanta-payment-choices button:hover { transform:translateY(-1px); border-color:rgba(137,165,244,.62); background:rgba(84,111,187,.28); }
@@ -1022,6 +1023,8 @@ html:not(.railsetu-dark) .jamvanta-panel { color:#111a34; border-color:rgba(87,1
 html:not(.railsetu-dark) .jamvanta-panel header .jamvanta-clear { color:#667494; }
 html:not(.railsetu-dark) .jamvanta-orb { color:#172041; background:rgba(242,247,255,.9); border-color:rgba(82,108,183,.3); }
 html:not(.railsetu-dark) .jamvanta-conversation .is-assistant { background:rgba(92,119,193,.1); }
+html:not(.railsetu-dark) .jamvanta-typing { border-color:rgba(82,108,183,.18); background:rgba(92,119,193,.1); }
+html:not(.railsetu-dark) .jamvanta-typing>span { background:#5f70a5; }
 html:not(.railsetu-dark) .jamvanta-payment-choices button { color:#172041; border-color:rgba(82,108,183,.22); background:rgba(92,119,193,.08); }
 html:not(.railsetu-dark) .jamvanta-payment-choices span { color:#627092; }
 html:not(.railsetu-dark) .jamvanta-approval { border-color:rgba(82,108,183,.2); background:rgba(255,255,255,.54); }
@@ -1042,7 +1045,7 @@ html:not(.railsetu-dark) .jamvanta-panel input { color:#111a34; }
 
 @media (prefers-reduced-motion: reduce) {
   .jamvanta-edge-reveal { transition:opacity 160ms ease; }
-  .jamvanta-status i.is-live, .jamvanta-conversation .is-working { animation:none !important; }
+  .jamvanta-status i.is-live, .jamvanta-typing>span { animation:none !important; }
 }
 
 /* Transaction ledger and animated receipt printer */
