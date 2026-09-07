@@ -37,11 +37,30 @@ declare global {
   interface Window {
     google?: { maps: GoogleMapsApi };
     __railsetuGoogleMapsPromise?: Promise<GoogleMapsApi>;
+    __railsetuGoogleMapsKeyPromise?: Promise<string>;
     __railsetuGoogleMapsReady?: () => void;
   }
 }
 
 const GOOGLE_MAPS_SCRIPT_ID = 'railsetu-google-maps';
+
+function getGoogleMapsKey() {
+  if (window.__railsetuGoogleMapsKeyPromise) return window.__railsetuGoogleMapsKeyPromise;
+  window.__railsetuGoogleMapsKeyPromise = fetch('/api/maps/config', {
+    headers: { accept: 'application/json' },
+    cache: 'no-store',
+  }).then(async (response) => {
+    if (!response.ok) throw new Error('Google Maps configuration is unavailable.');
+    const payload = await response.json() as { apiKey?: unknown };
+    const apiKey = typeof payload.apiKey === 'string' ? payload.apiKey.trim() : '';
+    if (!apiKey || apiKey.length > 256) throw new Error('Google Maps configuration is invalid.');
+    return apiKey;
+  }).catch((error) => {
+    window.__railsetuGoogleMapsKeyPromise = undefined;
+    throw error;
+  });
+  return window.__railsetuGoogleMapsKeyPromise;
+}
 
 function loadGoogleMaps(apiKey: string) {
   if (window.google?.maps) return Promise.resolve(window.google.maps);
@@ -114,11 +133,11 @@ function GoogleRouteMap({ points, solution, onFailure }: { points: MapPoint[]; s
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
-    if (!canvas || !apiKey) { onFailure(); return; }
+    if (!canvas) return;
     let disposed = false;
     const cleanups: Array<() => void> = [];
     const initialise = async () => {
+      const apiKey = await getGoogleMapsKey();
       let lastError: unknown;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
@@ -387,7 +406,7 @@ export default function JourneyMapModal({ open, onClose, solution, sharePath }: 
         </header>
 
         <div className="journey-map-body">
-          {googleMapFailed || !process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+          {googleMapFailed
             ? <RouteMap points={mapPoints} />
             : <GoogleRouteMap points={mapPoints} solution={solution} onFailure={useFallbackMap} />}
           <aside className="journey-map-legend" aria-label="Seat segments">
