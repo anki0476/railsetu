@@ -749,6 +749,10 @@ html.railsetu-dark body { color:#eef2ff; background:#070b17; }
 .railsetu-dark .passenger-profile-editor select { color:#eef2ff; border-color:#33415f; background:#111a30; }.railsetu-dark .passenger-digilocker-link { border-color:#33415f; background:#151f38; }.railsetu-dark .passenger-digilocker-link small { color:#909cb4; }.railsetu-dark .passenger-digilocker-link.is-verified { border-color:#315b43; background:#152e23; }
 @media (max-width:760px) { .passenger-digilocker-link { grid-template-columns:36px 1fr; }.passenger-digilocker-link button { grid-column:1/-1; width:100%; } }
 
+.rail-ticket-route-line { grid-template-columns:1fr; gap:8px; padding-bottom:3px; }.rail-ticket-route-line>div { display:grid; grid-template-columns:6px 1fr 6px; align-items:center; gap:9px; }.rail-ticket-route small { margin-top:8px; color:#7a859a; font-size:9px; line-height:1.35; }.rail-ticket-route-line small { margin-top:0; letter-spacing:.07em; text-transform:uppercase; }.rail-ticket-route-line b { color:#334264; font-weight:750; font-variant-numeric:tabular-nums; }
+.railsetu-dark .rail-ticket-route small { color:#929eb7; }.railsetu-dark .rail-ticket-route-line b { color:#dbe4ff; }
+@media (max-width:760px) { .rail-ticket-route-line { display:grid; grid-column:1/-1; grid-row:2; margin-top:8px; }.rail-ticket-route-line>div { display:none; }.rail-ticket-route small { font-size:8px; } }
+
 .railsetu-dark .payment-page { color:#eef2ff; }
 .railsetu-dark .payment-nav-context,.railsetu-dark .payment-heading h1 span,.railsetu-dark .payment-heading>p:last-child { color:#a6b1c7; }
 .railsetu-dark .payment-card { border-color:rgba(163,183,239,.18); background-color:rgba(12,19,37,.9); box-shadow:0 34px 95px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05); }

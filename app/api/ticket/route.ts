@@ -1,3 +1,5 @@
+import { ticketPnr, ticketSchedule } from '../../lib/ticket-details';
+
 type TicketLeg = {
   from: string;
   departure: string;
@@ -68,6 +70,8 @@ export async function GET(request: Request) {
     { from: 'CNB', departure: '01:05', to: 'PNBE', arrival: '09:40', coach: 'B2', seat: '41', berth: 'SL' },
   ];
   const ticketId = `RS-${train.split('·')[0].trim()}-${from}${to}-${date.replaceAll('-', '')}`;
+  const pnr = ticketPnr(ticketId);
+  const schedule = ticketSchedule(date, shownLegs);
 
   const legMarkup = shownLegs.map((leg, index) => `
     <div class="leg">
@@ -86,12 +90,13 @@ export async function GET(request: Request) {
   <title>RailSetu Mock Ticket · ${escapeHtml(ticketId)}</title>
   <style>
     *{box-sizing:border-box}body{margin:0;padding:32px;background:#dcecff;color:#11131a;font-family:Arial,sans-serif}.ticket{max-width:820px;margin:auto;padding:30px;border:1px solid #fff;border-radius:26px;background:#f9fbff;box-shadow:0 28px 80px #3b518329}.top,.route,.meta,.foot{display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:22px;font-weight:750}.status{padding:9px 12px;border-radius:999px;color:#24763d;background:#e7f7e9;font-size:12px}.route{margin:28px 0;padding:28px 0;border-block:1px solid #dce3f0}.place span,.place strong{display:block}.place span{color:#69758b;font-size:11px}.place strong{margin-top:7px;font-size:32px}.arrow{color:#5f72c9;font-size:28px}.meta{padding:0 0 24px}.meta div{flex:1}.meta small,.foot small,.leg small{display:block;color:#8790a2;font-size:9px;letter-spacing:.1em}.meta strong,.foot strong{display:block;margin-top:6px}.legs{border:1px solid #dfe5ef;border-radius:18px;overflow:hidden}.leg{display:grid;grid-template-columns:38px 1fr 28px 1fr 1.5fr;gap:14px;align-items:center;padding:18px}.leg+.leg{border-top:1px solid #dfe5ef}.leg>b{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;color:#5a70d2;background:#e8edff}.leg strong,.leg span{display:block}.leg strong{margin:5px 0 3px}.leg span{color:#667086;font-size:11px}.leg i{color:#5c70cc;font-style:normal}.seat{padding-left:18px;border-left:1px solid #dfe5ef}.foot{margin-top:24px;padding-top:22px;border-top:1px solid #dce3f0}.disclaimer{margin:22px 0 0;color:#838c9d;font-size:9px;text-align:center;text-transform:uppercase;letter-spacing:.08em}@media(max-width:640px){body{padding:14px}.ticket{padding:20px}.route{align-items:flex-end}.place strong{font-size:24px}.meta{display:grid;grid-template-columns:1fr 1fr}.leg{grid-template-columns:32px 1fr 20px 1fr}.seat{grid-column:2/5;padding:12px 0 0;border-top:1px solid #e2e6ef;border-left:0}.foot{align-items:flex-start;flex-direction:column}}
+    .place small{display:block;margin-top:8px;color:#768198;font-size:9px}.place:last-child{text-align:right}.arrow{text-align:center}.arrow small{display:block;margin-top:7px;color:#758096;font-size:9px;font-style:normal}.arrow b{color:#293858;letter-spacing:.08em}@media(max-width:640px){.route{flex-wrap:wrap}.place{width:calc(50% - 20px)}.arrow{order:3;width:100%;font-size:18px}}
   </style>
 </head>
 <body>
   <main class="ticket">
     <div class="top"><div class="brand">RailSetu</div><div class="status">● Confirmed throughout</div></div>
-    <section class="route"><div class="place"><span>${escapeHtml(fromName)}</span><strong>${escapeHtml(from)}</strong></div><div class="arrow">→</div><div class="place"><span>${escapeHtml(toName)}</span><strong>${escapeHtml(to)}</strong></div></section>
+    <section class="route"><div class="place"><span>${escapeHtml(fromName)}</span><strong>${escapeHtml(from)}</strong><small>DEPARTURE · ${escapeHtml(schedule.departure)}</small></div><div class="arrow">→<small>PNR · <b>${escapeHtml(pnr)}</b></small></div><div class="place"><span>${escapeHtml(toName)}</span><strong>${escapeHtml(to)}</strong><small>ARRIVAL · ${escapeHtml(schedule.arrival)}</small></div></section>
     <section class="meta"><div><small>TRAIN</small><strong>${escapeHtml(train)}</strong></div><div><small>DATE</small><strong>${escapeHtml(date)}</strong></div><div><small>CLASS</small><strong>${escapeHtml(travelClass)}</strong></div><div><small>FARE</small><strong>₹${fareLabel}</strong></div></section>
     <section class="legs">${legMarkup}</section>
     <footer class="foot"><div><small>TICKET ID</small><strong>${escapeHtml(ticketId)}</strong></div><div><small>COMFORT SCORE</small><strong>${escapeHtml(comfort)} / 100</strong></div><div><small>MOCK PAYMENT</small><strong>${escapeHtml(mode)}</strong></div></footer>

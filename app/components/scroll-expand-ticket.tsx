@@ -8,6 +8,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import BrandMark from './brand-mark';
 import TactileGlareLink from './tactile-glare-link';
 import { registerTicketInHistory } from '../lib/ticket-history';
+import { ticketPnr, ticketSchedule } from '../lib/ticket-details';
 
 type TicketLeg = {
   from: string;
@@ -104,6 +105,12 @@ export default function ScrollExpandTicket() {
   const isCancelled = params.get('status') === 'cancelled';
   const legs = useMemo(() => parseLegs(params.get('legs')), [params]);
   const ticketId = `RS-${train.split('·')[0].trim()}-${from}${to}-${date.replaceAll('-', '')}`;
+  const shownLegs = useMemo(() => legs.length ? legs : [
+    { from: 'NDLS', departure: '20:10', to: 'CNB', arrival: '01:05', coach: 'B2', seat: '34', berth: 'LB' },
+    { from: 'CNB', departure: '01:05', to: 'PNBE', arrival: '09:40', coach: 'B2', seat: '41', berth: 'SL' },
+  ], [legs]);
+  const schedule = useMemo(() => ticketSchedule(date, shownLegs), [date, shownLegs]);
+  const pnr = ticketPnr(ticketId);
 
   const downloadParams = useMemo(() => {
     const next = new URLSearchParams();
@@ -351,9 +358,9 @@ export default function ScrollExpandTicket() {
                 </header>
 
                 <div className="rail-ticket-route">
-                  <div><span>{fromName}</span><strong>{from}</strong></div>
-                  <div className="rail-ticket-route-line"><i /><span>{train}</span><i /></div>
-                  <div><span>{toName}</span><strong>{to}</strong></div>
+                  <div><span>{fromName}</span><strong>{from}</strong><small>Departure · {schedule.departure}</small></div>
+                  <div className="rail-ticket-route-line"><div><i /><span>{train}</span><i /></div><small>PNR · <b>{pnr}</b></small></div>
+                  <div><span>{toName}</span><strong>{to}</strong><small>Arrival · {schedule.arrival}</small></div>
                 </div>
 
                 <div className="rail-ticket-meta">
@@ -365,10 +372,7 @@ export default function ScrollExpandTicket() {
 
                 <section className="rail-ticket-legs" aria-label="Confirmed ticket segments">
                   <div className="rail-ticket-section-title"><span>Confirmed segments</span><small>{legs.length || 2} tickets · one connected journey</small></div>
-                  {(legs.length ? legs : [
-                    { from: 'NDLS', departure: '20:10', to: 'CNB', arrival: '01:05', coach: 'B2', seat: '34', berth: 'LB' },
-                    { from: 'CNB', departure: '01:05', to: 'PNBE', arrival: '09:40', coach: 'B2', seat: '41', berth: 'SL' },
-                  ]).map((leg, index) => (
+                  {shownLegs.map((leg, index) => (
                     <div className="rail-ticket-leg" key={`${leg.from}-${leg.to}-${leg.seat}`}>
                       <span>0{index + 1}</span>
                       <div><strong>{leg.from}</strong><small>{leg.departure}</small></div>
