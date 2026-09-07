@@ -889,25 +889,34 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
 @media (max-width:760px) { .planner-import-wrap { width:100%; } }
 .planner-split-label { padding:8px 11px; border-radius:999px; color:#7a4b24; background:#fff1df; font-size:8px; text-transform:uppercase; letter-spacing:.08em; }.railsetu-dark .planner-split-label { color:#ffd49f; background:#3a2a20; }
 /* Jamvanta — RailSetu's local-first bilingual voice interface. */
-.jamvanta-edge[data-beam] {
+.jamvanta-edge-reveal {
   position: fixed;
-  inset: 4px;
+  inset: 0;
   z-index: 9998;
+  overflow: hidden;
   pointer-events: none;
   --jamvanta-beam-reveal: 0%;
-  --beam-hue-base: 7deg;
-  --beam-stroke-opacity: 1.12;
-  --beam-inner-opacity: .8;
-  --beam-bloom-opacity: .92;
   opacity: 0;
-  -webkit-mask-image: radial-gradient(circle at calc(100% - 68px) calc(100% - 68px), #000 0, #000 var(--jamvanta-beam-reveal), transparent calc(var(--jamvanta-beam-reveal) + 16%));
-  mask-image: radial-gradient(circle at calc(100% - 68px) calc(100% - 68px), #000 0, #000 var(--jamvanta-beam-reveal), transparent calc(var(--jamvanta-beam-reveal) + 16%));
-  transition: --jamvanta-beam-reveal 720ms cubic-bezier(.2,.82,.25,1), opacity 260ms ease;
+  -webkit-mask-image: radial-gradient(circle at calc(100% - 68px) calc(100% - 68px), #000 0, #000 var(--jamvanta-beam-reveal), transparent calc(var(--jamvanta-beam-reveal) + 14%));
+  mask-image: radial-gradient(circle at calc(100% - 68px) calc(100% - 68px), #000 0, #000 var(--jamvanta-beam-reveal), transparent calc(var(--jamvanta-beam-reveal) + 14%));
+  transition: --jamvanta-beam-reveal 760ms cubic-bezier(.2,.82,.25,1), opacity 240ms ease;
 }
 
-.jamvanta-edge[data-beam].is-listening {
-  --jamvanta-beam-reveal: 145%;
+.jamvanta-edge-reveal.is-listening {
+  --jamvanta-beam-reveal: 150%;
   opacity: 1;
+}
+
+.jamvanta-edge[data-beam] {
+  position: absolute;
+  inset: 4px;
+  width: auto;
+  height: auto;
+  --beam-hue-base: 7deg;
+  --beam-stroke-opacity: 1.35;
+  --beam-inner-opacity: 1;
+  --beam-bloom-opacity: 1;
+  filter: drop-shadow(0 0 9px rgba(82, 112, 255, .9));
 }
 
 .jamvanta-edge-surface {
@@ -1020,7 +1029,8 @@ html:not(.railsetu-dark) .jamvanta-approval button { color:#5b6785; border-color
 html:not(.railsetu-dark) .jamvanta-panel input { color:#111a34; }
 
 @media (max-width: 640px) {
-  .jamvanta-edge[data-beam] { inset:3px; border-radius:14px; -webkit-mask-image:radial-gradient(circle at calc(100% - 48px) calc(100% - 48px),#000 0,#000 var(--jamvanta-beam-reveal),transparent calc(var(--jamvanta-beam-reveal) + 18%)); mask-image:radial-gradient(circle at calc(100% - 48px) calc(100% - 48px),#000 0,#000 var(--jamvanta-beam-reveal),transparent calc(var(--jamvanta-beam-reveal) + 18%)); }
+  .jamvanta-edge-reveal { -webkit-mask-image:radial-gradient(circle at calc(100% - 48px) calc(100% - 48px),#000 0,#000 var(--jamvanta-beam-reveal),transparent calc(var(--jamvanta-beam-reveal) + 16%)); mask-image:radial-gradient(circle at calc(100% - 48px) calc(100% - 48px),#000 0,#000 var(--jamvanta-beam-reveal),transparent calc(var(--jamvanta-beam-reveal) + 16%)); }
+  .jamvanta-edge[data-beam] { inset:3px; border-radius:14px; }
   .jamvanta-edge-surface { border-radius:14px; }
   .jamvanta-orb { right:14px; bottom:max(14px,env(safe-area-inset-bottom)); min-height:68px; padding:2px; border-radius:50%; }
   .jamvanta-orb span { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
@@ -1030,7 +1040,7 @@ html:not(.railsetu-dark) .jamvanta-panel input { color:#111a34; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jamvanta-edge[data-beam] { transition:opacity 160ms ease; }
+  .jamvanta-edge-reveal { transition:opacity 160ms ease; }
   .jamvanta-status i.is-live, .jamvanta-conversation .is-working { animation:none !important; }
 }
 

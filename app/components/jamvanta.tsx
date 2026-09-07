@@ -590,21 +590,23 @@ export default function Jamvanta() {
 
   return (
     <>
-      <BorderBeam
-        active={listening}
-        borderRadius={18}
-        className={`jamvanta-edge ${listening ? 'is-listening' : ''}`}
-        colorVariant="ocean"
-        duration={2.65}
-        hueRange={16}
-        saturation={1.45}
-        size="md"
-        strength={0.82}
-        theme={dark ? 'dark' : 'light'}
-        aria-hidden="true"
-      >
-        <div className="jamvanta-edge-surface" />
-      </BorderBeam>
+      <div className={`jamvanta-edge-reveal ${listening ? 'is-listening' : ''}`} aria-hidden="true">
+        <BorderBeam
+          active={listening}
+          borderRadius={18}
+          brightness={1.65}
+          className="jamvanta-edge"
+          colorVariant="ocean"
+          duration={2.65}
+          hueRange={16}
+          saturation={1.5}
+          size="md"
+          strength={1}
+          theme={dark ? 'dark' : 'light'}
+        >
+          <div className="jamvanta-edge-surface" />
+        </BorderBeam>
+      </div>
       {open ? (
         <section className="jamvanta-panel" ref={panel} role="dialog" aria-label="Jamvanta voice assistant">
           <header>
