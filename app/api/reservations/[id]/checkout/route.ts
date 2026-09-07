@@ -1,5 +1,6 @@
 import { ApiRequestError, apiError, enforceRateLimit, readJsonBody, requireSameOrigin, secureJson } from '../../../../lib/api-security';
 import { simulatedBookingProvider, simulatedPaymentProvider } from '../../../../lib/booking-providers';
+import { consumeApprovalToken } from '../../../../lib/jamvanta-approval';
 import { database, expireReservation, IDEMPOTENCY_TTL_MS, readReservation, sessionFromRequest, sha256, type StoredItinerary } from '../../../../lib/reservation-store';
 
 const validId = (value: string) => /^res_[a-f0-9]{32}$/.test(value);
@@ -12,9 +13,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (limited) return limited;
     const { id } = await context.params;
     if (!validId(id)) throw new ApiRequestError(400, 'Invalid reservation.');
-    const body = await readJsonBody(request, 8_192) as { method?: unknown; idempotencyKey?: unknown };
+    const body = await readJsonBody(request, 8_192) as { method?: unknown; idempotencyKey?: unknown; approvalToken?: unknown };
     if (typeof body.method !== 'string' || !validMethod(body.method)) throw new ApiRequestError(400, 'Choose a valid payment method.');
     if (typeof body.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,100}$/.test(body.idempotencyKey)) throw new ApiRequestError(400, 'A valid idempotency key is required.');
+    if (typeof body.approvalToken !== 'string') throw new ApiRequestError(403, 'Fresh payment approval is required.');
 
     const sessionId = sessionFromRequest(request);
     const db = database();
@@ -32,6 +34,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return secureJson(payload);
     }
     if (reservation.state !== 'HELD') return secureJson({ error: { code: 'PAYMENT_PENDING', message: 'This booking is already being processed.' } }, { status: 409 });
+    const approval = await consumeApprovalToken(body.approvalToken, {
+      reservationId: reservation.id,
+      amount: reservation.fare,
+      itineraryHash: reservation.itinerary_hash,
+      method: body.method,
+    });
+    if (!approval) return secureJson({ error: { code: 'APPROVAL_REQUIRED', message: 'This payment approval is invalid, expired, or has already been used.' } }, { status: 403 });
 
     const now = Date.now();
     const paymentId = `pay_${(await sha256(`${id}|${body.idempotencyKey}`)).slice(0, 32)}`;

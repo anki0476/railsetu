@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
-import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
+import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, JAMVANTA_PAYMENT_CONTEXT_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 import { addTransaction } from '../lib/transactions';
 import { CameraIcon, ScanLineIcon, UploadIcon } from './ui/animated-icons';
@@ -28,6 +28,8 @@ const modes: Array<{ id: PaymentMode; label: string; detail: string; mark: strin
   { id: 'visa', label: 'Card', detail: '•••• 6756', mark: 'VISA' },
   { id: 'mastercard', label: 'Card', detail: '•••• 4632', mark: 'MASTERCARD' },
 ];
+
+const approvalOperationForMode = (mode: PaymentMode) => mode === 'wallet' ? 'wallet-payment' : `payment-${mode}`;
 
 export default function PaymentCard({ initialSearch }: { initialSearch: string }) {
   const params = useMemo(() => new URLSearchParams(initialSearch), [initialSearch]);
@@ -61,6 +63,8 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
   const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const otpTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const cardNumberInput = useRef<HTMLInputElement>(null);
+  const queuedJamvantaPayment = useRef<Extract<JamvantaAction, { type: 'pay_with_wallet' | 'pay_with_method' }> | null>(null);
+  const paymentAttempt = useRef(false);
   const fare = reservation?.itinerary.fare ?? 0;
   const train = reservation?.itinerary.train ?? 'Loading held journey…';
   const from = reservation?.itinerary.from ?? '—';
@@ -84,6 +88,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
 
   useEffect(() => {
     if (!reservation) return;
+    window.dispatchEvent(new CustomEvent(JAMVANTA_PAYMENT_CONTEXT_EVENT, { detail: { reservationId: reservation.reservationId, fare: reservation.itinerary.fare, expiresAt: reservation.expiresAt } }));
     const update = () => setSecondsRemaining(Math.max(0, Math.ceil((reservation.expiresAt - Date.now()) / 1000)));
     update();
     const timer = window.setInterval(update, 1000);
@@ -157,15 +162,26 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
     dispatchJamvantaFeedback(`Card ending ${card.last4} has been added and selected. Say “use card ending ${card.last4}” when you are ready to continue.`);
   };
 
-  const completePayment = useCallback(async (mode: PaymentMode) => {
-    if (paymentState !== 'idle' || !reservation || secondsRemaining <= 0) return;
+  const completePayment = useCallback(async (mode: PaymentMode, approvalToken?: string) => {
+    if (paymentAttempt.current || paymentState !== 'idle' || !reservation || secondsRemaining <= 0) return;
     if (mode === 'wallet' && walletBalance < fare) return;
+    paymentAttempt.current = true;
     setPaymentState('processing');
     setReservationError('');
     try {
+      let token = approvalToken;
+      if (!token) {
+        const approvalResponse = await fetch('/api/jamvanta/approval', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ operation: approvalOperationForMode(mode), reservationId: reservation.reservationId }),
+        });
+        const approval = await approvalResponse.json() as { token?: string; error?: string | { message?: string } };
+        if (!approvalResponse.ok || !approval.token) throw new Error(typeof approval.error === 'string' ? approval.error : approval.error?.message ?? 'Fresh payment approval could not be created.');
+        token = approval.token;
+      }
       const response = await fetch(`/api/reservations/${reservation.reservationId}/checkout`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ method: mode, idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ method: mode, idempotencyKey: crypto.randomUUID(), approvalToken: token }),
       });
       const result = await response.json() as { bookingId?: string; ticketToken?: string; error?: { message?: string } };
       if (!response.ok || !result.bookingId || !result.ticketToken) throw new Error(result.error?.message ?? 'Payment could not be completed.');
@@ -177,12 +193,59 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
         window.location.assign(`/ticket?booking=${encodeURIComponent(result.bookingId!)}&token=${encodeURIComponent(result.ticketToken!)}`);
       }, 850);
     } catch (error) {
+      paymentAttempt.current = false;
       setPaymentState('idle');
       const message = error instanceof Error ? error.message : 'Payment could not be completed.';
       setReservationError(message);
       dispatchJamvantaFeedback(message);
     }
   }, [addedCards, fare, paymentState, reservation, secondsRemaining, ticketReference, train, walletBalance]);
+
+  const executeJamvantaPayment = useCallback((action: Extract<JamvantaAction, { type: 'pay_with_wallet' | 'pay_with_method' }>) => {
+    if (paymentState !== 'idle') {
+      if (paymentState === 'processing') dispatchJamvantaFeedback('Your payment is already being processed. I’ll open the ticket as soon as it is issued.');
+      return;
+    }
+    if (!reservation) {
+      queuedJamvantaPayment.current = action;
+      dispatchJamvantaFeedback('Your held journey is still loading. I’ll continue this approved payment automatically when it is ready.');
+      return;
+    }
+    if (secondsRemaining <= 0) {
+      queuedJamvantaPayment.current = null;
+      dispatchJamvantaFeedback('The seat hold expired before payment, so nothing was charged. I can return to the planner for updated options.');
+      return;
+    }
+    if (!action.approvalToken) {
+      queuedJamvantaPayment.current = null;
+      dispatchJamvantaFeedback('A fresh approval is required before I can make this payment.');
+      return;
+    }
+    const requestedMode = action.type === 'pay_with_wallet'
+      ? 'wallet'
+      : action.mode.startsWith('card-')
+        ? addedCards.find((card) => card.last4 === action.mode.slice(5))?.id
+        : action.mode.startsWith('upi-') ? 'upi' : action.mode;
+    if (!requestedMode || (requestedMode !== 'wallet' && requestedMode !== 'upi' && requestedMode !== 'visa' && requestedMode !== 'mastercard' && !addedCards.some((card) => card.id === requestedMode))) {
+      queuedJamvantaPayment.current = null;
+      dispatchJamvantaFeedback('That payment method is not available on this device. Choose one of the saved methods shown here.');
+      return;
+    }
+    if (requestedMode === 'wallet' && walletBalance < fare) {
+      queuedJamvantaPayment.current = null;
+      dispatchJamvantaFeedback('Your RailSetu Wallet balance is too low for this fare. Choose UPI or a saved card instead.');
+      return;
+    }
+    queuedJamvantaPayment.current = null;
+    setSelectedMode(requestedMode);
+    void completePayment(requestedMode, action.approvalToken);
+  }, [addedCards, completePayment, fare, paymentState, reservation, secondsRemaining, walletBalance]);
+
+  useEffect(() => {
+    const action = queuedJamvantaPayment.current;
+    if (!action || !reservation || secondsRemaining <= 0 || paymentState !== 'idle') return;
+    executeJamvantaPayment(action);
+  }, [executeJamvantaPayment, paymentState, reservation, secondsRemaining]);
 
   const beginOtpVerification = () => {
     setOtpValue('');
@@ -207,23 +270,12 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
     const handleJamvanta = (event: Event) => {
       const action = (event as CustomEvent<JamvantaAction>).detail;
       if (action.type === 'select_wallet') setSelectedMode('wallet');
-      if (action.type === 'pay_with_wallet') {
-        setSelectedMode('wallet');
-        void completePayment('wallet');
-      }
-      if (action.type === 'pay_with_method') {
-        const requestedMode = action.mode.startsWith('card-')
-          ? addedCards.find((card) => card.last4 === action.mode.slice(5))?.id
-          : action.mode;
-        if (!requestedMode) return;
-        setSelectedMode(requestedMode);
-        void completePayment(requestedMode);
-      }
+      if (action.type === 'pay_with_wallet' || action.type === 'pay_with_method') executeJamvantaPayment(action);
       if (action.type === 'add_payment_method' && action.methodType === 'card') setCardDialogOpen(true);
     };
     window.addEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
     return () => window.removeEventListener(JAMVANTA_ACTION_EVENT, handleJamvanta);
-  }, [addedCards, completePayment]);
+  }, [executeJamvantaPayment]);
 
   return (
     <section className="payment-card" aria-labelledby="payment-card-title">

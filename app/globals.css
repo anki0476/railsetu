@@ -900,6 +900,10 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
   z-index: 9998;
   overflow: hidden;
   pointer-events: none;
+  contain: strict;
+  isolation: isolate;
+  transform: translateZ(0);
+  will-change: opacity, -webkit-mask-image, mask-image;
   --jamvanta-beam-reveal: 0%;
   opacity: 0;
   -webkit-mask-image: radial-gradient(circle at calc(100% - 68px) calc(100% - 68px), #000 0, #000 var(--jamvanta-beam-reveal), transparent calc(var(--jamvanta-beam-reveal) + 14%));

@@ -24,7 +24,7 @@ import {
   type PassengerProfileData,
 } from './passenger-profile';
 import { useSiteLanguage } from './site-language';
-import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
+import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction, type JamvantaSelectionStrategy } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 import { InfoIcon } from './ui/animated-icons';
 
@@ -242,7 +242,8 @@ function changeLimitLabel(form: Pick<PlannerForm, 'changeLimit' | 'customMaxChan
 }
 
 function recommendationChangeLimit(maxChanges: number): Pick<PlannerForm, 'changeLimit' | 'customMaxChanges'> {
-  if (maxChanges <= 1) return { changeLimit: 'one', customMaxChanges: maxChanges };
+  if (maxChanges <= 0) return { changeLimit: 'custom', customMaxChanges: 0 };
+  if (maxChanges === 1) return { changeLimit: 'one', customMaxChanges: maxChanges };
   if (maxChanges === 2) return { changeLimit: 'two', customMaxChanges: maxChanges };
   if (maxChanges >= JOURNEY_ENGINE_LIMITS.maxChanges) return { changeLimit: 'any', customMaxChanges: maxChanges };
   return { changeLimit: 'custom', customMaxChanges: maxChanges };
@@ -353,6 +354,20 @@ function StationSwapButton({ onSwap }: { onSwap: () => void }) {
       </svg>
     </button>
   );
+}
+
+function selectedJourney(solutions: JourneySolution[], strategy: JamvantaSelectionStrategy = 'best_fit', optionIndex?: number) {
+  if (optionIndex && solutions[optionIndex - 1]) return solutions[optionIndex - 1];
+  if (strategy === 'highest_comfort') return [...solutions].sort((a, b) => b.comfort - a.comfort || a.fare - b.fare)[0];
+  if (strategy === 'lowest_fare') return [...solutions].sort((a, b) => a.fare - b.fare || b.comfort - a.comfort)[0];
+  if (strategy === 'fastest') {
+    const minutes = (duration: string) => {
+      const match = duration.match(/(?:(\d+)h)?\s*(?:(\d+)m)?/i);
+      return match && (match[1] || match[2]) ? Number(match[1] ?? 0) * 60 + Number(match[2] ?? 0) : Number.MAX_SAFE_INTEGER;
+    };
+    return [...solutions].sort((a, b) => minutes(a.duration) - minutes(b.duration) || b.comfort - a.comfort)[0];
+  }
+  return solutions[0];
 }
 
 export default function JourneyPlanner() {
@@ -632,7 +647,7 @@ export default function JourneyPlanner() {
     setSpeechOpen(false);
   };
 
-  const runSearch = (nextSubmission: PlannerForm, autoContinue = false) => {
+  const runSearch = (nextSubmission: PlannerForm, autoContinue = false, strategy: JamvantaSelectionStrategy = 'best_fit', optionIndex?: number) => {
     searchSequence.current += 1;
     const sequence = searchSequence.current;
     searchRequest.current?.abort();
@@ -668,8 +683,9 @@ export default function JourneyPlanner() {
           setSubmitted(nextSubmission);
           setOutcome(nextOutcome);
           setSearchPhase('idle');
-          if (autoContinue && nextOutcome.solutions[0]) {
-            searchTimers.current.push(setTimeout(() => continueToPayment(nextOutcome.solutions[0], nextSubmission, true), 450));
+          const agentSelection = selectedJourney(nextOutcome.solutions, strategy, optionIndex);
+          if (autoContinue && agentSelection) {
+            searchTimers.current.push(setTimeout(() => continueToPayment(agentSelection, nextSubmission, true), 450));
           } else if (autoContinue && nextOutcome.recommendations[0]) {
             const recommendation = nextOutcome.recommendations[0];
             dispatchJamvantaFeedback(
@@ -740,10 +756,13 @@ export default function JourneyPlanner() {
       if (action.type === 'plan_journey') {
         setForm((current) => {
           const nextCount = Math.max(1, Math.min(6, action.passengerCount ?? current.passengers.length));
-          const passengers = current.passengers.slice(0, nextCount);
+          const nextProfile = action.profile ?? current.profile;
+          const nextLuggage = action.luggage ?? current.luggage;
+          const nextLowerBerth = action.lowerBerth ?? current.lowerBerth;
+          const passengers = current.passengers.slice(0, nextCount).map((passenger, index) => index === 0 ? { ...passenger, profile: nextProfile, luggage: nextLuggage, lowerBerth: nextLowerBerth } : passenger);
           while (passengers.length < nextCount) {
             const index = passengers.length;
-            passengers.push({ id: `passenger-${index + 1}`, name: `Passenger ${index + 1}`, profile: index === 0 ? current.profile : 'standard', luggage: index === 0 ? current.luggage : 'light', lowerBerth: index === 0 ? current.lowerBerth : false, companionId: null });
+            passengers.push({ id: `passenger-${index + 1}`, name: `Passenger ${index + 1}`, profile: index === 0 ? nextProfile : 'standard', luggage: index === 0 ? nextLuggage : 'light', lowerBerth: index === 0 ? nextLowerBerth : false, companionId: null });
           }
           const next: PlannerForm = {
             ...current,
@@ -751,13 +770,27 @@ export default function JourneyPlanner() {
             to: action.to && stationOptions.some((station) => station.code === action.to) ? action.to : current.to,
             travelClass: action.travelClass && ['1A', '2A', '3A', '3E', 'CC', 'EC', 'SL'].includes(action.travelClass) ? action.travelClass : current.travelClass,
             date: action.date && action.date >= todayInputValue() ? action.date : current.date,
+            profile: nextProfile,
+            coachPreference: action.coachPreference ?? current.coachPreference,
+            luggage: nextLuggage,
+            lowerBerth: nextLowerBerth,
+            ...(typeof action.maxChanges === 'number' ? recommendationChangeLimit(action.maxChanges) : {}),
             passengers,
           };
-          if (action.search && next.from !== next.to) window.setTimeout(() => runSearch(next, action.autoContinue), 0);
+          if (action.search && next.from !== next.to) window.setTimeout(() => runSearch(next, action.autoContinue, action.selectionStrategy, action.optionIndex), 0);
           else if (action.search) dispatchJamvantaFeedback('The departure and destination cannot be the same. Which station are you travelling to?');
           return next;
         });
         document.querySelector('.planner-search-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      if (action.type === 'select_journey') {
+        const solution = selectedJourney(outcome.solutions, action.strategy, action.optionIndex);
+        if (!solution) dispatchJamvantaFeedback('I do not have journey options to compare yet. Tell me the journey details and I will search first.');
+        else if (action.autoContinue) void continueToPayment(solution, submitted, true);
+        else {
+          setOutcome((current) => ({ ...current, solutions: [solution, ...current.solutions.filter((candidate) => candidate.id !== solution.id)] }));
+          dispatchJamvantaFeedback(`${solution.trainNumber} ${solution.trainName} matches that preference with a comfort score of ${solution.comfort} and fare of ${money.format(solution.fare)}. Say “continue” when you are ready.`);
+        }
       }
       if (action.type === 'continue_to_payment' && best) continueToPayment(best);
     };
@@ -766,7 +799,7 @@ export default function JourneyPlanner() {
   // The listener is rebound when the selected solution changes; it intentionally uses the
   // current planner closures rather than making navigation helpers global.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [best]);
+  }, [best, outcome.solutions, submitted]);
 
   return (
     <section className="planner-workspace" aria-label="RailSetu journey planner">

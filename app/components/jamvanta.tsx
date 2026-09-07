@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BorderBeam } from 'border-beam';
 import { ThinkingOrb } from 'thinking-orbs';
 import { TypingIndicator } from './assistant-ui/elements/typing-indicator';
-import { dispatchJamvantaAction, JAMVANTA_FEEDBACK_EVENT, routeJamvantaAction, takePendingJamvantaAction, type JamvantaAction, type JamvantaTurn } from '../lib/jamvanta';
+import { dispatchJamvantaAction, JAMVANTA_FEEDBACK_EVENT, JAMVANTA_PAYMENT_CONTEXT_EVENT, routeJamvantaAction, takePendingJamvantaAction, type JamvantaAction, type JamvantaMemory, type JamvantaTurn } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 import { getWalletBalance } from '../lib/wallet';
 
@@ -15,7 +15,7 @@ type VoiceRecognition = {
   start(): void;
   stop(): void;
   abort(): void;
-  onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
+  onresult: ((event: { results: ArrayLike<{ 0: { transcript: string }; isFinal?: boolean }> }) => void) | null;
   onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
 };
@@ -24,6 +24,7 @@ type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type PaymentChoice = { mode: string; label: string; detail: string };
 type PaymentFlow = { methodType: 'upi' | 'card'; choices: PaymentChoice[]; awaiting: 'choice' | 'custom-upi' };
 const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
+const JAMVANTA_MEMORY_KEY = 'railsetu.jamvanta-memory.v2';
 const JAMVANTA_PAYMENT_FLOW_KEY = 'railsetu.jamvanta-payment-flow.v1';
 const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
@@ -137,16 +138,26 @@ export default function Jamvanta() {
   const [dark, setDark] = useState(false);
   const [providers, setProviders] = useState({ sarvam: false, openai: false, approval: true });
   const [paymentChoices, setPaymentChoices] = useState<PaymentChoice[]>([]);
+  const [paymentAmountValue, setPaymentAmountValue] = useState(0);
   const messagesRef = useRef<Message[]>([]);
   const recognition = useRef<VoiceRecognition | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const latestDraft = useRef('');
+  const transcriptUiTimer = useRef<number | null>(null);
+  const browserTranscriptSubmitted = useRef(false);
+  const recognitionBaseTranscript = useRef('');
+  const audioMonitorTimer = useRef<number | null>(null);
+  const audioMonitorContext = useRef<AudioContext | null>(null);
+  const heardVoice = useRef(false);
+  const lastVoiceAt = useRef(0);
+  const memoryRef = useRef<JamvantaMemory>({ journey: {}, payment: {}, stage: 'collecting', lastPath: '/' });
   const wantsListening = useRef(false);
   const recognitionRestartTimer = useRef<number | null>(null);
   const silenceTimer = useRef<number | null>(null);
   const beginListeningRef = useRef<() => Promise<void>>(async () => undefined);
   const sending = useRef(false);
+  const approving = useRef(false);
   const suggestedAction = useRef<JamvantaAction | null>(null);
   const paymentFlow = useRef<PaymentFlow | null>(null);
   const speechSequence = useRef(0);
@@ -180,9 +191,34 @@ export default function Jamvanta() {
         messagesRef.current = restored;
         setMessages(restored);
       }
+      const storedMemory = JSON.parse(window.sessionStorage.getItem(JAMVANTA_MEMORY_KEY) ?? 'null') as JamvantaMemory | null;
+      if (storedMemory?.journey && storedMemory?.payment) memoryRef.current = storedMemory;
+      memoryRef.current = {
+        ...memoryRef.current,
+        lastPath: window.location.pathname,
+        stage: window.location.pathname === '/ticket' ? 'ticket' : window.location.pathname === '/payment' && memoryRef.current.stage !== 'approval' ? 'payment' : memoryRef.current.stage,
+      };
+      window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(memoryRef.current));
     } catch {
       // A fresh in-memory conversation still works if session storage is unavailable.
     }
+  }, []);
+
+  useEffect(() => {
+    const handlePaymentContext = (event: Event) => {
+      const detail = (event as CustomEvent<{ fare?: number }>).detail;
+      const fare = Number(detail?.fare);
+      if (Number.isFinite(fare) && fare >= 0) setPaymentAmountValue(fare);
+    };
+    window.addEventListener(JAMVANTA_PAYMENT_CONTEXT_EVENT, handlePaymentContext);
+    const reservationId = new URLSearchParams(window.location.search).get('reservation');
+    if (window.location.pathname === '/payment' && reservationId && /^res_[a-f0-9]{32}$/.test(reservationId)) {
+      void fetch(`/api/reservations/${reservationId}`).then((response) => response.json()).then((data: { itinerary?: { fare?: number } }) => {
+        const fare = Number(data.itinerary?.fare);
+        if (Number.isFinite(fare) && fare >= 0) setPaymentAmountValue(fare);
+      }).catch(() => undefined);
+    }
+    return () => window.removeEventListener(JAMVANTA_PAYMENT_CONTEXT_EVENT, handlePaymentContext);
   }, []);
 
   useEffect(() => {
@@ -241,6 +277,7 @@ export default function Jamvanta() {
     return () => {
       document.documentElement.classList.remove('jamvanta-alive', 'jamvanta-listening');
       if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
+      if (transcriptUiTimer.current !== null) window.clearTimeout(transcriptUiTimer.current);
       stopJamvantaSpeech();
     };
   }, [listening, open]);
@@ -297,6 +334,8 @@ export default function Jamvanta() {
     paymentFlow.current = null;
     try { window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY); } catch { /* In-memory flow is already cleared. */ }
     setPaymentChoices([]);
+    memoryRef.current = { ...memoryRef.current, payment: { methodType: choice.mode === 'wallet' ? 'wallet' : choice.mode.startsWith('upi') ? 'upi' : 'card', mode: choice.mode, label: `${choice.label} ${choice.detail}` }, stage: 'approval', lastPath: window.location.pathname };
+    try { window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(memoryRef.current)); } catch { /* In-memory agent context remains available. */ }
     setPending({
       action: { type: 'pay_with_method', mode: choice.mode, label: `${choice.label} ${choice.detail}`, approvalId: crypto.randomUUID() },
       label: `Approve ${choice.label} payment`,
@@ -310,6 +349,7 @@ export default function Jamvanta() {
     paymentFlow.current = null;
     messagesRef.current = [];
     latestDraft.current = '';
+    memoryRef.current = { journey: {}, payment: {}, stage: 'collecting', lastPath: window.location.pathname };
     setMessages([]);
     setDraft('');
     setPending(null);
@@ -317,6 +357,7 @@ export default function Jamvanta() {
     try {
       window.sessionStorage.removeItem(JAMVANTA_SESSION_KEY);
       window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY);
+      window.sessionStorage.removeItem(JAMVANTA_MEMORY_KEY);
     } catch { /* The in-memory session is still cleared. */ }
   }, []);
 
@@ -415,18 +456,22 @@ export default function Jamvanta() {
     setWorking(true);
     setPending(null);
     setPaymentChoices([]);
-    const history = messagesRef.current.slice(-12).map(({ role, text: messageText }) => ({ role, text: messageText }));
+    const history = messagesRef.current.slice(-24).map(({ role, text: messageText }) => ({ role, text: messageText }));
     updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
     let listenAfterReply = false;
     try {
       const response = await fetch('/api/jamvanta/turn', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ transcript, spokenLanguage, pathname: window.location.pathname, search: window.location.search, history }),
+        body: JSON.stringify({ transcript, spokenLanguage, pathname: window.location.pathname, search: window.location.search, history, memory: memoryRef.current }),
       });
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
-      setNotice(turn.mode === 'openai' ? 'Sarvam + OpenAI connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
+      if (turn.memory) {
+        memoryRef.current = turn.memory;
+        try { window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(turn.memory)); } catch { /* In-memory agent context remains authoritative. */ }
+      }
+      setNotice(turn.mode === 'openai-agent' ? 'Jamvanta agent · tools connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
       const safeReply = turn.action?.type === 'list_payment_methods'
         ? paymentChoicePrompt(turn.action.methodType, savedPaymentChoices(turn.action.methodType))
         : plainText(turn.reply);
@@ -457,12 +502,19 @@ export default function Jamvanta() {
     silenceTimer.current = null;
     if (recognitionRestartTimer.current !== null) window.clearTimeout(recognitionRestartTimer.current);
     recognitionRestartTimer.current = null;
+    if (audioMonitorTimer.current !== null) window.clearInterval(audioMonitorTimer.current);
+    audioMonitorTimer.current = null;
+    void audioMonitorContext.current?.close().catch(() => undefined);
+    audioMonitorContext.current = null;
     const activeRecognition = recognition.current;
     recognition.current = null;
     try { activeRecognition?.stop(); } catch { /* Recognition may already have ended between events. */ }
-    const providerRecordingActive = recorder.current?.state === 'recording';
-    if (providerRecordingActive) recorder.current?.stop();
-    else if (latestDraft.current.trim()) void send(latestDraft.current);
+    const browserDraft = latestDraft.current.trim();
+    if (browserDraft) {
+      browserTranscriptSubmitted.current = true;
+      void send(browserDraft);
+    }
+    if (recorder.current?.state === 'recording') recorder.current.stop();
     setListening(false);
     setNotice('Processing what you said…');
   }, [send]);
@@ -471,17 +523,37 @@ export default function Jamvanta() {
     setOpen(true);
     stopJamvantaSpeech();
     latestDraft.current = '';
+    browserTranscriptSubmitted.current = false;
+    recognitionBaseTranscript.current = '';
+    heardVoice.current = false;
+    lastVoiceAt.current = Date.now();
     setDraft('');
     wantsListening.current = true;
     const recognitionConstructor = (window.SpeechRecognition ?? window.webkitSpeechRecognition) as unknown as VoiceRecognitionConstructor | undefined;
-    if (!recognitionConstructor) {
-      setNotice('Voice recognition is unavailable here · type below instead');
-      requestAnimationFrame(() => panel.current?.querySelector<HTMLInputElement>('input')?.focus());
-      return;
-    }
     try {
       if (navigator.mediaDevices?.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const AudioContextConstructor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AudioContextConstructor) {
+          const context = new AudioContextConstructor();
+          const analyser = context.createAnalyser();
+          analyser.fftSize = 256;
+          context.createMediaStreamSource(stream).connect(analyser);
+          const samples = new Uint8Array(analyser.fftSize);
+          audioMonitorContext.current = context;
+          audioMonitorTimer.current = window.setInterval(() => {
+            analyser.getByteTimeDomainData(samples);
+            let energy = 0;
+            for (const sample of samples) energy += Math.abs(sample - 128);
+            if (energy / samples.length > 4.5) {
+              heardVoice.current = true;
+              lastVoiceAt.current = Date.now();
+              if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
+              silenceTimer.current = null;
+            } else if (heardVoice.current && Date.now() - lastVoiceAt.current >= 4000) stopListening();
+            else if (!heardVoice.current && Date.now() - lastVoiceAt.current >= 10_000) stopListening();
+          }, 160);
+        }
         if ('MediaRecorder' in window) {
           audioChunks.current = [];
           const mediaRecorder = new MediaRecorder(stream);
@@ -490,6 +562,7 @@ export default function Jamvanta() {
           mediaRecorder.onstop = async () => {
             recorder.current = null;
             stream.getTracks().forEach((track) => track.stop());
+            if (browserTranscriptSubmitted.current) return;
             const audio = new Blob(audioChunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
             try {
               const response = await fetch('/api/jamvanta/transcribe', {
@@ -513,6 +586,18 @@ export default function Jamvanta() {
           mediaRecorder.start();
         } else stream.getTracks().forEach((track) => track.stop());
       }
+      if (!recognitionConstructor) {
+        if (recorder.current?.state === 'recording') {
+          setListening(true);
+          setNotice('Listening in English, Hindi or Hinglish…');
+          if (audioMonitorTimer.current === null) silenceTimer.current = window.setTimeout(() => stopListening(), 12_000);
+        } else {
+          wantsListening.current = false;
+          setNotice('Voice recognition is unavailable here · type below instead');
+          requestAnimationFrame(() => panel.current?.querySelector<HTMLInputElement>('input')?.focus());
+        }
+        return;
+      }
       const instance = new recognitionConstructor();
       recognition.current = instance;
       instance.continuous = true;
@@ -520,22 +605,34 @@ export default function Jamvanta() {
       instance.lang = 'en-IN';
       instance.onresult = (event) => {
         let next = '';
-        for (let index = 0; index < event.results.length; index += 1) next += event.results[index][0].transcript;
-        latestDraft.current = next.trim();
-        setDraft(plainText(next.trim()));
+        for (let index = 0; index < event.results.length; index += 1) next += `${event.results[index][0].transcript} `;
+        const batch = plainText(next.trim());
+        const base = recognitionBaseTranscript.current;
+        const normalized = base && batch.toLowerCase().startsWith(base.toLowerCase()) ? batch : plainText([base, batch].filter(Boolean).join(' '));
+        latestDraft.current = normalized;
+        if (transcriptUiTimer.current === null) {
+          transcriptUiTimer.current = window.setTimeout(() => {
+            transcriptUiTimer.current = null;
+            setDraft(latestDraft.current);
+          }, 140);
+        }
         if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
         silenceTimer.current = window.setTimeout(() => stopListening(), 4000);
       };
       instance.onerror = (event) => {
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          wantsListening.current = false;
-          setNotice('Microphone permission is needed · type below instead');
-          if (recorder.current?.state === 'recording') recorder.current.stop();
-          setListening(false);
+          recognition.current = null;
+          if (recorder.current?.state === 'recording') setNotice('Listening securely through Sarvam…');
+          else {
+            wantsListening.current = false;
+            setNotice('Microphone permission is needed · type below instead');
+            setListening(false);
+          }
         }
       };
       instance.onend = () => {
         if (wantsListening.current && recognition.current === instance) {
+          recognitionBaseTranscript.current = latestDraft.current;
           recognitionRestartTimer.current = window.setTimeout(() => {
             if (!wantsListening.current || recognition.current !== instance) return;
             try { instance.start(); } catch { /* The next browser end event will retry while recording continues. */ }
@@ -547,9 +644,13 @@ export default function Jamvanta() {
       instance.start();
       setListening(true);
       setNotice('Listening in English, Hindi or Hinglish…');
-      silenceTimer.current = window.setTimeout(() => stopListening(), 4000);
+      silenceTimer.current = window.setTimeout(() => stopListening(), 10_000);
     } catch {
       wantsListening.current = false;
+      if (audioMonitorTimer.current !== null) window.clearInterval(audioMonitorTimer.current);
+      audioMonitorTimer.current = null;
+      void audioMonitorContext.current?.close().catch(() => undefined);
+      audioMonitorContext.current = null;
       setNotice('Microphone permission is needed · type below instead');
       setListening(false);
       if (recorder.current?.state === 'recording') recorder.current.stop();
@@ -561,24 +662,26 @@ export default function Jamvanta() {
   }, [beginListening]);
 
   const approve = async () => {
-    if (!pending || (pending.action.type !== 'pay_with_wallet' && pending.action.type !== 'pay_with_method')) return;
+    if (approving.current || !pending || (pending.action.type !== 'pay_with_wallet' && pending.action.type !== 'pay_with_method')) return;
+    approving.current = true;
     setWorking(true);
     try {
-      const amount = Number(new URLSearchParams(window.location.search).get('fare')) || 0;
-      if (pending.action.type === 'pay_with_wallet' && getWalletBalance() < amount) throw new Error('Your RailSetu Wallet balance is too low for this fare. Add money or choose another payment method.');
+      const amount = paymentAmountValue;
+      if (pending.action.type === 'pay_with_wallet' && amount > 0 && getWalletBalance() < amount) throw new Error('Your RailSetu Wallet balance is too low for this fare. Add money or choose another payment method.');
       const operation = pending.action.type === 'pay_with_wallet' ? 'wallet-payment' : `payment-${pending.action.mode}`;
       const reservationId = new URLSearchParams(window.location.search).get('reservation');
-      const prepared = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation, amount, reservationId }) }).then((response) => response.json()) as { token?: string };
+      const preparedResponse = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation, reservationId }) });
+      const prepared = await preparedResponse.json() as { token?: string; error?: string | { message?: string } };
+      if (!preparedResponse.ok) throw new Error(typeof prepared.error === 'string' ? prepared.error : prepared.error?.message ?? 'Approval could not be prepared.');
       if (!prepared.token) throw new Error('Approval could not be prepared.');
-      const verified = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: prepared.token }) }).then((response) => response.json()) as { approved?: boolean };
-      if (!verified.approved) throw new Error('Approval expired. Please try again.');
       window.sessionStorage.setItem(JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY, '1');
-      execute(pending.action);
+      execute({ ...pending.action, approvalToken: prepared.token });
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: 'Approved. Completing the payment now.' }]);
       setPending(null);
     } catch (error) {
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: error instanceof Error ? error.message : 'Approval failed.' }]);
     } finally {
+      approving.current = false;
       setWorking(false);
     }
   };
@@ -588,7 +691,7 @@ export default function Jamvanta() {
     void send(draft);
   };
 
-  const paymentAmount = money.format(Number(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search).get('fare')) || 0);
+  const paymentAmount = money.format(paymentAmountValue);
 
   return (
     <>
@@ -623,7 +726,7 @@ export default function Jamvanta() {
             {working ? <TypingIndicator variant="bare" className="jamvanta-typing" /> : null}
             {paymentChoices.length ? <div className="jamvanta-payment-choices" aria-label="Saved payment methods">{paymentChoices.map((choice) => <button type="button" key={choice.mode} onClick={() => choosePayment(choice)}><strong>{choice.label}</strong><span>{choice.detail}</span></button>)}<button type="button" onClick={() => void send(paymentFlow.current?.methodType === 'card' ? 'Add another card' : 'Add my own UPI ID')}><strong>Add your own</strong><span>{paymentFlow.current?.methodType === 'card' ? 'New card' : 'New UPI ID'}</span></button></div> : null}
           </div>
-          {pending ? <div className="jamvanta-approval"><div className="jamvanta-approval-summary"><div><small>PAYMENT APPROVAL</small><strong>{pending.action.type === 'pay_with_method' ? pending.action.label : 'RailSetu Wallet'}</strong></div><b>{paymentAmount}</b></div><div className="jamvanta-approval-actions"><button type="button" onClick={() => setPending(null)}>Cancel</button><button type="button" className="is-primary" aria-label={pending.label} onClick={() => void approve()}>Approve</button></div></div> : null}
+          {pending ? <div className="jamvanta-approval"><div className="jamvanta-approval-summary"><div><small>PAYMENT APPROVAL</small><strong>{pending.action.type === 'pay_with_method' ? pending.action.label : 'RailSetu Wallet'}</strong></div><b>{paymentAmount}</b></div><div className="jamvanta-approval-actions"><button type="button" onClick={() => setPending(null)} disabled={working}>Cancel</button><button type="button" className="is-primary" aria-label={pending.label} onClick={() => void approve()} disabled={working}>Approve</button></div></div> : null}
           <form onSubmit={submit}>
             <input value={draft} onChange={(event) => setDraft(plainText(event.target.value))} maxLength={800} placeholder="Tell Jamvanta what to do…" aria-label="Message Jamvanta" />
             <button type="submit" disabled={!draft.trim() || working} aria-label="Send to Jamvanta">↑</button>
