@@ -567,7 +567,8 @@ export default function Jamvanta() {
       const amount = Number(new URLSearchParams(window.location.search).get('fare')) || 0;
       if (pending.action.type === 'pay_with_wallet' && getWalletBalance() < amount) throw new Error('Your RailSetu Wallet balance is too low for this fare. Add money or choose another payment method.');
       const operation = pending.action.type === 'pay_with_wallet' ? 'wallet-payment' : `payment-${pending.action.mode}`;
-      const prepared = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation, amount }) }).then((response) => response.json()) as { token?: string };
+      const reservationId = new URLSearchParams(window.location.search).get('reservation');
+      const prepared = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation, amount, reservationId }) }).then((response) => response.json()) as { token?: string };
       if (!prepared.token) throw new Error('Approval could not be prepared.');
       const verified = await fetch('/api/jamvanta/approval', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: prepared.token }) }).then((response) => response.json()) as { approved?: boolean };
       if (!verified.approved) throw new Error('Approval expired. Please try again.');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { addWalletTransaction, readWallet, WALLET_EVENT, type WalletTransaction } from '../lib/wallet';
+import { type WalletTransaction } from '../lib/wallet';
 
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 const dateTime = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -10,32 +10,29 @@ export default function RailSetuWallet({ isOpen, onClose }: { isOpen: boolean; o
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [addingMoney, setAddingMoney] = useState(false);
   const [amount, setAmount] = useState('500');
-  const refresh = useCallback(() => setTransactions(readWallet()), []);
+  const [balance, setBalance] = useState(0);
+  const refresh = useCallback(() => { fetch('/api/wallet').then((response) => response.json()).then((data) => { setBalance(Number(data.balance) || 0); setTransactions(Array.isArray(data.transactions) ? data.transactions : []); }).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!isOpen) return;
-    refresh();
+    const refreshTimer = window.setTimeout(refresh, 0);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
-    window.addEventListener('storage', refresh);
-    window.addEventListener(WALLET_EVENT, refresh);
     document.addEventListener('keydown', escape);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener('storage', refresh);
-      window.removeEventListener(WALLET_EVENT, refresh);
+      window.clearTimeout(refreshTimer);
       document.removeEventListener('keydown', escape);
     };
   }, [isOpen, onClose, refresh]);
 
   if (!isOpen) return null;
-  const balance = transactions.reduce((sum, item) => sum + item.amount, 0);
-
-  const addMockMoney = () => {
+  const addMockMoney = async () => {
     const value = Math.round(Number(amount));
     if (!Number.isFinite(value) || value < 1 || value > 10000) return;
-    addWalletTransaction({ id: `topup-${window.crypto.randomUUID()}`, amount: value, label: 'Mock wallet top-up', createdAt: Date.now() });
+    await fetch('/api/wallet', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ amount: value, idempotencyKey: crypto.randomUUID() }) });
+    refresh();
     setAddingMoney(false);
   };
 

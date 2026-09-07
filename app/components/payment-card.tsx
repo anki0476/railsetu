@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OTPField, OTPFieldInput } from './ui/otp-field';
-import { addWalletTransaction, getWalletBalance, WALLET_EVENT } from '../lib/wallet';
 import { dispatchJamvantaFeedback, JAMVANTA_ACTION_EVENT, type JamvantaAction } from '../lib/jamvanta';
 import { plainText } from '../lib/plain-text';
 import { addTransaction } from '../lib/transactions';
@@ -15,6 +14,7 @@ type OTPState = 'hidden' | 'filling' | 'verified';
 type CardScanState = 'idle' | 'choosing' | 'filled';
 type AddedCard = { id: string; last4: string; holder: string; expiry: string; mark: string; saved: boolean };
 type CardDraft = { number: string; holder: string; expiry: string; cvv: string; save: boolean };
+type ReservationData = { reservationId: string; state: string; expiresAt: number; itineraryHash: string; itinerary: { fare: number; train: string; from: string; fromName: string; to: string; toName: string; date: string; travelClass: string; comfort: number; profile: string; party: string; passengerCount: number; legs: string } };
 
 const OTP_LENGTH = 6;
 const OTP_VALUE = '675624';
@@ -31,6 +31,10 @@ const modes: Array<{ id: PaymentMode; label: string; detail: string; mark: strin
 
 export default function PaymentCard({ initialSearch }: { initialSearch: string }) {
   const params = useMemo(() => new URLSearchParams(initialSearch), [initialSearch]);
+  const reservationId = params.get('reservation') ?? '';
+  const [reservation, setReservation] = useState<ReservationData | null>(null);
+  const [reservationError, setReservationError] = useState(() => /^res_[a-f0-9]{32}$/.test(reservationId) ? '' : 'This payment link does not contain a valid seat hold.');
+  const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [selectedMode, setSelectedMode] = useState<PaymentMode>('upi');
   const [walletBalance, setWalletBalance] = useState(0);
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
@@ -57,21 +61,34 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
   const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const otpTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const cardNumberInput = useRef<HTMLInputElement>(null);
-  const fareValue = Number(params.get('fare'));
-  const fare = Number.isFinite(fareValue) && fareValue > 0 ? fareValue : 1440;
-  const train = params.get('train') ?? '12310 · Magadh Express';
-  const from = params.get('from') ?? 'NDLS';
-  const to = params.get('to') ?? 'PNBE';
-  const journeyDate = params.get('date') ?? '';
+  const fare = reservation?.itinerary.fare ?? 0;
+  const train = reservation?.itinerary.train ?? 'Loading held journey…';
+  const from = reservation?.itinerary.from ?? '—';
+  const to = reservation?.itinerary.to ?? '—';
+  const journeyDate = reservation?.itinerary.date ?? '';
   const ticketReference = `RS-${train.split('·')[0].trim()}-${from}${to}-${journeyDate.replaceAll('-', '')}`;
 
   useEffect(() => {
-    const refreshWallet = () => setWalletBalance(getWalletBalance());
-    refreshWallet();
-    window.addEventListener('storage', refreshWallet);
-    window.addEventListener(WALLET_EVENT, refreshWallet);
-    return () => { window.removeEventListener('storage', refreshWallet); window.removeEventListener(WALLET_EVENT, refreshWallet); };
-  }, []);
+    if (!/^res_[a-f0-9]{32}$/.test(reservationId)) return;
+    const controller = new AbortController();
+    Promise.all([
+      fetch(`/api/reservations/${reservationId}`, { signal: controller.signal }).then((response) => response.json().then((data) => ({ response, data }))),
+      fetch('/api/wallet', { signal: controller.signal }).then((response) => response.json()),
+    ]).then(([held, wallet]) => {
+      if (!held.response.ok) throw new Error(held.data?.error?.message ?? 'This seat hold is unavailable.');
+      setReservation(held.data as ReservationData);
+      setWalletBalance(Number(wallet.balance) || 0);
+    }).catch((error) => { if (error instanceof Error && error.name !== 'AbortError') setReservationError(error.message); });
+    return () => controller.abort();
+  }, [reservationId]);
+
+  useEffect(() => {
+    if (!reservation) return;
+    const update = () => setSecondsRemaining(Math.max(0, Math.ceil((reservation.expiresAt - Date.now()) / 1000)));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [reservation]);
 
   useEffect(() => () => {
     if (paymentTimer.current) clearTimeout(paymentTimer.current);
@@ -140,26 +157,32 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
     dispatchJamvantaFeedback(`Card ending ${card.last4} has been added and selected. Say “use card ending ${card.last4}” when you are ready to continue.`);
   };
 
-  const completePayment = useCallback((mode: PaymentMode) => {
-    if (paymentState !== 'idle') return;
-    if (mode === 'wallet') {
-      if (walletBalance < fare) return;
-      addWalletTransaction({ id: `payment-${ticketReference}`, amount: -fare, label: `Ticket · ${train}`, createdAt: Date.now(), reference: ticketReference });
-    } else {
-      const savedCard = addedCards.find((card) => card.id === mode);
-      const method = mode === 'upi' ? 'UPI · railsetu@upi' : mode === 'visa' ? 'Visa · •••• 6756' : mode === 'mastercard' ? 'Mastercard · •••• 4632' : savedCard ? `${savedCard.mark} · •••• ${savedCard.last4}` : 'Saved payment method';
-      addTransaction({ id: `payment-${ticketReference}`, kind: 'payment', amount: -fare, label: `Ticket · ${train}`, method, createdAt: Date.now(), reference: ticketReference });
-    }
+  const completePayment = useCallback(async (mode: PaymentMode) => {
+    if (paymentState !== 'idle' || !reservation || secondsRemaining <= 0) return;
+    if (mode === 'wallet' && walletBalance < fare) return;
     setPaymentState('processing');
-    paymentTimer.current = setTimeout(() => {
+    setReservationError('');
+    try {
+      const response = await fetch(`/api/reservations/${reservation.reservationId}/checkout`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ method: mode, idempotencyKey: crypto.randomUUID() }),
+      });
+      const result = await response.json() as { bookingId?: string; ticketToken?: string; error?: { message?: string } };
+      if (!response.ok || !result.bookingId || !result.ticketToken) throw new Error(result.error?.message ?? 'Payment could not be completed.');
+      const savedCard = addedCards.find((card) => card.id === mode);
+      const method = mode === 'wallet' ? 'RailSetu Wallet' : mode === 'upi' ? 'UPI · railsetu@upi' : mode === 'visa' ? 'Visa · •••• 6756' : mode === 'mastercard' ? 'Mastercard · •••• 4632' : savedCard ? `${savedCard.mark} · •••• ${savedCard.last4}` : 'Saved payment method';
+      addTransaction({ id: `payment-${ticketReference}`, kind: 'payment', amount: -fare, label: `Ticket · ${train}`, method, createdAt: Date.now(), reference: ticketReference });
       setPaymentState('done');
-      const ticketParams = new URLSearchParams(params.toString());
-      ticketParams.set('mode', mode);
       handoffTimer.current = setTimeout(() => {
-        window.location.assign(`/ticket?${ticketParams.toString()}`);
+        window.location.assign(`/ticket?booking=${encodeURIComponent(result.bookingId!)}&token=${encodeURIComponent(result.ticketToken!)}`);
       }, 850);
-    }, 1450);
-  }, [addedCards, fare, params, paymentState, ticketReference, train, walletBalance]);
+    } catch (error) {
+      setPaymentState('idle');
+      const message = error instanceof Error ? error.message : 'Payment could not be completed.';
+      setReservationError(message);
+      dispatchJamvantaFeedback(message);
+    }
+  }, [addedCards, fare, paymentState, reservation, secondsRemaining, ticketReference, train, walletBalance]);
 
   const beginOtpVerification = () => {
     setOtpValue('');
@@ -170,13 +193,13 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
     otpTimers.current.push(setTimeout(() => setOtpState('verified'), 350 + OTP_LENGTH * 220));
     otpTimers.current.push(setTimeout(() => {
       setOtpState('hidden');
-      completePayment(selectedMode);
+      void completePayment(selectedMode);
     }, 350 + OTP_LENGTH * 220 + 700));
   };
 
   const proceed = () => {
     if (paymentState !== 'idle') return;
-    if (selectedMode === 'upi' || selectedMode === 'wallet') completePayment(selectedMode);
+    if (selectedMode === 'upi' || selectedMode === 'wallet') void completePayment(selectedMode);
     else beginOtpVerification();
   };
 
@@ -186,7 +209,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
       if (action.type === 'select_wallet') setSelectedMode('wallet');
       if (action.type === 'pay_with_wallet') {
         setSelectedMode('wallet');
-        completePayment('wallet');
+        void completePayment('wallet');
       }
       if (action.type === 'pay_with_method') {
         const requestedMode = action.mode.startsWith('card-')
@@ -194,7 +217,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
           : action.mode;
         if (!requestedMode) return;
         setSelectedMode(requestedMode);
-        completePayment(requestedMode);
+        void completePayment(requestedMode);
       }
       if (action.type === 'add_payment_method' && action.methodType === 'card') setCardDialogOpen(true);
     };
@@ -220,6 +243,10 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
         <strong>{from} <i>→</i> {to}</strong>
         <small>{train}</small>
       </div>
+      <p className={`payment-hold-status ${secondsRemaining <= 0 ? 'is-expired' : ''}`} role="status">
+        {reservation ? (secondsRemaining > 0 ? `Seats held for ${String(Math.floor(secondsRemaining / 60)).padStart(2, '0')}:${String(secondsRemaining % 60).padStart(2, '0')}` : 'Seat hold expired · no charge was made') : 'Securing reservation details…'}
+      </p>
+      {reservationError ? <p className="payment-reservation-error" role="alert">{reservationError}</p> : null}
 
       <fieldset className="payment-modes">
         <legend>Payment mode</legend>
@@ -254,7 +281,7 @@ export default function PaymentCard({ initialSearch }: { initialSearch: string }
 
       <span className="tactile-wrap payment-proceed-wrap">
         <span className="tactile-base" aria-hidden="true" />
-        <button className={`tactile-cap payment-proceed glare-surface is-${paymentState}`} type="button" onClick={proceed} disabled={paymentState !== 'idle'}>
+        <button className={`tactile-cap payment-proceed glare-surface is-${paymentState}`} type="button" onClick={proceed} disabled={paymentState !== 'idle' || !reservation || secondsRemaining <= 0}>
           {paymentState === 'processing' ? <span className="payment-progress" aria-hidden="true" /> : null}
           <span>{paymentState === 'done' ? 'Payment Successful' : paymentState === 'processing' ? 'Processing…' : 'Proceed to pay'}</span>
           <i aria-hidden="true">{paymentState === 'done' ? '✓' : '→'}</i>

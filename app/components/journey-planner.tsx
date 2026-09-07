@@ -369,6 +369,8 @@ export default function JourneyPlanner() {
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('ready');
   const [mapOpen, setMapOpen] = useState(false);
   const [mapSolution, setMapSolution] = useState<JourneySolution | null>(null);
+  const [reservingSolutionId, setReservingSolutionId] = useState<string | null>(null);
+  const [reservationError, setReservationError] = useState('');
   const [passengerImportOpen, setPassengerImportOpen] = useState(false);
   const [importablePassengers, setImportablePassengers] = useState<ImportablePassenger[]>([]);
   const [selectedImportIds, setSelectedImportIds] = useState<string[]>([]);
@@ -702,32 +704,34 @@ export default function JourneyPlanner() {
     runSearch(nextSubmission);
   };
 
-  const continueToPayment = (solution: NonNullable<typeof best>, journey = submitted, jamvantaAutopilot = false) => {
-    const paymentParams = new URLSearchParams({
-      fare: String(solution.fare),
-      train: `${solution.trainNumber} · ${solution.trainName}`,
-      from: journey.from,
-      fromName: stationName(journey.from),
-      to: journey.to,
-      toName: stationName(journey.to),
-      date: journey.date,
-      class: journey.travelClass,
-      comfort: String(solution.comfort),
-      profile: submitted.profile,
-      party: solution.passengerJourneys.map((journey) => journey.passenger.name).join('|'),
-      passengerCount: String(solution.passengerJourneys.length),
-      legs: solution.legs.map((leg) => [
-        leg.from.code,
-        leg.from.time,
-        leg.to.code,
-        leg.to.time,
-        leg.coach,
-        leg.seat,
-        leg.berth,
-      ].join('~')).join('|'),
-    });
-    if (jamvantaAutopilot) paymentParams.set('jamvanta', '1');
-    window.location.assign(`/payment?${paymentParams.toString()}`);
+  const continueToPayment = async (solution: NonNullable<typeof best>, journey = submitted, jamvantaAutopilot = false) => {
+    if (reservingSolutionId) return;
+    setReservingSolutionId(solution.id);
+    setReservationError('');
+    try {
+      const response = await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: journeyQuery(journey), date: journey.date, solutionId: solution.id, idempotencyKey: crypto.randomUUID() }),
+      });
+      const result = await response.json() as { reservationId?: string; error?: { message?: string } };
+      if (!response.ok || !result.reservationId) {
+        const message = result.error?.message ?? 'This journey changed before it could be held. Please choose an updated option.';
+        setReservationError(message);
+        dispatchJamvantaFeedback(message);
+        if (response.status === 409) runSearch(journey);
+        return;
+      }
+      const paymentParams = new URLSearchParams({ reservation: result.reservationId });
+      if (jamvantaAutopilot) paymentParams.set('jamvanta', '1');
+      window.location.assign(`/payment?${paymentParams.toString()}`);
+    } catch {
+      const message = 'RailSetu could not hold those seats. Please try again.';
+      setReservationError(message);
+      dispatchJamvantaFeedback(message);
+    } finally {
+      setReservingSolutionId(null);
+    }
   };
 
   useEffect(() => {
@@ -1188,14 +1192,16 @@ export default function JourneyPlanner() {
                           className="tactile-cap glare-surface"
                           type="button"
                           onClick={() => continueToPayment(solution)}
+                          disabled={reservingSolutionId !== null}
                         >
-                          Continue <span>→</span>
+                          {reservingSolutionId === solution.id ? 'Holding seats…' : 'Continue'} <span>→</span>
                         </button>
                       </span>
                     </div>
                   </article>
                 );
               })}
+              {reservationError ? <p className="planner-reservation-error" role="alert">{reservationError}</p> : null}
             </div>
           </>
         ) : (

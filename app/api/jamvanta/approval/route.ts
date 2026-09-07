@@ -1,12 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ApiRequestError, apiError, enforceRateLimit, readJsonBody, requireSameOrigin, secureJson } from '../../../lib/api-security';
+import { database, readReservation, sessionFromRequest } from '../../../lib/reservation-store';
 
 const lifetime = 2 * 60 * 1000;
 const MAX_BODY_BYTES = 4_096;
 const MAX_TOKEN_LENGTH = 2_048;
-const MAX_USED_APPROVALS = 2_000;
 const allowedOperation = (value: string) => /^(?:wallet-payment|payment-(?:upi|visa|mastercard|card-[0-9]{4}))$/.test(value);
-const usedApprovals = new Map<string, number>();
 const secret = () => process.env.JAMVANTA_APPROVAL_SECRET ?? (process.env.NODE_ENV === 'development' ? 'jamvanta-local-development-only' : '');
 const sign = (payload: string) => createHmac('sha256', secret()).update(payload).digest('base64url');
 
@@ -18,7 +17,7 @@ export async function POST(request: Request) {
     if (!secret()) return secureJson({ error: 'Approval secret is not configured.' }, { status: 503 });
     const value = await readJsonBody(request, MAX_BODY_BYTES);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiRequestError(400, 'Invalid approval request.');
-    const body = value as { operation?: unknown; amount?: unknown; token?: unknown };
+    const body = value as { operation?: unknown; amount?: unknown; token?: unknown; reservationId?: unknown };
     if (typeof body.token === 'string') {
       if (body.token.length > MAX_TOKEN_LENGTH) throw new ApiRequestError(400, 'Invalid approval token.');
       const parts = body.token.split('.');
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
       const validSignature = signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
       if (!validSignature) return secureJson({ approved: false }, { status: 400 });
 
-      let data: { operation?: unknown; amount?: unknown; expires?: unknown; nonce?: unknown };
+      let data: { operation?: unknown; amount?: unknown; expires?: unknown; nonce?: unknown; reservationId?: unknown; itineraryHash?: unknown };
       try { data = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as typeof data; }
       catch { return secureJson({ approved: false }, { status: 400 }); }
       const validData = typeof data.expires === 'number'
@@ -40,21 +39,22 @@ export async function POST(request: Request) {
         && data.amount >= 0
         && data.amount <= 1_000_000;
       const now = Date.now();
-      for (const [nonce, expires] of usedApprovals) if (expires <= now) usedApprovals.delete(nonce);
-      if (!validData || data.expires! <= now || usedApprovals.has(data.nonce as string)) return secureJson({ approved: false }, { status: 400 });
-      usedApprovals.set(data.nonce as string, data.expires as number);
-      while (usedApprovals.size > MAX_USED_APPROVALS) {
-        const oldest = usedApprovals.keys().next().value as string | undefined;
-        if (!oldest) break;
-        usedApprovals.delete(oldest);
-      }
+      if (!validData || data.expires! <= now) return secureJson({ approved: false }, { status: 400 });
+      const consumed = await database().prepare(`UPDATE approval_nonces SET consumed_at=?1 WHERE nonce=?2 AND consumed_at IS NULL AND expires_at>?1 AND reservation_id=?3 AND amount=?4 AND itinerary_hash=?5`)
+        .bind(now, data.nonce, data.reservationId, data.amount, data.itineraryHash).run();
+      if (!consumed.meta.changes) return secureJson({ approved: false }, { status: 400 });
       return secureJson({ approved: true, data });
     }
 
     const operation = typeof body.operation === 'string' && allowedOperation(body.operation) ? body.operation : 'wallet-payment';
     const amount = Number(body.amount);
     if (!Number.isFinite(amount) || amount < 0 || amount > 1_000_000) throw new ApiRequestError(400, 'Invalid approval amount.');
-    const data = { operation, amount, expires: Date.now() + lifetime, nonce: crypto.randomUUID() };
+    if (typeof body.reservationId !== 'string') throw new ApiRequestError(400, 'A reservation is required for payment approval.');
+    const reservation = await readReservation(body.reservationId, sessionFromRequest(request));
+    if (!reservation || reservation.state !== 'HELD' || reservation.expires_at <= Date.now() || reservation.fare !== amount) throw new ApiRequestError(409, 'The seat hold is no longer valid.');
+    const data = { operation, amount, reservationId: reservation.id, itineraryHash: reservation.itinerary_hash, expires: Math.min(Date.now() + lifetime, reservation.expires_at), nonce: crypto.randomUUID() };
+    await database().prepare(`INSERT INTO approval_nonces(nonce,reservation_id,operation,amount,itinerary_hash,expires_at,consumed_at) VALUES(?1,?2,?3,?4,?5,?6,NULL)`)
+      .bind(data.nonce, data.reservationId, data.operation, data.amount, data.itineraryHash, data.expires).run();
     const encoded = Buffer.from(JSON.stringify(data)).toString('base64url');
     return secureJson({ token: `${encoded}.${sign(encoded)}`, expires: data.expires });
   } catch (error) {

@@ -1,4 +1,5 @@
-import { ticketPnr, ticketSchedule } from '../../lib/ticket-details';
+import { ticketSchedule } from '../../lib/ticket-details';
+import { database, sessionFromRequest, type StoredItinerary } from '../../lib/reservation-store';
 
 type TicketLeg = {
   from: string;
@@ -51,26 +52,35 @@ export async function GET(request: Request) {
     });
   }
   const { searchParams } = new URL(request.url);
-  const fare = boundedNumber(searchParams.get('fare'), 1440, 1, 1_000_000);
+  const bookingId = searchParams.get('booking') ?? '';
+  const token = searchParams.get('token') ?? '';
+  if (!/^book_[a-f0-9]{32}$/.test(bookingId) || !/^[a-f0-9]{64}$/.test(token)) return new Response('Ticket is unavailable.', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+  const row = await database().prepare(`SELECT b.pnr,p.method,o.itinerary_json FROM bookings b
+    JOIN reservations r ON r.id=b.reservation_id JOIN inventory_offers o ON o.id=r.offer_id JOIN payments p ON p.reservation_id=r.id
+    WHERE b.id=?1 AND b.ticket_token=?2 AND b.state='TICKET_ISSUED' AND r.session_id=?3`)
+    .bind(bookingId, token, sessionFromRequest(request)).first<{ pnr: string; method: string; itinerary_json: string }>();
+  if (!row) return new Response('Ticket has not been issued.', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+  const itinerary = JSON.parse(row.itinerary_json) as StoredItinerary;
+  const fare = boundedNumber(String(itinerary.fare), 1440, 1, 1_000_000);
   const fareLabel = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(fare);
-  const train = safe(searchParams.get('train'), '12310 · Magadh Express');
-  const from = stationCode(searchParams.get('from'), 'NDLS');
-  const fromName = safe(searchParams.get('fromName'), 'New Delhi');
-  const to = stationCode(searchParams.get('to'), 'PNBE');
-  const toName = safe(searchParams.get('toName'), 'Patna Junction');
-  const requestedDate = safe(searchParams.get('date'), '2026-08-30', 12);
+  const train = safe(itinerary.train, '12310 · Magadh Express');
+  const from = stationCode(itinerary.from, 'NDLS');
+  const fromName = safe(itinerary.fromName, 'New Delhi');
+  const to = stationCode(itinerary.to, 'PNBE');
+  const toName = safe(itinerary.toName, 'Patna Junction');
+  const requestedDate = safe(itinerary.date, '2026-08-30', 12);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : '2026-08-30';
-  const travelClass = safe(searchParams.get('class'), '3A', 8);
-  const comfort = String(Math.round(boundedNumber(searchParams.get('comfort'), 89, 0, 100)));
-  const requestedMode = safe(searchParams.get('mode'), 'UPI', 20).toUpperCase();
+  const travelClass = safe(itinerary.travelClass, '3A', 8);
+  const comfort = String(Math.round(boundedNumber(String(itinerary.comfort), 89, 0, 100)));
+  const requestedMode = safe(row.method, 'UPI', 80).toUpperCase();
   const mode = ['UPI', 'CARD', 'VISA', 'MASTERCARD'].includes(requestedMode) ? requestedMode : 'UPI';
-  const legs = parseLegs(searchParams.get('legs'));
+  const legs = parseLegs(itinerary.legs);
   const shownLegs = legs.length ? legs : [
     { from: 'NDLS', departure: '20:10', to: 'CNB', arrival: '01:05', coach: 'B2', seat: '34', berth: 'LB' },
     { from: 'CNB', departure: '01:05', to: 'PNBE', arrival: '09:40', coach: 'B2', seat: '41', berth: 'SL' },
   ];
   const ticketId = `RS-${train.split('·')[0].trim()}-${from}${to}-${date.replaceAll('-', '')}`;
-  const pnr = ticketPnr(ticketId);
+  const pnr = row.pnr;
   const schedule = ticketSchedule(date, shownLegs);
 
   const legMarkup = shownLegs.map((leg, index) => `

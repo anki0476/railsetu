@@ -72,7 +72,21 @@ function paymentLabel(mode: string) {
 }
 
 export default function ScrollExpandTicket() {
-  const params = useSearchParams();
+  const requestParams = useSearchParams();
+  const bookingId = requestParams.get('booking') ?? '';
+  const ticketToken = requestParams.get('token') ?? '';
+  const [bookingData, setBookingData] = useState<{ pnr: string; method: string; itinerary: { fare: number; train: string; from: string; fromName: string; to: string; toName: string; date: string; travelClass: string; comfort: number; profile: string; party: string; passengerCount: number; legs: string } } | null>(null);
+  const [bookingError, setBookingError] = useState(() => /^book_[a-f0-9]{32}$/.test(bookingId) && /^[a-f0-9]{64}$/.test(ticketToken) ? '' : 'This ticket link is invalid.');
+  const params = useMemo(() => {
+    const next = new URLSearchParams();
+    if (!bookingData) return next;
+    const itinerary = bookingData.itinerary;
+    next.set('fare', String(itinerary.fare)); next.set('train', itinerary.train); next.set('from', itinerary.from); next.set('fromName', itinerary.fromName);
+    next.set('to', itinerary.to); next.set('toName', itinerary.toName); next.set('date', itinerary.date); next.set('class', itinerary.travelClass);
+    next.set('comfort', String(itinerary.comfort)); next.set('profile', itinerary.profile); next.set('party', itinerary.party);
+    next.set('passengerCount', String(itinerary.passengerCount)); next.set('legs', itinerary.legs); next.set('mode', bookingData.method);
+    return next;
+  }, [bookingData]);
   const [ticketLoadPhase, setTicketLoadPhase] = useState<'loading' | 'revealing' | 'ready'>('loading');
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -109,17 +123,10 @@ export default function ScrollExpandTicket() {
     { from: 'NDLS', departure: '20:10', to: 'CNB', arrival: '01:05', coach: 'B2', seat: '34', berth: 'LB' },
     { from: 'CNB', departure: '01:05', to: 'PNBE', arrival: '09:40', coach: 'B2', seat: '41', berth: 'SL' },
   ], [legs]);
-  const schedule = useMemo(() => ticketSchedule(date, shownLegs), [date, shownLegs]);
-  const pnr = ticketPnr(ticketId);
+  const schedule = ticketSchedule(date, shownLegs);
+  const pnr = bookingData?.pnr ?? ticketPnr(ticketId);
 
-  const downloadParams = useMemo(() => {
-    const next = new URLSearchParams();
-    ['fare', 'train', 'from', 'fromName', 'to', 'toName', 'date', 'class', 'comfort', 'profile', 'party', 'passengerCount', 'mode', 'legs', 'status'].forEach((key) => {
-      const value = params.get(key);
-      if (value) next.set(key, value);
-    });
-    return next.toString();
-  }, [params]);
+  const downloadParams = useMemo(() => new URLSearchParams({ booking: bookingId, token: ticketToken }).toString(), [bookingId, ticketToken]);
   const downloadPath = `/api/ticket?${downloadParams}`;
   const qrValue = `${canonicalOrigin}${downloadPath}`;
 
@@ -144,6 +151,16 @@ export default function ScrollExpandTicket() {
       window.prompt('Copy your RailSetu ticket link', url);
     }
   }
+
+  useEffect(() => {
+    if (!/^book_[a-f0-9]{32}$/.test(bookingId) || !/^[a-f0-9]{64}$/.test(ticketToken)) return;
+    const controller = new AbortController();
+    fetch(`/api/bookings/${bookingId}?token=${encodeURIComponent(ticketToken)}`, { signal: controller.signal })
+      .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data?.error?.message ?? 'Ticket is unavailable.'); return data; })
+      .then(setBookingData)
+      .catch((error) => { if (error instanceof Error && error.name !== 'AbortError') setBookingError(error.message); });
+    return () => controller.abort();
+  }, [bookingId, ticketToken]);
 
   useEffect(() => {
     const handleJamvanta = (event: Event) => {
@@ -177,6 +194,7 @@ export default function ScrollExpandTicket() {
   }, [date, downloadParams, fare, from, fromName, ticketId, ticketLoadPhase, to, toName, train]);
 
   useLayoutEffect(() => {
+    if (!bookingData) return;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const revealAfter = reducedMotion ? 450 : 2350;
     const finishAfter = reducedMotion ? 650 : 2950;
@@ -198,7 +216,7 @@ export default function ScrollExpandTicket() {
       document.body.style.overflow = previousOverflow;
       document.documentElement.classList.remove('railsetu-ticket-loading');
     };
-  }, []);
+  }, [bookingData]);
 
   const applyProgress = useCallback((progress: number) => {
     const stage = stageRef.current;
@@ -305,6 +323,7 @@ export default function ScrollExpandTicket() {
 
   return (
     <div ref={rootRef} className="ticket-scroll-expand">
+      {bookingError ? <p className="ticket-booking-error" role="alert">{bookingError} <a href="/planner">Return to journey planner</a></p> : null}
       <div ref={trackRef} className="ticket-scroll-track">
         <div ref={stageRef} className="ticket-scroll-stage">
           <span className="ticket-reveal-ambient ticket-reveal-ambient-one" aria-hidden="true" />
