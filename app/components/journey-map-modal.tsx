@@ -34,7 +34,11 @@ type GoogleMapsApi = {
 };
 
 declare global {
-  interface Window { google?: { maps: GoogleMapsApi }; __railsetuGoogleMapsPromise?: Promise<GoogleMapsApi> }
+  interface Window {
+    google?: { maps: GoogleMapsApi };
+    __railsetuGoogleMapsPromise?: Promise<GoogleMapsApi>;
+    __railsetuGoogleMapsReady?: () => void;
+  }
 }
 
 const GOOGLE_MAPS_SCRIPT_ID = 'railsetu-google-maps';
@@ -45,21 +49,35 @@ function loadGoogleMaps(apiKey: string) {
   window.__railsetuGoogleMapsPromise = new Promise<GoogleMapsApi>((resolve, reject) => {
     const existing = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
     const script = existing ?? document.createElement('script');
-    const timeout = window.setTimeout(() => reject(new Error('Google Maps timed out.')), 12000);
-    script.addEventListener('load', () => {
+    let readinessTimer: number | undefined;
+    const finish = () => {
+      if (!window.google?.maps) return false;
       window.clearTimeout(timeout);
-      if (window.google?.maps) resolve(window.google.maps);
-      else reject(new Error('Google Maps did not initialise.'));
+      if (readinessTimer) window.clearInterval(readinessTimer);
+      resolve(window.google.maps);
+      return true;
+    };
+    const timeout = window.setTimeout(() => {
+      if (readinessTimer) window.clearInterval(readinessTimer);
+      reject(new Error('Google Maps timed out.'));
+    }, 12000);
+    window.__railsetuGoogleMapsReady = () => { finish(); };
+    script.addEventListener('load', () => {
+      if (finish()) return;
+      readinessTimer = window.setInterval(finish, 50);
     }, { once: true });
     script.addEventListener('error', () => {
       window.clearTimeout(timeout);
+      if (readinessTimer) window.clearInterval(readinessTimer);
       reject(new Error('Google Maps could not be loaded.'));
     }, { once: true });
     if (!existing) {
       script.id = GOOGLE_MAPS_SCRIPT_ID;
       script.async = true;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async&callback=__railsetuGoogleMapsReady`;
       document.head.appendChild(script);
+    } else if (!finish()) {
+      readinessTimer = window.setInterval(finish, 50);
     }
   }).catch((error) => {
     window.__railsetuGoogleMapsPromise = undefined;
@@ -100,7 +118,22 @@ function GoogleRouteMap({ points, solution, onFailure }: { points: MapPoint[]; s
     if (!canvas || !apiKey) { onFailure(); return; }
     let disposed = false;
     const cleanups: Array<() => void> = [];
-    loadGoogleMaps(apiKey).then((maps) => {
+    const initialise = async () => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          return await loadGoogleMaps(apiKey);
+        } catch (error) {
+          lastError = error;
+          if (disposed || attempt === 1) break;
+          document.getElementById(GOOGLE_MAPS_SCRIPT_ID)?.remove();
+          window.__railsetuGoogleMapsPromise = undefined;
+          await new Promise((resolve) => window.setTimeout(resolve, 250));
+        }
+      }
+      throw lastError;
+    };
+    initialise().then((maps) => {
       if (disposed) return;
       const dark = document.documentElement.classList.contains('railsetu-dark');
       const map = new maps.Map(canvas, {
