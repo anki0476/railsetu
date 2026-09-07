@@ -909,22 +909,23 @@ html.railsetu-hindi body { font-family:var(--font-geist),"Noto Sans Devanagari",
 
 .jamvanta-edge[data-beam] {
   position: absolute;
-  inset: 4px;
+  inset: 3px;
   width: auto;
   height: auto;
   --beam-hue-base: 7deg;
-  --beam-stroke-opacity: 1.35;
-  --beam-inner-opacity: 1;
-  --beam-bloom-opacity: 1;
-  filter: drop-shadow(0 0 9px rgba(82, 112, 255, .9));
+  --beam-stroke-opacity: 1.8;
+  --beam-inner-opacity: 1.45;
+  --beam-bloom-opacity: 1.35;
+  filter: drop-shadow(0 0 7px rgba(82, 112, 255, 1)) drop-shadow(0 0 15px rgba(126, 86, 255, .78));
 }
 
 .jamvanta-edge-surface {
   width: 100%;
   height: 100%;
-  border: 1px solid rgba(86, 116, 226, .2);
+  border: 2px solid rgba(91, 124, 255, .4);
   border-radius: 18px;
   background: transparent;
+  box-shadow: inset 0 0 14px rgba(82, 112, 255, .2), 0 0 12px rgba(126, 86, 255, .22);
 }
 
 @property --jamvanta-beam-reveal { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
@@ -1030,7 +1031,7 @@ html:not(.railsetu-dark) .jamvanta-panel input { color:#111a34; }
 
 @media (max-width: 640px) {
   .jamvanta-edge-reveal { -webkit-mask-image:radial-gradient(circle at calc(100% - 48px) calc(100% - 48px),#000 0,#000 var(--jamvanta-beam-reveal),transparent calc(var(--jamvanta-beam-reveal) + 16%)); mask-image:radial-gradient(circle at calc(100% - 48px) calc(100% - 48px),#000 0,#000 var(--jamvanta-beam-reveal),transparent calc(var(--jamvanta-beam-reveal) + 16%)); }
-  .jamvanta-edge[data-beam] { inset:3px; border-radius:14px; }
+  .jamvanta-edge[data-beam] { inset:2px; border-radius:14px; }
   .jamvanta-edge-surface { border-radius:14px; }
   .jamvanta-orb { right:14px; bottom:max(14px,env(safe-area-inset-bottom)); min-height:68px; padding:2px; border-radius:50%; }
   .jamvanta-orb span { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }

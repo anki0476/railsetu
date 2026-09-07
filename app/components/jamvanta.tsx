@@ -594,12 +594,12 @@ export default function Jamvanta() {
         <BorderBeam
           active={listening}
           borderRadius={18}
-          brightness={1.65}
+          brightness={2.15}
           className="jamvanta-edge"
           colorVariant="ocean"
           duration={2.65}
           hueRange={16}
-          saturation={1.5}
+          saturation={1.8}
           size="md"
           strength={1}
           theme={dark ? 'dark' : 'light'}
