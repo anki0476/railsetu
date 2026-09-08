@@ -30,6 +30,35 @@ function stationIn(fragment: string) {
   return stationAliases.find(({ alias }) => normalized.includes(` ${alias} `))?.code;
 }
 
+function stationsFromRoutePhrase(value: string) {
+  const normalized = normalizePhrase(value);
+  const match = normalized.match(/(?:^|\s)from\s+(.+?)\s+to\s+(.+?)(?=\s+(?:on|for|with|in|by|travelling|traveling)\b|$)/i);
+  if (!match) return {};
+  return { from: stationIn(match[1]), to: stationIn(match[2]) };
+}
+
+function reconcileStationMemory(memory: JamvantaMemory, transcript: string, context: AgentContext, history: ConversationMessage[]) {
+  // Prefer the current utterance and the parallel browser recognizer. Only use
+  // older user turns to restore a missing value, never to overwrite a correction.
+  const currentCandidates = [transcript, ...context.alternateTranscripts];
+  for (const candidate of currentCandidates) {
+    const route = stationsFromRoutePhrase(candidate);
+    if (route.from && route.to && route.from !== route.to) {
+      memory.journey.from = route.from;
+      memory.journey.to = route.to;
+      return;
+    }
+  }
+  const priorCandidates = history.filter((message) => message.role === 'user').map((message) => message.text).reverse();
+  for (const candidate of priorCandidates) {
+    const route = stationsFromRoutePhrase(candidate);
+    if (!route.from || !route.to || route.from === route.to) continue;
+    memory.journey.from ??= route.from;
+    memory.journey.to ??= route.to;
+    if (memory.journey.from && memory.journey.to) return;
+  }
+}
+
 function cleanMemory(value: unknown, pathname: string): JamvantaMemory {
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value as Partial<JamvantaMemory> : {};
   const journey = raw.journey && typeof raw.journey === 'object' ? raw.journey : {};
@@ -132,6 +161,35 @@ function languageFor(reply: string, spokenLanguage: string): JamvantaTurn['langu
   return /[\u0900-\u097f]/.test(reply) || spokenLanguage === 'hi-IN' ? 'hi-IN' : 'en-IN';
 }
 
+function firstPersonReply(value: string) {
+  const normalized = value
+    .replace(/^Jamvanta\s+(?:could not|couldn't)\b/i, "I couldn't")
+    .replace(/^User\s+(?:asked|wants|would like)(?:\s+me)?\s+to\s+/i, 'I’ll ')
+    .replace(/\bJamvanta\b/gi, 'I')
+    .replace(/\bI is\b/g, 'I am')
+    .replace(/\bI has\b/g, 'I have')
+    .replace(/\bI does\b/g, 'I do');
+  return /\b(?:I|me|my)\b/i.test(normalized) ? normalized : `I understand. ${normalized}`;
+}
+
+function clarificationTurn(memory: JamvantaMemory, pathname: string, spokenLanguage: string, detail?: string): JamvantaTurn {
+  const language = spokenLanguage === 'hi-IN' ? 'hi-IN' : 'en-IN';
+  const missing = missingJourneyField(memory);
+  if (pathname === '/planner' && missing) {
+    const reply = language === 'hi-IN' ? `मुझे अभी ${missing} चाहिए। बाकी जानकारी मुझे याद है।` : `I still need the ${missing}. I have kept everything else you already told me.`;
+    return { reply, language, memory, action: journeyAction(memory, false), clarification: true };
+  }
+  const preferences = missingPreferences(memory);
+  if (pathname === '/planner' && preferences.length) {
+    const reply = language === 'hi-IN'
+      ? 'मुझे अभी यात्री का प्रकार, सामान, कोच बदलना, अधिकतम सीट बदलाव और लोअर बर्थ की पसंद चाहिए। आप recommended defaults भी चुन सकते हैं।'
+      : `I still need your ${preferences.join(', ')}. You can answer together or say “use recommended defaults”.`;
+    return { reply, language, memory, action: journeyAction(memory, false), clarification: true };
+  }
+  const reason = detail ? ` (${plainText(detail, 120)})` : '';
+  return { reply: `I couldn't safely apply that instruction${reason}. Please tell me what you want me to do next.`, language, memory, clarification: true };
+}
+
 function mergeJourney(memory: JamvantaMemory, args: Record<string, unknown>) {
   const from = stationIn(String(args.from ?? ''));
   const to = stationIn(String(args.to ?? ''));
@@ -139,7 +197,7 @@ function mergeJourney(memory: JamvantaMemory, args: Record<string, unknown>) {
   const requestedClass = String(args.travel_class ?? '').toUpperCase();
   const strategy = String(args.selection_strategy ?? '') as JamvantaSelectionStrategy;
   const index = Number(args.option_index);
-  const maxChanges = Number(args.max_changes);
+  const maxChanges = typeof args.max_changes === 'number' ? args.max_changes : Number.NaN;
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   memory.journey = {
     ...memory.journey,
@@ -161,7 +219,7 @@ function mergeJourney(memory: JamvantaMemory, args: Record<string, unknown>) {
 
 function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string, spokenLanguage: string, context: AgentContext): JamvantaTurn {
   const args = call.arguments;
-  const reply = plainText(args.say, 360).trim();
+  const reply = firstPersonReply(plainText(args.say, 360).trim());
   if (!reply) throw new Error('The agent response was empty.');
   const language = languageFor(reply, spokenLanguage);
   const base = { reply, language, memory } satisfies Pick<JamvantaTurn, 'reply' | 'language' | 'memory'>;
@@ -177,8 +235,8 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
     if (!memory.journey.preferencesConfirmed || missingPreferenceFields.length) {
       memory.stage = 'preferences';
       const prompt = language === 'hi-IN'
-        ? 'खोजने से पहले यात्री का प्रकार, सामान, कोच बदलना, अधिकतम सीट बदलाव और लोअर बर्थ की पसंद बताइए। आप “recommended defaults” भी कह सकते हैं।'
-        : `Before I search, tell me your ${missingPreferenceFields.join(', ')}. You can answer them together, or say “use recommended defaults”.`;
+        ? 'खोज शुरू करने से पहले मुझे यात्री का प्रकार, सामान, कोच बदलना, अधिकतम सीट बदलाव और लोअर बर्थ की पसंद चाहिए। आप “recommended defaults” भी कह सकते हैं।'
+        : `I still need your ${missingPreferenceFields.join(', ')} before I search. You can answer them together, or say “use recommended defaults”.`;
       return { ...base, reply: prompt, action: journeyAction(memory, false), clarification: true };
     }
     memory.stage = 'searching';
@@ -243,8 +301,13 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
       'traveller type': Boolean(memory.journey.profile), luggage: Boolean(memory.journey.luggage), 'coach movement': Boolean(memory.journey.coachPreference),
       'maximum seat changes': typeof memory.journey.maxChanges === 'number', 'lower-berth preference': typeof memory.journey.lowerBerth === 'boolean',
     };
-    if (field && known[field]) throw new Error(`The ${field} is already present in memory; do not ask for it again.`);
-    if (pathname === '/planner' && !field && !missingJourneyField(memory) && missingPreferences(memory).length === 0) throw new Error('All planner details are already present; continue instead of asking again.');
+    if (field && known[field]) {
+      const actualMissing = missingJourneyField(memory);
+      if (actualMissing || missingPreferences(memory).length) return clarificationTurn(memory, pathname, spokenLanguage);
+      memory.stage = 'searching';
+      return { ...base, reply: language === 'hi-IN' ? 'मेरे पास आपकी सारी जानकारी है। मैं अभी खोज रहा हूँ।' : 'I have all your details. I’m searching now.', action: journeyAction(memory, true) };
+    }
+    if (pathname === '/planner' && !field) return clarificationTurn(memory, pathname, spokenLanguage);
     return { ...base, clarification: true };
   }
   throw new Error('The selected tool is not available.');
@@ -259,7 +322,7 @@ const tools = [
   { type: 'function', name: 'ask_user', description: 'Ask exactly one concise question only when information is genuinely missing or ambiguous.', parameters: { type: 'object', properties: { say: { type: 'string' }, missing_field: { type: ['string','null'] } }, required: ['say','missing_field'], additionalProperties: false }, strict: true },
 ] as const;
 
-const JAMVANTA_INSTRUCTIONS = `You are Jamvanta, RailSetu's voice-first autonomous railway booking agent and trusted journey guide. You are not a generic chatbot. Your purpose is to turn ordinary English, Hindi, or Hinglish speech into a confirmed RailSetu ticket with as little micromanagement as possible, normally within three or four user prompts.
+const JAMVANTA_INSTRUCTIONS = `You are Jamvanta, RailSetu's voice-first autonomous railway booking agent and trusted journey guide. You are not a generic chatbot. Your purpose is to turn ordinary English, Hindi, or Hinglish speech into a confirmed RailSetu ticket with as little micromanagement as possible, normally within three or four user prompts. Always speak in first person: say “I”, “me”, and “my”; never refer to yourself as “Jamvanta”.
 
 Your toolkit:
 - journey_planner understands and remembers stations, dates, passenger count, railway class and comfort preferences, fills the planner, searches, and continues autonomously when ready.
@@ -269,7 +332,7 @@ Your toolkit:
 - navigate moves only among allowed RailSetu pages.
 - ask_user asks one concise question only when a necessary fact is genuinely absent or ambiguous.
 
-Reason about every user turn before choosing exactly one tool. Treat validated persistent memory and page context as the source of truth. Copy every remembered journey value into journey_planner arguments unless the user explicitly corrects it. Never ask for information already present. Understand natural railway language rather than demanding exact UI wording: “third AC”, “3A”, “three AC”, “AC three tier”, and likely speech-recognition variants mean 3A; “second AC”, “2A”, “two AC” mean 2A; “first AC” means 1A; “executive” means EC; “chair car” means CC; “sleeper” means SL. Interpret equivalent Hindi and Hinglish naturally.
+Reason about every user turn before choosing exactly one tool. Every tool's say field is the exact sentence spoken to the user, so write it as a natural first-person response—not an internal summary such as “User asked…”. Treat validated persistent memory and page context as the source of truth. Copy every remembered journey value into journey_planner arguments unless the user explicitly corrects it. Never ask for information already present. If anything is genuinely missing or ambiguous, clearly name that exact gap and ask one direct question; never say only “no action was taken”. Compare the primary transcript, alternate transcripts, recent conversation, station hints, and memory before deciding. Treat a plausible station name from one recognizer as stronger evidence than an ordinary translated word from another. Understand natural railway language rather than demanding exact UI wording: “third AC”, “3A”, “three AC”, “AC three tier”, and likely speech-recognition variants mean 3A; “second AC”, “2A”, “two AC” mean 2A; “first AC” means 1A; “executive” means EC; “chair car” means CC; “sleeper” means SL. Interpret equivalent Hindi and Hinglish naturally.
 
 First collect departure, destination, date, class and passenger count. Then collect traveller type, luggage, coach movement, maximum seat changes and lower-berth preference together, or apply standard traveller, light luggage, same coach, one seat change and no lower-berth requirement when the user accepts recommended defaults. Set preferences_confirmed=true only when all five preferences were stated or defaults were accepted. Then search and continue automatically unless the user explicitly asks only to view results.
 
@@ -308,31 +371,32 @@ export async function POST(request: Request) {
     const requestedPath = String(body.pathname ?? '/').split('?')[0];
     const pathname = allowedPaths.has(requestedPath) ? requestedPath : '/';
     if (!transcript) return secureJson({ error: 'Transcript is required.' }, { status: 400 });
-    if (!process.env.OPENAI_API_KEY) return secureJson({ error: 'Jamvanta reasoning is temporarily unavailable. No action was taken.' }, { status: 503 });
+    if (!process.env.OPENAI_API_KEY) return secureJson({ error: 'I cannot reason through this request right now because my language model is unavailable. I kept your journey details; please try again shortly.' }, { status: 503 });
     const spokenLanguage = plainText(body.spokenLanguage, 12);
     const history = Array.isArray(body.history)
       ? body.history.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-24).map((message) => ({ role: message.role, text: plainText(message.text, 500) }))
       : [];
     const memory = cleanMemory(body.memory, pathname);
     const context = cleanAgentContext(body.agentContext);
-    const payload = { currentPage: pathname, primaryTranscript: transcript, alternateTranscripts: context.alternateTranscripts, persistentMemory: memory, recentConversation: history, pageContext: { paymentChoices: context.paymentChoices, paymentFlow: context.paymentFlow, suggestedAction: context.suggestedAction, paymentAmount: context.paymentAmount } };
+    reconcileStationMemory(memory, transcript, context, history);
+    const payload = { currentPage: pathname, primaryTranscript: transcript, alternateTranscripts: context.alternateTranscripts, stationCatalog: stationOptions, persistentMemory: memory, recentConversation: history, pageContext: { paymentChoices: context.paymentChoices, paymentFlow: context.paymentFlow, suggestedAction: context.suggestedAction, paymentAmount: context.paymentAmount } };
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8_500);
     try {
-      let call = await requestToolDecision(payload, controller.signal);
+      const call = await requestToolDecision(payload, controller.signal);
       try {
         return secureJson({ ...validatedTurn(call, memory, pathname, spokenLanguage, context), mode: 'openai-agent' });
       } catch (validationError) {
-        const correction = validationError instanceof Error ? validationError.message : 'Invalid tool decision.';
-        call = await requestToolDecision(payload, controller.signal, correction);
-        return secureJson({ ...validatedTurn(call, memory, pathname, spokenLanguage, context), mode: 'openai-agent' });
+        const detail = validationError instanceof Error ? validationError.message : 'Invalid tool decision.';
+        console.warn('[jamvanta-agent] decision guardrail supplied clarification', detail);
+        return secureJson({ ...clarificationTurn(memory, pathname, spokenLanguage, detail), mode: 'openai-agent' });
       }
     } finally {
       clearTimeout(timeout);
     }
   } catch (error) {
     console.warn('[jamvanta-agent] reasoned turn failed; no action executed', error instanceof Error ? error.message : 'unknown error');
-    if (error instanceof DOMException && error.name === 'AbortError') return secureJson({ error: 'Jamvanta took too long to reason through that request. No action was taken; please try once more.' }, { status: 504 });
-    return apiError(error, 'Jamvanta could not safely complete this turn. No action was taken.');
+    if (error instanceof DOMException && error.name === 'AbortError') return secureJson({ error: 'I took too long to reason through that request. I kept your journey details—please try that last instruction once more.' }, { status: 504 });
+    return apiError(error, 'I could not complete that request. I kept your journey details—please try the last instruction once more.');
   }
 }
