@@ -7,8 +7,67 @@ import TactileGlareLink from '../components/tactile-glare-link';
 
 export const metadata: Metadata = {
   title: 'Update documentation — RailSetu',
-  description: 'Measured performance and security improvements made to the RailSetu prototype.',
+  description: 'A documented record of RailSetu’s major features, product refinements, performance work and security controls.',
 };
+
+const majorUpdates = [
+  {
+    number: '01',
+    title: 'Jamvanta',
+    eyebrow: 'Hands-free booking agent',
+    summary: 'A bilingual voice agent that can carry a passenger’s intent from the first journey request to an issued, downloadable ticket.',
+    details: [
+      'GPT-5 Mini interprets English, Hindi and Hinglish requests, while structured tools—not free-form browser guesses—control the planner, journey comparison and payment gateway.',
+      'Session memory retains stations, date, class, passenger count, comfort preferences and payment progress across RailSetu pages.',
+      'Sarvam speech models improve Indian-language transcription and voice output, with continuous listening and a four-second silence window.',
+      'Every payment mode requires a fresh, visible approval. Jamvanta cannot reuse consent, change the approved amount or silently complete another transaction.',
+    ],
+    outcome: 'A complete booking can ordinarily move from spoken intent to ticket download in three or four passenger prompts.',
+  },
+  {
+    number: '02',
+    title: 'Race-safe reservation and payment',
+    eyebrow: 'Temporary soft-lock + payment reconciliation',
+    summary: 'A five-minute server-side hold prevents two passengers from paying for the same final seat at the same time.',
+    details: [
+      'The selected itinerary is rechecked and reserved atomically in shared storage before payment is offered.',
+      'Cards follow authorize → booking confirmation → capture. Failed bookings void the authorization before money is collected.',
+      'Immediately captured modes retain the seat hold and trigger automatic reconciliation and refund records if booking confirmation fails.',
+      'Idempotency keys, conditional state transitions and one-time approval nonces prevent duplicate charges, tickets and refunds.',
+    ],
+    outcome: 'The losing passenger receives refreshed availability before payment; a ticket and PNR appear only after the booking reaches TICKET_ISSUED.',
+  },
+  {
+    number: '03',
+    title: 'Multi-passenger planner',
+    eyebrow: 'Passenger-aware route intelligence',
+    summary: 'RailSetu now evaluates the journey for the whole travelling party instead of treating every booking as one generic passenger.',
+    details: [
+      'Up to six passengers can carry individual mobility profiles, luggage levels and lower-berth preferences.',
+      'Companion relationships and group travel strategies help keep people together or split them only when the journey remains safe.',
+      'Coach movement and maximum seat-change limits are applied before a route is recommended.',
+      'The comfort score ranks the complete party journey, including transitions, walking, berth suitability and seat continuity.',
+    ],
+    outcome: 'Recommendations explain the compromises for every passenger while preserving a single continuous itinerary.',
+  },
+];
+
+const minorUpdates = [
+  ['Polished animations', 'Purposeful motion now connects settings, payments, loading states and interactive icons, with reduced-motion support.'],
+  ['Ticket cancellation and refunds', 'Eligible journeys can be cancelled and the refund is calculated according to the applicable IRCTC policy represented in the booking flow.'],
+  ['Transaction History', 'Ticket payments, wallet activity, cancellations and refunds are recorded together, with a printable receipt for each transaction.'],
+  ['Login / Sign up', 'A dedicated passenger account flow provides a clear entry point for saved identity and travel preferences.'],
+  ['RailSetu Wallet', 'Passengers can view their balance, pay from the wallet and follow refunds without leaving the booking experience.'],
+  ['Optional cursor skin', 'The RailSetu cursor treatment can be enabled or disabled from More options without changing the rest of the interface.'],
+  ['Google Calendar sync', 'Journey details can be added to the passenger’s schedule as a calendar event with the relevant travel timing.'],
+  ['DigiLocker linking', 'A mock DigiLocker connection gives passenger profiles a clear path for verified travel-document linking.'],
+  ['Richer passenger profiles', 'Main and additional passenger profiles now capture travel preferences and the details needed for more accurate recommendations.'],
+  ['Sarvam voice dictation', 'Indian-language speech recognition and synthesis improve Hindi and bilingual dictation for Jamvanta.'],
+  ['Direct sharing', 'Passengers can share tickets and route maps directly from their respective journey surfaces.'],
+  ['Google Maps route view', 'The View on Map experience uses Google Maps with RailSetu segment lines, station markers and theme-aware presentation.'],
+  ['Passenger gender and age', 'Gender and age fields are available for the main passenger and every additional traveller.'],
+  ['Categorised ticket history', 'Ticket history is organised into All, Upcoming, Cancelled and Completed views for quicker retrieval.'],
+];
 
 const performanceMetrics = [
   ['Initial interface JavaScript', '238.5 KB', '20.1 KB', '91.6% less'],
@@ -45,6 +104,8 @@ const adversarialChecks = [
 
 const updateTopics = [
   { id: 'updates-introduction', title: 'Update documentation' },
+  { id: 'major-updates', title: 'Major updates' },
+  { id: 'minor-updates', title: 'Minor updates' },
   { id: 'performance', title: 'Performance audit' },
   { id: 'security', title: 'Security audit' },
   { id: 'updates-scope', title: 'Living document' },
@@ -71,10 +132,47 @@ export default function UpdatesPage() {
           <h1>Measured changes.<br /><span>Verifiable results.</span></h1>
         </div>
         <div className="updates-hero-note">
-          <span>Current record · 02 audits</span>
-          <p>A transparent record of how the prototype was tested, what changed, and where its boundaries remain.</p>
+          <span>Current record · 17 updates + 02 audits</span>
+          <p>A transparent record of what RailSetu can do, how the system changed, how it was tested and where its boundaries remain.</p>
         </div>
       </header>
+
+      <section className="updates-release-section updates-major" id="major-updates" aria-labelledby="major-updates-title">
+        <header className="updates-release-heading">
+          <p className="section-kicker">Major updates</p>
+          <h2 id="major-updates-title">The systems that changed<br /><span>what RailSetu can do.</span></h2>
+          <p>These are architectural additions: they reshape the booking journey, its safety model and the intelligence used for a travelling party.</p>
+        </header>
+        <div className="updates-major-list">
+          {majorUpdates.map((update) => (
+            <article key={update.number}>
+              <div className="updates-major-index"><span>{update.number}</span><p>{update.eyebrow}</p></div>
+              <div className="updates-major-copy">
+                <h3>{update.title}</h3>
+                <p className="updates-major-summary">{update.summary}</p>
+                <ul>{update.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
+                <div className="updates-outcome"><span>Result</span><p>{update.outcome}</p></div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="updates-release-section updates-minor" id="minor-updates" aria-labelledby="minor-updates-title">
+        <header className="updates-release-heading">
+          <p className="section-kicker">Minor updates</p>
+          <h2 id="minor-updates-title">Smaller additions.<br /><span>A more complete journey.</span></h2>
+          <p>Focused improvements across identity, accessibility, payments, journey management and everyday usability.</p>
+        </header>
+        <div className="updates-minor-grid">
+          {minorUpdates.map(([title, description], index) => (
+            <article key={title}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <div><h3>{title}</h3><p>{description}</p></div>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <section className="updates-audit" id="performance" aria-labelledby="performance-title">
         <header className="updates-audit-heading">
