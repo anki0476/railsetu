@@ -693,6 +693,8 @@ export default function JourneyPlanner() {
               {
                 type: 'plan_journey',
                 travelClass: recommendation.query.travelClass,
+                coachPreference: recommendation.query.coachPreference,
+                maxChanges: recommendation.query.maxChanges,
                 search: true,
                 autoContinue: true,
               },

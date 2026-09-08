@@ -98,6 +98,7 @@ function lowerBerthPreference(text: string) {
 function maximumChanges(text: string) {
   const lower = normalizePhrase(text);
   if (/no (?:seat )?changes?|direct only|बिना.*बदल/.test(lower)) return 0;
+  if (/any (?:number of )?(?:seat )?changes?|as many (?:seat )?changes?|changes? (?:do not|does not|don'?t) matter/.test(lower)) return 8;
   const numeric = lower.match(/(?:maximum|max|up to)\s*([0-8])\s*(?:seat )?changes?/);
   if (numeric) return Number(numeric[1]);
   if (/one (?:seat )?change/.test(lower)) return 1;
