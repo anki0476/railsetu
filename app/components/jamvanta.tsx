@@ -178,6 +178,7 @@ export default function Jamvanta() {
   const wantsListening = useRef(false);
   const recognitionRestartTimer = useRef<number | null>(null);
   const silenceTimer = useRef<number | null>(null);
+  const voiceWatchdogTimer = useRef<number | null>(null);
   const beginListeningRef = useRef<() => Promise<void>>(async () => undefined);
   const sending = useRef(false);
   const turnRequest = useRef<AbortController | null>(null);
@@ -501,10 +502,16 @@ export default function Jamvanta() {
     const history = messagesRef.current.slice(-24).map(({ role, text: messageText }) => ({ role, text: messageText }));
     updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
     let listenAfterReply = false;
+    let requestTimedOut = false;
+    let requestTimeout: number | null = null;
     try {
       const controller = new AbortController();
       turnRequest.current?.abort();
       turnRequest.current = controller;
+      requestTimeout = window.setTimeout(() => {
+        requestTimedOut = true;
+        controller.abort();
+      }, 12_000);
       const response = await fetch('/api/jamvanta/turn', {
         method: 'POST',
         signal: controller.signal,
@@ -530,10 +537,16 @@ export default function Jamvanta() {
       await speak(safeReply, turn.language, providers.sarvam);
       if (speechSequence.current !== sequence) listenAfterReply = false;
     } catch (error) {
-      if (interactionSequence.current !== turnSequence || (error instanceof DOMException && error.name === 'AbortError')) return;
-      const message = error instanceof Error ? error.message : 'Jamvanta is temporarily unavailable.';
+      if (interactionSequence.current !== turnSequence) return;
+      if (error instanceof DOMException && error.name === 'AbortError' && !requestTimedOut) return;
+      const message = requestTimedOut ? 'That took too long to process. I kept your journey details—please try that last instruction once more.' : error instanceof Error ? error.message : 'Jamvanta is temporarily unavailable.';
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
+      listenAfterReply = true;
+      const sequence = ++speechSequence.current;
+      await speak(message, 'en-IN', providers.sarvam);
+      if (speechSequence.current !== sequence) listenAfterReply = false;
     } finally {
+      if (requestTimeout !== null) window.clearTimeout(requestTimeout);
       if (interactionSequence.current !== turnSequence) return;
       turnRequest.current = null;
       sending.current = false;
@@ -554,19 +567,22 @@ export default function Jamvanta() {
     recognitionRestartTimer.current = null;
     if (audioMonitorTimer.current !== null) window.clearInterval(audioMonitorTimer.current);
     audioMonitorTimer.current = null;
+    if (voiceWatchdogTimer.current !== null) window.clearInterval(voiceWatchdogTimer.current);
+    voiceWatchdogTimer.current = null;
     void audioMonitorContext.current?.close().catch(() => undefined);
     audioMonitorContext.current = null;
     const activeRecognition = recognition.current;
     recognition.current = null;
     try { activeRecognition?.stop(); } catch { /* Recognition may already have ended between events. */ }
     const browserDraft = latestDraft.current.trim();
+    const hasRecording = recorder.current?.state === 'recording';
     if (browserDraft) {
       browserTranscriptSubmitted.current = true;
       void send(browserDraft);
     }
-    if (recorder.current?.state === 'recording') recorder.current.stop();
+    if (hasRecording) recorder.current?.stop();
     setListening(false);
-    setNotice('Processing what you said…');
+    setNotice(browserDraft || hasRecording ? 'Processing what you said…' : 'I didn’t catch that. Press to speak and try again.');
   }, [send]);
 
   const beginListening = useCallback(async () => {
@@ -642,6 +658,7 @@ export default function Jamvanta() {
             }
             const fallbackDraft = latestDraft.current;
             if (fallbackDraft.trim()) await send(fallbackDraft);
+            else setNotice('I didn’t catch that. Press to speak and try again.');
           };
           mediaRecorder.start();
         } else stream.getTracks().forEach((track) => track.stop());
@@ -671,6 +688,7 @@ export default function Jamvanta() {
         const base = recognitionBaseTranscript.current;
         const normalized = base && batch.toLowerCase().startsWith(base.toLowerCase()) ? batch : plainText([base, batch].filter(Boolean).join(' '));
         latestDraft.current = normalized;
+        lastVoiceAt.current = Date.now();
         if (transcriptUiTimer.current === null) {
           transcriptUiTimer.current = window.setTimeout(() => {
             transcriptUiTimer.current = null;
@@ -706,6 +724,11 @@ export default function Jamvanta() {
       setListening(true);
       setNotice('Listening in English, Hindi or Hinglish…');
       silenceTimer.current = window.setTimeout(() => stopListening(), 10_000);
+      voiceWatchdogTimer.current = window.setInterval(() => {
+        if (!wantsListening.current || interactionSequence.current !== listeningSequence) return;
+        const elapsed = Date.now() - lastVoiceAt.current;
+        if ((latestDraft.current.trim() && elapsed >= 4_250) || (!latestDraft.current.trim() && elapsed >= 12_000) || elapsed >= 60_000) stopListening();
+      }, 500);
     } catch {
       wantsListening.current = false;
       if (audioMonitorTimer.current !== null) window.clearInterval(audioMonitorTimer.current);
@@ -735,6 +758,8 @@ export default function Jamvanta() {
     transcriptUiTimer.current = null;
     if (audioMonitorTimer.current !== null) window.clearInterval(audioMonitorTimer.current);
     audioMonitorTimer.current = null;
+    if (voiceWatchdogTimer.current !== null) window.clearInterval(voiceWatchdogTimer.current);
+    voiceWatchdogTimer.current = null;
     const activeRecognition = recognition.current;
     recognition.current = null;
     if (activeRecognition) {

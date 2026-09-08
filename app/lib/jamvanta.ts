@@ -12,6 +12,7 @@ export type JamvantaMemory = {
     luggage?: 'none' | 'light' | 'heavy';
     lowerBerth?: boolean;
     maxChanges?: number;
+    preferencesConfirmed?: boolean;
     selectionStrategy?: JamvantaSelectionStrategy;
     optionIndex?: number;
   };
@@ -20,7 +21,7 @@ export type JamvantaMemory = {
     mode?: string;
     label?: string;
   };
-  stage: 'collecting' | 'searching' | 'selecting' | 'payment' | 'approval' | 'ticket';
+  stage: 'collecting' | 'preferences' | 'searching' | 'selecting' | 'payment' | 'approval' | 'ticket';
   lastPath: string;
 };
 

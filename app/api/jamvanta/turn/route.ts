@@ -47,10 +47,10 @@ function routeStations(text: string) {
 function travelClass(text: string) {
   const lower = normalizePhrase(text);
   if (/\b(?:ec|executive(?: chair car| class)?)\b/.test(lower)) return 'EC';
-  if (/\b(?:1a|first class ac|first ac|1st class ac|one tier ac)\b/.test(lower)) return '1A';
-  if (/\b(?:2a|2 tier ac|two tier ac|second tier ac)\b/.test(lower)) return '2A';
-  if (/\b(?:3e|3 tier ac economy|three tier ac economy|ac economy)\b/.test(lower)) return '3E';
-  if (/\b(?:3a|3 tier ac|three tier ac|third tier ac)\b/.test(lower)) return '3A';
+  if (/\b(?:1\s*a|first class ac|first ac|1st class ac|one (?:tier|tear) ac|ac (?:1|one) (?:tier|tear))\b/.test(lower)) return '1A';
+  if (/\b(?:2\s*a|2 (?:tier|tear) ac|two (?:tier|tear) ac|second (?:tier|tear) ac|ac (?:2|two) (?:tier|tear))\b/.test(lower)) return '2A';
+  if (/\b(?:3\s*e|3 (?:tier|tear) ac economy|three (?:tier|tear) ac economy|ac economy)\b/.test(lower)) return '3E';
+  if (/\b(?:3\s*a|3 (?:tier|tear) ac|three (?:tier|tear) ac|third (?:tier|tear) ac|ac (?:3|three) (?:tier|tear))\b/.test(lower)) return '3A';
   if (/\b(?:cc|ac chair car|chair car)\b/.test(lower)) return 'CC';
   if (/\b(?:sl|sleeper|sleeper class)\b/.test(lower)) return 'SL';
   return undefined;
@@ -160,9 +160,9 @@ function cleanMemory(value: unknown, pathname: string): JamvantaMemory {
   const strategy = selectionStrategies.has(journey.selectionStrategy as JamvantaSelectionStrategy) ? journey.selectionStrategy as JamvantaSelectionStrategy : undefined;
   const index = Number(journey.optionIndex);
   return {
-    journey: { from, to, date, passengerCount: Number.isInteger(count) && count >= 1 && count <= 6 ? count : undefined, travelClass: typeof journey.travelClass === 'string' && travelClasses.has(journey.travelClass) ? journey.travelClass : undefined, profile: journey.profile === 'standard' || journey.profile === 'elderly' || journey.profile === 'family' ? journey.profile : undefined, coachPreference: journey.coachPreference === 'same' || journey.coachPreference === 'nearby' || journey.coachPreference === 'any' ? journey.coachPreference : undefined, luggage: journey.luggage === 'none' || journey.luggage === 'light' || journey.luggage === 'heavy' ? journey.luggage : undefined, lowerBerth: typeof journey.lowerBerth === 'boolean' ? journey.lowerBerth : undefined, maxChanges: Number.isInteger(Number(journey.maxChanges)) && Number(journey.maxChanges) >= 0 && Number(journey.maxChanges) <= 8 ? Number(journey.maxChanges) : undefined, selectionStrategy: strategy, optionIndex: Number.isInteger(index) && index >= 1 && index <= 4 ? index : undefined },
+    journey: { from, to, date, passengerCount: Number.isInteger(count) && count >= 1 && count <= 6 ? count : undefined, travelClass: typeof journey.travelClass === 'string' && travelClasses.has(journey.travelClass) ? journey.travelClass : undefined, profile: journey.profile === 'standard' || journey.profile === 'elderly' || journey.profile === 'family' ? journey.profile : undefined, coachPreference: journey.coachPreference === 'same' || journey.coachPreference === 'nearby' || journey.coachPreference === 'any' ? journey.coachPreference : undefined, luggage: journey.luggage === 'none' || journey.luggage === 'light' || journey.luggage === 'heavy' ? journey.luggage : undefined, lowerBerth: typeof journey.lowerBerth === 'boolean' ? journey.lowerBerth : undefined, maxChanges: Number.isInteger(Number(journey.maxChanges)) && Number(journey.maxChanges) >= 0 && Number(journey.maxChanges) <= 8 ? Number(journey.maxChanges) : undefined, preferencesConfirmed: journey.preferencesConfirmed === true, selectionStrategy: strategy, optionIndex: Number.isInteger(index) && index >= 1 && index <= 4 ? index : undefined },
     payment: { methodType: payment.methodType === 'wallet' || payment.methodType === 'upi' || payment.methodType === 'card' ? payment.methodType : undefined, mode: typeof payment.mode === 'string' ? plainText(payment.mode, 80) : undefined, label: typeof payment.label === 'string' ? plainText(payment.label, 80) : undefined },
-    stage: raw.stage && ['collecting','searching','selecting','payment','approval','ticket'].includes(raw.stage) ? raw.stage : 'collecting',
+    stage: raw.stage && ['collecting','preferences','searching','selecting','payment','approval','ticket'].includes(raw.stage) ? raw.stage : 'collecting',
     lastPath: pathname,
   };
 }
@@ -179,7 +179,21 @@ function enrichMemory(memory: JamvantaMemory, transcript: string) {
   const luggage = luggageLevel(transcript);
   const lowerBerth = lowerBerthPreference(transcript);
   const maxChanges = maximumChanges(transcript);
-  memory.journey = { ...memory.journey, ...(route.from ? { from: route.from } : {}), ...(route.to ? { to: route.to } : {}), ...(date ? { date } : {}), ...(selectedClass ? { travelClass: selectedClass } : {}), ...(count ? { passengerCount: count } : {}), ...(profile ? { profile } : {}), ...(coach ? { coachPreference: coach } : {}), ...(luggage ? { luggage } : {}), ...(typeof lowerBerth === 'boolean' ? { lowerBerth } : {}), ...(typeof maxChanges === 'number' ? { maxChanges } : {}), ...(strategy ? { selectionStrategy: strategy } : {}), ...(index ? { optionIndex: index } : {}) };
+  const preferenceAnswer = Boolean(profile || coach || luggage || typeof lowerBerth === 'boolean' || typeof maxChanges === 'number');
+  const acceptsDefaults = /\b(?:(?:use|keep|go with)\s+(?:the )?)?(?:recommended|default|usual)(?:\s+(?:settings|preferences|options|defaults))?\b|\b(?:use|keep) (?:them|those)\b|\b(?:they|those) (?:are )?fine\b|\bno (?:special |specific )?preferences?\b|\byou (?:can )?(?:decide|choose)\b|\banything is fine\b/.test(normalizePhrase(transcript));
+  const confirmsPreferences = memory.stage === 'preferences' && (preferenceAnswer || acceptsDefaults);
+  memory.journey = { ...memory.journey, ...(route.from ? { from: route.from } : {}), ...(route.to ? { to: route.to } : {}), ...(date ? { date } : {}), ...(selectedClass ? { travelClass: selectedClass } : {}), ...(count ? { passengerCount: count } : {}), ...(profile ? { profile } : {}), ...(coach ? { coachPreference: coach } : {}), ...(luggage ? { luggage } : {}), ...(typeof lowerBerth === 'boolean' ? { lowerBerth } : {}), ...(typeof maxChanges === 'number' ? { maxChanges } : {}), ...(confirmsPreferences ? { preferencesConfirmed: true } : {}), ...(strategy ? { selectionStrategy: strategy } : {}), ...(index ? { optionIndex: index } : {}) };
+  if (confirmsPreferences) {
+    memory.journey = {
+      ...memory.journey,
+      profile: memory.journey.profile ?? 'elderly',
+      coachPreference: memory.journey.coachPreference ?? 'same',
+      luggage: memory.journey.luggage ?? 'light',
+      lowerBerth: memory.journey.lowerBerth ?? true,
+      maxChanges: memory.journey.maxChanges ?? 1,
+      preferencesConfirmed: true,
+    };
+  }
   return memory;
 }
 
@@ -195,6 +209,18 @@ function missingJourneyField(memory: JamvantaMemory) {
 function journeyAction(memory: JamvantaMemory, autoContinue: boolean): Extract<JamvantaAction, { type: 'plan_journey' }> {
   const missing = missingJourneyField(memory);
   return { type: 'plan_journey', ...memory.journey, search: !missing, autoContinue: !missing && autoContinue };
+}
+
+function preferenceQuestion(memory: JamvantaMemory, hindi: boolean) {
+  const missing: string[] = [];
+  if (!memory.journey.profile) missing.push('traveller type');
+  if (!memory.journey.luggage) missing.push('luggage');
+  if (!memory.journey.coachPreference) missing.push('coach movement');
+  if (typeof memory.journey.maxChanges !== 'number') missing.push('maximum seat changes');
+  if (typeof memory.journey.lowerBerth !== 'boolean') missing.push('lower-berth preference');
+  if (hindi) return 'खोजने से पहले अपनी यात्रा प्राथमिकताएँ बताइए—यात्री का प्रकार, सामान, कोच बदलना, अधिकतम सीट बदलाव और लोअर बर्थ। आप “recommended defaults” भी कह सकते हैं।';
+  if (!missing.length) return 'Before I search, should I use your saved traveller, luggage, coach-movement, seat-change and lower-berth preferences, or would you like to change them?';
+  return `Before I search, tell me your ${missing.join(', ')}. You can answer them together, or say “use recommended defaults”.`;
 }
 
 function localTurn(transcript: string, pathname: string, spokenLanguage: string, memory: JamvantaMemory): JamvantaTurn {
@@ -233,6 +259,10 @@ function localTurn(transcript: string, pathname: string, spokenLanguage: string,
     if (missing) {
       memory.stage = 'collecting';
       return finish(hindi ? `मुझे आपकी ${missing} की जानकारी चाहिए। कृपया बताइए।` : `I have the details you already shared. What is the ${missing}?`, journeyAction(memory, false), { clarification: true });
+    }
+    if (!memory.journey.preferencesConfirmed) {
+      memory.stage = 'preferences';
+      return finish(preferenceQuestion(memory, hindi), { type: 'plan_journey', ...memory.journey, search: false, autoContinue: false }, { clarification: true });
     }
     memory.stage = 'searching';
     return finish(hindi ? 'सारी जानकारी मिल गई। सबसे उपयुक्त यात्रा चुनकर भुगतान तक ले जा रहा हूँ।' : 'I have every detail. Finding the right journey and taking it to payment.', journeyAction(memory, true));
@@ -344,7 +374,7 @@ export async function POST(request: Request) {
         headers: { authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'content-type': 'application/json' },
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL ?? 'gpt-5-mini',
-          instructions: `You are Jamvanta, RailSetu's hands-free railway booking agent. Today in India is ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })}. Use exactly one provided tool every turn. Structured memory is authoritative: never ask again for any journey or comfort detail already present. Ask only one missing essential detail at a time. When all journey fields are present, use journey_planner with auto_continue=true unless the user explicitly wants only results. Use select_journey for highest comfort, cheapest, fastest, best, or an option number. On payment, list saved UPI/cards when only a category is given; select/pay only when a specific saved mode is named. Every payment method and every transaction requires a new explicit approval: never claim success, bypass approval, infer approval from conversation, or reuse approval. Use concise natural English, Hindi, or Hinglish. Never routinely mention prototype limitations. Say railway classes as executive chair car, AC chair car, 3 tier AC, 2 tier AC, first class AC, or sleeper class. You may control only supplied tools.`,
+          instructions: `You are Jamvanta, RailSetu's hands-free railway booking agent. Today in India is ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })}. Use exactly one provided tool every turn. Structured memory is authoritative: never ask again for any journey or comfort detail already present. Ask only one missing essential detail at a time. After the essentials, collect traveller type, luggage, coach movement, maximum seat changes and lower-berth preference in one concise preference question; the user may accept recommended defaults. Do not search until preferencesConfirmed is true. Then use journey_planner with auto_continue=true unless the user explicitly wants only results. Use select_journey for highest comfort, cheapest, fastest, best, or an option number. On payment, list saved UPI/cards when only a category is given; select/pay only when a specific saved mode is named. Every payment method and every transaction requires a new explicit approval: never claim success, bypass approval, infer approval from conversation, or reuse approval. Use concise natural English, Hindi, or Hinglish. Never routinely mention prototype limitations. Say railway classes as executive chair car, AC chair car, 3 tier AC, 2 tier AC, first class AC, or sleeper class. You may control only supplied tools.`,
           input: `Current page: ${pathname}\nPersistent session memory: ${JSON.stringify(memory)}\nRecent transcript:\n${history}\nuser: ${transcript}`,
           tools, tool_choice: 'required', parallel_tool_calls: false,
           reasoning: { effort: 'minimal' },
@@ -361,7 +391,7 @@ export async function POST(request: Request) {
       // A concrete payment request is never left to a probabilistic intent label.
       // The deterministic parser may only produce allow-listed actions, and the
       // approval route will bind its fresh nonce to the exact server-side charge.
-      const guarded = fallback.action?.type === 'plan_journey'
+      const guarded = fallback.action?.type === 'plan_journey' || fallback.clarification
         ? fallback
         : pathname === '/payment' && fallback.requiresApproval
           ? fallback
