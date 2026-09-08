@@ -33,17 +33,6 @@ let activeProviderAudio: HTMLAudioElement | null = null;
 let activeSpeechFinish: (() => void) | null = null;
 let activeSpeechRequest: AbortController | null = null;
 
-const affirmativeSuggestion = (value: string) => {
-  const normalized = value.toLowerCase().replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (/\b(no|nope|not|don'?t|cancel|nahi|nahin)\b|नहीं|नही/.test(normalized)) return false;
-  return /^(yes|yeah|yep|sure|ok(?:ay)?|continue|go ahead|do it|please do|haan|ha|हाँ|हां|ठीक है)\b/.test(normalized)
-    || /\b(apply|accept|allow|use|take|choose|proceed with)\b.*\b(change|changes|recommendation|recommended|option)\b/.test(normalized)
-    || /\b(any number|any amount|as many)\b.*\b(change|changes)\b/.test(normalized)
-    || /\b(that|this)\b.*\b(works|is fine|sounds good|option)\b/.test(normalized);
-};
-
-const negativeSuggestion = (value: string) => /^(no|nope|cancel|not now|nahi|nahin|नहीं|नही)\b/i.test(value.trim());
-
 function savedPaymentChoices(methodType: 'upi' | 'card') {
   const choices: PaymentChoice[] = methodType === 'upi'
     ? [{ mode: 'upi', label: 'RailSetu UPI', detail: 'railsetu@upi' }]
@@ -327,6 +316,18 @@ export default function Jamvanta() {
       setPaymentChoices(choices);
       return;
     }
+    if (action.type === 'add_payment_method') {
+      if (action.methodType === 'upi') {
+        const flow: PaymentFlow = { methodType: 'upi', choices: [], awaiting: 'custom-upi' };
+        paymentFlow.current = flow;
+        try { window.sessionStorage.setItem(JAMVANTA_PAYMENT_FLOW_KEY, JSON.stringify(flow)); } catch { /* In-memory flow still works. */ }
+        setPaymentChoices([]);
+        return;
+      }
+      paymentFlow.current = null;
+      try { window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY); } catch { /* In-memory flow is already cleared. */ }
+      setPaymentChoices([]);
+    }
     if (action.type === 'plan_journey') {
       memoryRef.current = {
         ...memoryRef.current,
@@ -403,97 +404,12 @@ export default function Jamvanta() {
     } catch { /* The in-memory session is still cleared. */ }
   }, [rememberSuggestion]);
 
-  const send = useCallback(async (text: string, spokenLanguage?: string) => {
+  const send = useCallback(async (text: string, spokenLanguage?: string, alternateTranscripts: string[] = []) => {
     const transcript = plainText(text).trim();
     if (!transcript || sending.current) return;
     const turnSequence = interactionSequence.current;
     const activePaymentFlow = paymentFlow.current;
-    if (activePaymentFlow) {
-      const normalized = transcript.toLowerCase();
-      const wantsAnother = /\b(add|new|another|my own|own)\b|नया|अपना/.test(normalized);
-      if (wantsAnother && activePaymentFlow.methodType === 'card') {
-        paymentFlow.current = null;
-        try { window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY); } catch { /* In-memory flow is already cleared. */ }
-        setPaymentChoices([]);
-        const reply = 'I opened the secure card form. Add the card there, then tell me to use it.';
-        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
-        execute({ type: 'add_payment_method', methodType: 'card' });
-        return;
-      }
-      if (wantsAnother && activePaymentFlow.methodType === 'upi') {
-        const nextFlow: PaymentFlow = { ...activePaymentFlow, awaiting: 'custom-upi' };
-        paymentFlow.current = nextFlow;
-        try { window.sessionStorage.setItem(JAMVANTA_PAYMENT_FLOW_KEY, JSON.stringify(nextFlow)); } catch { /* In-memory flow still works. */ }
-        setPaymentChoices([]);
-        const reply = 'Tell me the UPI ID you want to use.';
-        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
-        const sequence = ++speechSequence.current;
-        void speak(reply, 'en-IN', providers.sarvam).then(() => {
-          if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
-        });
-        return;
-      }
-      if (activePaymentFlow.awaiting === 'custom-upi') {
-        const spokenUpi = normalized.replace(/\s+at\s+/g, '@').replace(/\s+/g, '');
-        const upiId = spokenUpi.match(/[a-z0-9._-]{2,}@[a-z0-9.-]{2,}/)?.[0];
-        if (upiId) {
-          updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
-          choosePayment({ mode: `upi-${upiId}`, label: 'UPI', detail: upiId });
-          return;
-        }
-        const reply = 'I could not confirm that UPI ID. Please say it again, including the handle after “at”.';
-        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
-        const sequence = ++speechSequence.current;
-        void speak(reply, 'en-IN', providers.sarvam).then(() => {
-          if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
-        });
-        return;
-      }
-      const chosen = activePaymentFlow.choices.find((choice) => {
-        const lastFour = choice.detail.match(/\d{4}/)?.[0];
-        return (lastFour && normalized.includes(lastFour)) || normalized.includes(choice.label.toLowerCase()) || normalized.includes(choice.detail.toLowerCase());
-      }) ?? (activePaymentFlow.choices.length === 1 && /\b(yes|use it|use this|saved|continue|okay|ok)\b|हाँ|हां/.test(normalized) ? activePaymentFlow.choices[0] : undefined);
-      if (chosen) {
-        updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }]);
-        choosePayment(chosen);
-        return;
-      }
-      const reply = paymentChoicePrompt(activePaymentFlow.methodType, activePaymentFlow.choices);
-      updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: transcript }, { id: crypto.randomUUID(), role: 'assistant', text: reply }]);
-      const sequence = ++speechSequence.current;
-      void speak(reply, 'en-IN', providers.sarvam).then(() => {
-        if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
-      });
-      return;
-    }
     const suggestion = suggestedAction.current;
-    if (suggestion && affirmativeSuggestion(transcript)) {
-      rememberSuggestion(null);
-      setDraft('');
-      updateMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'user', text: transcript },
-        { id: crypto.randomUUID(), role: 'assistant', text: 'Okay, I’ll continue with that option.' },
-      ]);
-      execute(suggestion);
-      return;
-    }
-    if (suggestion && negativeSuggestion(transcript)) {
-      rememberSuggestion(null);
-      setDraft('');
-      const reply = 'No problem. Tell me the date or travel class you would prefer instead.';
-      updateMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'user', text: transcript },
-        { id: crypto.randomUUID(), role: 'assistant', text: reply },
-      ]);
-      const sequence = ++speechSequence.current;
-      void speak(reply, 'en-IN', providers.sarvam).then(() => {
-        if (speechSequence.current === sequence && panel.current) void beginListeningRef.current();
-      });
-      return;
-    }
-    rememberSuggestion(null);
     sending.current = true;
     setDraft('');
     setWorking(true);
@@ -516,21 +432,40 @@ export default function Jamvanta() {
         method: 'POST',
         signal: controller.signal,
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ transcript, spokenLanguage, pathname: window.location.pathname, search: window.location.search, history, memory: memoryRef.current }),
+        body: JSON.stringify({
+          transcript,
+          spokenLanguage,
+          pathname: window.location.pathname,
+          history,
+          memory: memoryRef.current,
+          agentContext: {
+            alternateTranscripts: alternateTranscripts.map((candidate) => plainText(candidate)).filter((candidate) => candidate && candidate !== transcript).slice(0, 2),
+            paymentFlow: activePaymentFlow ? { methodType: activePaymentFlow.methodType, awaiting: activePaymentFlow.awaiting } : undefined,
+            paymentChoices: activePaymentFlow?.choices ?? [],
+            suggestedAction: suggestion,
+            paymentAmount: paymentAmountValue,
+          },
+        }),
       });
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (interactionSequence.current !== turnSequence) return;
       if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
+      if (suggestion) rememberSuggestion(null);
       if (turn.memory) {
         memoryRef.current = turn.memory;
         try { window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(turn.memory)); } catch { /* In-memory agent context remains authoritative. */ }
       }
-      setNotice(turn.mode === 'openai-agent' ? 'Jamvanta agent · tools connected' : turn.mode === 'local-fallback' ? 'Provider fallback · safe local actions' : 'Local simulation · no API credits used');
+      setNotice(turn.mode === 'openai-agent' ? 'Jamvanta agent · GPT-5 Mini reasoning' : 'Jamvanta reasoning unavailable');
       const safeReply = turn.action?.type === 'list_payment_methods'
         ? paymentChoicePrompt(turn.action.methodType, savedPaymentChoices(turn.action.methodType))
         : plainText(turn.reply);
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: safeReply }]);
-      if (turn.action && turn.requiresApproval) setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
+      if (turn.action && turn.requiresApproval) {
+        paymentFlow.current = null;
+        try { window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY); } catch { /* In-memory flow is already cleared. */ }
+        setPaymentChoices([]);
+        setPending({ action: turn.action, label: turn.approvalLabel ?? 'Approve action' });
+      }
       else if (turn.action) execute(turn.action);
       listenAfterReply = !turn.requiresApproval;
       const sequence = ++speechSequence.current;
@@ -557,7 +492,7 @@ export default function Jamvanta() {
         }, 180);
       }
     }
-  }, [choosePayment, execute, providers.sarvam, rememberSuggestion, updateMessages]);
+  }, [execute, paymentAmountValue, providers.sarvam, rememberSuggestion, updateMessages]);
 
   const stopListening = useCallback(() => {
     wantsListening.current = false;
@@ -657,7 +592,7 @@ export default function Jamvanta() {
               const result = await response.json() as { transcript?: string; language?: string };
               if (result.transcript?.trim()) {
                 setDraft(plainText(result.transcript));
-                await send(result.transcript, result.language);
+                await send(result.transcript, result.language, [latestDraft.current]);
                 return;
               }
             } catch {
