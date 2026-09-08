@@ -349,7 +349,9 @@ async function requestToolDecision(payload: Record<string, unknown>, signal: Abo
       instructions: `${JAMVANTA_INSTRUCTIONS}\nToday in India is ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })}.${correction ? `\nYour previous decision failed validation: ${correction} Return a corrected tool decision.` : ''}`,
       input: JSON.stringify(payload),
       tools, tool_choice: 'required', parallel_tool_calls: false,
-      reasoning: { effort: 'low' }, text: { verbosity: 'low' }, max_output_tokens: 450,
+      // The planner tool carries the full memory snapshot. A 450-token ceiling
+      // intermittently truncated its JSON arguments and produced ghost turns.
+      reasoning: { effort: 'low' }, text: { verbosity: 'low' }, max_output_tokens: 1_200,
     }),
   });
   if (!response.ok) throw new Error(`OpenAI returned ${response.status}: ${plainText(await response.text(), 500)}`);
