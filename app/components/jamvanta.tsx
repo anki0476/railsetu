@@ -576,7 +576,8 @@ export default function Jamvanta() {
     try { activeRecognition?.stop(); } catch { /* Recognition may already have ended between events. */ }
     const browserDraft = latestDraft.current.trim();
     const hasRecording = recorder.current?.state === 'recording';
-    if (browserDraft) {
+    const awaitProviderTranscript = hasRecording;
+    if (browserDraft && !awaitProviderTranscript) {
       browserTranscriptSubmitted.current = true;
       void send(browserDraft);
     }
@@ -598,38 +599,43 @@ export default function Jamvanta() {
     wantsListening.current = true;
     const recognitionConstructor = (window.SpeechRecognition ?? window.webkitSpeechRecognition) as unknown as VoiceRecognitionConstructor | undefined;
     try {
-      // Native recognition supplies live interim text with far less client work.
-      // Record audio for Sarvam only when native recognition is unavailable.
-      if (!recognitionConstructor && navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (interactionSequence.current !== listeningSequence || !wantsListening.current) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
+      // Native recognition supplies the instant preview. A lightweight parallel
+      // recording lets Sarvam produce the authoritative transcript before acting.
+      if (navigator.mediaDevices?.getUserMedia && 'MediaRecorder' in window) {
+        let stream: MediaStream | null = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch {
+          if (!recognitionConstructor) throw new Error('Microphone permission is needed');
         }
-        activeStream.current = stream;
-        discardRecording.current = false;
-        const AudioContextConstructor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (AudioContextConstructor) {
-          const context = new AudioContextConstructor();
-          const analyser = context.createAnalyser();
-          analyser.fftSize = 256;
-          context.createMediaStreamSource(stream).connect(analyser);
-          const samples = new Uint8Array(analyser.fftSize);
-          audioMonitorContext.current = context;
-          audioMonitorTimer.current = window.setInterval(() => {
-            analyser.getByteTimeDomainData(samples);
-            let energy = 0;
-            for (const sample of samples) energy += Math.abs(sample - 128);
-            if (energy / samples.length > 4.5) {
-              heardVoice.current = true;
-              lastVoiceAt.current = Date.now();
-              if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
-              silenceTimer.current = null;
-            } else if (heardVoice.current && Date.now() - lastVoiceAt.current >= 4000) stopListening();
-            else if (!heardVoice.current && Date.now() - lastVoiceAt.current >= 10_000) stopListening();
-          }, 160);
-        }
-        if ('MediaRecorder' in window) {
+        if (stream) {
+          if (interactionSequence.current !== listeningSequence || !wantsListening.current) {
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+          }
+          activeStream.current = stream;
+          discardRecording.current = false;
+          const AudioContextConstructor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+          if (!recognitionConstructor && AudioContextConstructor) {
+            const context = new AudioContextConstructor();
+            const analyser = context.createAnalyser();
+            analyser.fftSize = 256;
+            context.createMediaStreamSource(stream).connect(analyser);
+            const samples = new Uint8Array(analyser.fftSize);
+            audioMonitorContext.current = context;
+            audioMonitorTimer.current = window.setInterval(() => {
+              analyser.getByteTimeDomainData(samples);
+              let energy = 0;
+              for (const sample of samples) energy += Math.abs(sample - 128);
+              if (energy / samples.length > 4.5) {
+                heardVoice.current = true;
+                lastVoiceAt.current = Date.now();
+                if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
+                silenceTimer.current = null;
+              } else if (heardVoice.current && Date.now() - lastVoiceAt.current >= 4000) stopListening();
+              else if (!heardVoice.current && Date.now() - lastVoiceAt.current >= 10_000) stopListening();
+            }, 160);
+          }
           audioChunks.current = [];
           const mediaRecorder = new MediaRecorder(stream);
           recorder.current = mediaRecorder;
@@ -643,6 +649,7 @@ export default function Jamvanta() {
             try {
               const response = await fetch('/api/jamvanta/transcribe', {
                 method: 'POST',
+                signal: AbortSignal.timeout(8_000),
                 headers: { 'content-type': audio.type || 'audio/webm' },
                 body: audio,
               });
@@ -661,7 +668,7 @@ export default function Jamvanta() {
             else setNotice('I didn’t catch that. Press to speak and try again.');
           };
           mediaRecorder.start();
-        } else stream.getTracks().forEach((track) => track.stop());
+        }
       }
       if (!recognitionConstructor) {
         if (recorder.current?.state === 'recording') {

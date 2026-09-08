@@ -48,9 +48,9 @@ function travelClass(text: string) {
   const lower = normalizePhrase(text);
   if (/\b(?:ec|executive(?: chair car| class)?)\b/.test(lower)) return 'EC';
   if (/\b(?:1\s*a|first class ac|first ac|1st class ac|one (?:tier|tear) ac|ac (?:1|one) (?:tier|tear))\b/.test(lower)) return '1A';
-  if (/\b(?:2\s*a|2 (?:tier|tear) ac|two (?:tier|tear) ac|second (?:tier|tear) ac|ac (?:2|two) (?:tier|tear))\b/.test(lower)) return '2A';
+  if (/\b(?:2\s*a|2 (?:tier|tear) ac|two (?:tier|tear) ac|second (?:tier|tear) ac|ac (?:2|two)(?:\s*(?:tier|tear|t(?:f|r)?))?)\b/.test(lower)) return '2A';
   if (/\b(?:3\s*e|3 (?:tier|tear) ac economy|three (?:tier|tear) ac economy|ac economy)\b/.test(lower)) return '3E';
-  if (/\b(?:3\s*a|3 (?:tier|tear) ac|three (?:tier|tear) ac|third (?:tier|tear) ac|ac (?:3|three) (?:tier|tear))\b/.test(lower)) return '3A';
+  if (/\b(?:3\s*a|3 (?:tier|tear) ac|three (?:tier|tear) ac|third (?:tier|tear) ac|ac (?:3|three)(?:\s*(?:tier|tear|t(?:f|r)?))?)\b/.test(lower)) return '3A';
   if (/\b(?:cc|ac chair car|chair car)\b/.test(lower)) return 'CC';
   if (/\b(?:sl|sleeper|sleeper class)\b/.test(lower)) return 'SL';
   return undefined;
@@ -119,7 +119,7 @@ function spokenDate(text: string) {
   const numeric = lower.match(/\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])(?:[/-](20\d{2}))?\b/);
   if (numeric) return `${numeric[3] ?? localToday.getFullYear()}-${numeric[2].padStart(2, '0')}-${numeric[1].padStart(2, '0')}`;
   const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-  const named = lower.match(new RegExp(`(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(${months.join('|')})(?:\\s+(20\\d{2}))?|(${months.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(20\\d{2}))?`));
+  const named = lower.match(new RegExp(`(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of)?\\s+(${months.join('|')})(?:\\s+(20\\d{2}))?|(${months.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(20\\d{2}))?`));
   if (!named) return undefined;
   const day = Number(named[1] ?? named[5]);
   const month = months.indexOf(named[2] ?? named[4]);
@@ -360,10 +360,34 @@ export async function POST(request: Request) {
     const pathname = allowedPaths.has(requestedPath) ? requestedPath : '/';
     if (!transcript) return secureJson({ error: 'Transcript is required.' }, { status: 400 });
     const spokenLanguage = plainText(body.spokenLanguage, 12);
-    const memory = enrichMemory(cleanMemory(body.memory, pathname), transcript);
+    const historyMessages = Array.isArray(body.history)
+      ? body.history.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-24)
+      : [];
+    const memory = cleanMemory(body.memory, pathname);
+    // Recover any detail that an earlier transcript contained but an older parser
+    // failed to persist. Existing structured memory always wins over transcript history.
+    historyMessages.filter((message) => message.role === 'user').reverse().forEach((message) => {
+      const recovered = enrichMemory({ journey: {}, payment: {}, stage: 'collecting', lastPath: pathname }, plainText(message.text, 500));
+      memory.journey = {
+        from: memory.journey.from ?? recovered.journey.from,
+        to: memory.journey.to ?? recovered.journey.to,
+        date: memory.journey.date ?? recovered.journey.date,
+        passengerCount: memory.journey.passengerCount ?? recovered.journey.passengerCount,
+        travelClass: memory.journey.travelClass ?? recovered.journey.travelClass,
+        profile: memory.journey.profile ?? recovered.journey.profile,
+        coachPreference: memory.journey.coachPreference ?? recovered.journey.coachPreference,
+        luggage: memory.journey.luggage ?? recovered.journey.luggage,
+        lowerBerth: memory.journey.lowerBerth ?? recovered.journey.lowerBerth,
+        maxChanges: memory.journey.maxChanges ?? recovered.journey.maxChanges,
+        preferencesConfirmed: memory.journey.preferencesConfirmed || recovered.journey.preferencesConfirmed,
+        selectionStrategy: memory.journey.selectionStrategy ?? recovered.journey.selectionStrategy,
+        optionIndex: memory.journey.optionIndex ?? recovered.journey.optionIndex,
+      };
+    });
+    enrichMemory(memory, transcript);
     const fallback = localTurn(transcript, pathname, spokenLanguage, memory);
     if (!process.env.OPENAI_API_KEY) return secureJson({ ...fallback, mode: 'local-simulation' });
-    const history = Array.isArray(body.history) ? body.history.filter((message) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.text === 'string').slice(-24).map((message) => `${message.role}: ${plainText(message.text, 500)}`).join('\n') : '';
+    const history = historyMessages.map((message) => `${message.role}: ${plainText(message.text, 500)}`).join('\n');
     try {
       const controller = new AbortController();
       // Keep the hands-free flow moving if the model provider is temporarily slow.
