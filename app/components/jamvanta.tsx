@@ -24,7 +24,8 @@ type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type PaymentChoice = { mode: string; label: string; detail: string };
 type PaymentFlow = { methodType: 'upi' | 'card'; choices: PaymentChoice[]; awaiting: 'choice' | 'custom-upi' };
 const JAMVANTA_SESSION_KEY = 'railsetu.jamvanta-session.v1';
-const JAMVANTA_MEMORY_KEY = 'railsetu.jamvanta-memory.v2';
+const JAMVANTA_MEMORY_KEY = 'railsetu.jamvanta-memory.v3';
+const JAMVANTA_LEGACY_MEMORY_KEY = 'railsetu.jamvanta-memory.v2';
 const JAMVANTA_PAYMENT_FLOW_KEY = 'railsetu.jamvanta-payment-flow.v1';
 const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
 const JAMVANTA_SUGGESTED_ACTION_KEY = 'railsetu.jamvanta-suggested-action.v1';
@@ -55,6 +56,32 @@ function paymentChoicePrompt(methodType: 'upi' | 'card', choices: PaymentChoice[
   if (methodType === 'upi') return `Your saved UPI option is ${choices[0].detail}. Would you like to use it or add your own UPI ID?`;
   const available = choices.map((choice) => `${choice.label} ${choice.detail.toLowerCase()}`).join(', ');
   return `Your saved cards are ${available}. Which one would you like to use, or would you like to add another card?`;
+}
+
+function definedEntries<T extends object>(value: T) {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as Partial<T>;
+}
+
+function mergeMemory(current: JamvantaMemory, incoming: JamvantaMemory): JamvantaMemory {
+  return {
+    journey: { ...current.journey, ...definedEntries(incoming.journey) },
+    payment: { ...current.payment, ...definedEntries(incoming.payment) },
+    stage: incoming.stage ?? current.stage,
+    lastPath: incoming.lastPath || current.lastPath,
+  };
+}
+
+function persistMemory(memory: JamvantaMemory) {
+  const serialized = JSON.stringify(memory);
+  window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, serialized);
+  window.localStorage.setItem(JAMVANTA_MEMORY_KEY, serialized);
+}
+
+function storedMemoryValue() {
+  return window.sessionStorage.getItem(JAMVANTA_MEMORY_KEY)
+    ?? window.localStorage.getItem(JAMVANTA_MEMORY_KEY)
+    ?? window.sessionStorage.getItem(JAMVANTA_LEGACY_MEMORY_KEY)
+    ?? window.localStorage.getItem(JAMVANTA_LEGACY_MEMORY_KEY);
 }
 
 function stopJamvantaSpeech() {
@@ -206,7 +233,7 @@ export default function Jamvanta() {
         messagesRef.current = restored;
         setMessages(restored);
       }
-      const storedMemory = JSON.parse(window.sessionStorage.getItem(JAMVANTA_MEMORY_KEY) ?? 'null') as JamvantaMemory | null;
+      const storedMemory = JSON.parse(storedMemoryValue() ?? 'null') as JamvantaMemory | null;
       if (storedMemory?.journey && storedMemory?.payment) memoryRef.current = storedMemory;
       const storedSuggestion = JSON.parse(window.sessionStorage.getItem(JAMVANTA_SUGGESTED_ACTION_KEY) ?? 'null') as JamvantaAction | null;
       if (storedSuggestion?.type === 'plan_journey') suggestedAction.current = storedSuggestion;
@@ -215,7 +242,9 @@ export default function Jamvanta() {
         lastPath: window.location.pathname,
         stage: window.location.pathname === '/ticket' ? 'ticket' : window.location.pathname === '/payment' && memoryRef.current.stage !== 'approval' ? 'payment' : memoryRef.current.stage,
       };
-      window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(memoryRef.current));
+      persistMemory(memoryRef.current);
+      window.sessionStorage.removeItem(JAMVANTA_LEGACY_MEMORY_KEY);
+      window.localStorage.removeItem(JAMVANTA_LEGACY_MEMORY_KEY);
     } catch {
       // A fresh in-memory conversation still works if session storage is unavailable.
     }
@@ -340,7 +369,7 @@ export default function Jamvanta() {
         stage: action.search ? 'searching' : memoryRef.current.stage,
         lastPath: window.location.pathname,
       };
-      try { window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(memoryRef.current)); } catch { /* In-memory context remains available. */ }
+      try { persistMemory(memoryRef.current); } catch { /* In-memory context remains available. */ }
     }
     routeJamvantaAction(action);
   }, []);
@@ -377,7 +406,7 @@ export default function Jamvanta() {
     try { window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY); } catch { /* In-memory flow is already cleared. */ }
     setPaymentChoices([]);
     memoryRef.current = { ...memoryRef.current, payment: { methodType: choice.mode === 'wallet' ? 'wallet' : choice.mode.startsWith('upi') ? 'upi' : 'card', mode: choice.mode, label: `${choice.label} ${choice.detail}` }, stage: 'approval', lastPath: window.location.pathname };
-    try { window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(memoryRef.current)); } catch { /* In-memory agent context remains available. */ }
+    try { persistMemory(memoryRef.current); } catch { /* In-memory agent context remains available. */ }
     setPending({
       action: { type: 'pay_with_method', mode: choice.mode, label: `${choice.label} ${choice.detail}`, approvalId: crypto.randomUUID() },
       label: `Approve ${choice.label} payment`,
@@ -400,6 +429,9 @@ export default function Jamvanta() {
       window.sessionStorage.removeItem(JAMVANTA_SESSION_KEY);
       window.sessionStorage.removeItem(JAMVANTA_PAYMENT_FLOW_KEY);
       window.sessionStorage.removeItem(JAMVANTA_MEMORY_KEY);
+      window.sessionStorage.removeItem(JAMVANTA_LEGACY_MEMORY_KEY);
+      window.localStorage.removeItem(JAMVANTA_MEMORY_KEY);
+      window.localStorage.removeItem(JAMVANTA_LEGACY_MEMORY_KEY);
       window.sessionStorage.removeItem(JAMVANTA_SUGGESTED_ACTION_KEY);
     } catch { /* The in-memory session is still cleared. */ }
   }, [rememberSuggestion]);
@@ -449,11 +481,11 @@ export default function Jamvanta() {
       });
       const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
       if (interactionSequence.current !== turnSequence) return;
-      if (!response.ok) throw new Error(turn.error ?? 'Jamvanta could not understand that.');
+      if (!response.ok) throw new Error(turn.error ?? 'I could not understand that. I kept your journey details—please try once more.');
       if (suggestion) rememberSuggestion(null);
       if (turn.memory) {
-        memoryRef.current = turn.memory;
-        try { window.sessionStorage.setItem(JAMVANTA_MEMORY_KEY, JSON.stringify(turn.memory)); } catch { /* In-memory agent context remains authoritative. */ }
+        memoryRef.current = mergeMemory(memoryRef.current, turn.memory);
+        try { persistMemory(memoryRef.current); } catch { /* In-memory agent context remains authoritative. */ }
       }
       setNotice(turn.mode === 'openai-agent' ? 'Jamvanta agent · GPT-5 Mini reasoning' : 'Jamvanta reasoning unavailable');
       const safeReply = turn.action?.type === 'list_payment_methods'
@@ -474,7 +506,7 @@ export default function Jamvanta() {
     } catch (error) {
       if (interactionSequence.current !== turnSequence) return;
       if (error instanceof DOMException && error.name === 'AbortError' && !requestTimedOut) return;
-      const message = requestTimedOut ? 'That took too long to process. I kept your journey details—please try that last instruction once more.' : error instanceof Error ? error.message : 'Jamvanta is temporarily unavailable.';
+      const message = requestTimedOut ? 'That took too long to process. I kept your journey details—please try that last instruction once more.' : error instanceof Error ? error.message : 'I am temporarily unavailable, but I kept your journey details.';
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
       listenAfterReply = true;
       const sequence = ++speechSequence.current;

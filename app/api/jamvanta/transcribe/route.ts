@@ -26,7 +26,10 @@ async function sarvamMultipart(audio: Blob) {
   const closing = encoder.encode(`\r\n--${boundary}--\r\n`);
   const body = joinBytes([
     field('model', 'saaras:v3'),
-    field('mode', 'translate'),
+    // `translate` turns proper nouns into meanings (for example, Durg -> Fort).
+    // Codemix preserves Indian station names while still handling English/Hinglish.
+    field('mode', 'codemix'),
+    field('language_code', 'unknown'),
     fileHeader,
     new Uint8Array(await audio.arrayBuffer()),
     closing,
