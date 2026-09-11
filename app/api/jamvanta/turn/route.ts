@@ -238,8 +238,6 @@ type AgentContext = {
 };
 
 const DEFAULT_PREFERENCES = {
-  profile: 'standard' as const,
-  luggage: 'light' as const,
   coachPreference: 'same' as const,
   maxChanges: 1,
   lowerBerth: true,
@@ -258,8 +256,25 @@ function applyRecommendedDefaults(memory: JamvantaMemory) {
   memory.journey = {
     ...memory.journey,
     ...DEFAULT_PREFERENCES,
-    preferencesConfirmed: true,
+    preferencesConfirmed: false,
   };
+  memory.journey.preferencesConfirmed = missingPreferences(memory).length === 0;
+}
+
+function preferenceQuestion(field: string, language: JamvantaTurn['language']) {
+  if (field === 'traveller type') {
+    return language === 'hi-IN'
+      ? 'आप किस प्रकार के यात्री हैं—standard, elderly या limited mobility, या family के साथ?'
+      : 'What is your traveller type—standard, elderly or limited mobility, or travelling as a family?';
+  }
+  if (field === 'luggage') {
+    return language === 'hi-IN'
+      ? 'आपके पास कितना सामान है—none, light या heavy?'
+      : 'What is your luggage type—none, light or heavy?';
+  }
+  return language === 'hi-IN'
+    ? `मुझे अभी ${field} चाहिए। बाकी जानकारी मुझे याद है।`
+    : `I still need your ${field}. I have kept everything else you already told me.`;
 }
 
 function cleanAgentContext(value: unknown): AgentContext {
@@ -340,9 +355,12 @@ function clarificationTurn(memory: JamvantaMemory, pathname: string, spokenLangu
   }
   const preferences = missingPreferences(memory);
   if (pathname === '/planner' && preferences.length) {
-    const reply = language === 'hi-IN'
-      ? 'मुझे अभी यात्री का प्रकार, सामान, कोच बदलना, अधिकतम सीट बदलाव और लोअर बर्थ की पसंद चाहिए। आप recommended defaults भी चुन सकते हैं।'
-      : `I still need your ${preferences.join(', ')}. You can answer together or say “use recommended defaults”.`;
+    const subjectivePreference = preferences.find((field) => field === 'traveller type' || field === 'luggage');
+    const reply = subjectivePreference
+      ? preferenceQuestion(subjectivePreference, language)
+      : language === 'hi-IN'
+        ? `मुझे अभी ${preferences.join(', ')} चाहिए। इनके लिए आप recommended defaults भी चुन सकते हैं।`
+        : `I still need your ${preferences.join(', ')}. For these preferences, you can answer together or say “use recommended defaults”.`;
     return { reply, language, memory, action: journeyAction(memory, false), clarification: true };
   }
   const reason = detail ? ` (${plainText(detail, 120)})` : '';
@@ -384,8 +402,19 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
   const language = languageFor(reply, spokenLanguage);
   const base = { reply, language, memory } satisfies Pick<JamvantaTurn, 'reply' | 'language' | 'memory'>;
   if (call.name === 'journey_planner') {
+    // Traveller type and luggage are subjective. A model response to "use
+    // recommended defaults" must not invent them; only facts already captured
+    // from the user's transcript or earlier memory may survive this turn.
+    const rememberedProfile = memory.journey.profile;
+    const rememberedLuggage = memory.journey.luggage;
     mergeJourney(memory, args);
-    if (defaultsAccepted) applyRecommendedDefaults(memory);
+    if (defaultsAccepted) {
+      if (rememberedProfile) memory.journey.profile = rememberedProfile;
+      else delete memory.journey.profile;
+      if (rememberedLuggage) memory.journey.luggage = rememberedLuggage;
+      else delete memory.journey.luggage;
+      applyRecommendedDefaults(memory);
+    }
     const missing = missingJourneyField(memory);
     const missingPreferenceFields = missingPreferences(memory);
     if (missing) {
@@ -395,9 +424,12 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
     }
     if (!memory.journey.preferencesConfirmed || missingPreferenceFields.length) {
       memory.stage = 'preferences';
-      const prompt = language === 'hi-IN'
-        ? 'खोज शुरू करने से पहले मुझे यात्री का प्रकार, सामान, कोच बदलना, अधिकतम सीट बदलाव और लोअर बर्थ की पसंद चाहिए। आप “recommended defaults” भी कह सकते हैं।'
-        : `I still need your ${missingPreferenceFields.join(', ')} before I search. You can answer them together, or say “use recommended defaults”.`;
+      const subjectivePreference = missingPreferenceFields.find((field) => field === 'traveller type' || field === 'luggage');
+      const prompt = subjectivePreference
+        ? preferenceQuestion(subjectivePreference, language)
+        : language === 'hi-IN'
+          ? `खोज शुरू करने से पहले मुझे ${missingPreferenceFields.join(', ')} चाहिए। इनके लिए आप “recommended defaults” भी कह सकते हैं।`
+          : `I still need your ${missingPreferenceFields.join(', ')} before I search. For these preferences, you can answer together or say “use recommended defaults”.`;
       return { ...base, reply: prompt, action: journeyAction(memory, false), clarification: true };
     }
     memory.stage = 'searching';
@@ -523,9 +555,9 @@ Your toolkit:
 
 Operate as a continuous Listen → Transcript → Reason → Tool → Verify → Continue loop. A single user request may contain many sequential instructions. Capture the user's complete end goal in one reasoning pass, then use one goal-level tool call that can drive all safe downstream UI steps across pages. Never impose a one-step-per-prompt preset. Keep advancing through planner filling, search, comparison, selection, seat hold and payment-method preparation without asking the user to say “continue”. Pause only for a genuinely missing required fact, an explicit user stop, no available journey under the exact constraints, or the mandatory fresh approval for the exact payment transaction.
 
-Every tool's say field is the exact sentence spoken to the user, so write it as a natural first-person response—not an internal summary such as “User asked…”. Treat validated persistent memory and page context as the source of truth. Copy every remembered journey value into journey_planner arguments unless the user explicitly corrects it. Before using ask_user, re-read the primary transcript, alternate transcripts, recent conversation and persistent memory, then compare the requested missing field against derivedState. Never ask for information already present. If several preference fields are missing, ask for them together and offer recommended defaults; otherwise ask one concise question naming only the exact gap. Never say only “no action was taken”. Treat a plausible station name from one recognizer as stronger evidence than an ordinary translated word from another. Understand natural railway language rather than demanding exact UI wording: “third AC”, “3A”, “three AC”, “AC three tier”, and likely speech-recognition variants mean 3A; “second AC”, “2A”, “two AC” mean 2A; “first AC” means 1A; “executive” means EC; “chair car” means CC; “sleeper” means SL. Interpret equivalent Hindi and Hinglish naturally.
+Every tool's say field is the exact sentence spoken to the user, so write it as a natural first-person response—not an internal summary such as “User asked…”. Treat validated persistent memory and page context as the source of truth. Copy every remembered journey value into journey_planner arguments unless the user explicitly corrects it. Before using ask_user, re-read the primary transcript, alternate transcripts, recent conversation and persistent memory, then compare the requested missing field against derivedState. Never ask for information already present. Traveller type and luggage are subjective and have no recommended value: if either is missing, ask for that field explicitly and separately. For the remaining comfort preferences, ask together and offer recommended defaults when appropriate. Never say only “no action was taken”. Treat a plausible station name from one recognizer as stronger evidence than an ordinary translated word from another. Understand natural railway language rather than demanding exact UI wording: “third AC”, “3A”, “three AC”, “AC three tier”, and likely speech-recognition variants mean 3A; “second AC”, “2A”, “two AC” mean 2A; “first AC” means 1A; “executive” means EC; “chair car” means CC; “sleeper” means SL. Interpret equivalent Hindi and Hinglish naturally.
 
-First collect departure, destination, date, class and passenger count. Then collect traveller type, luggage, coach movement, maximum seat changes and lower-berth preference together, or apply standard traveller, light luggage, same coach, one seat change and lower-berth preference enabled when the user accepts recommended defaults. Set preferences_confirmed=true only when all five preferences were stated or defaults were accepted. Then search and continue automatically unless the user explicitly asks only to view results.
+First collect departure, destination, date, class and passenger count. Then collect traveller type and luggage explicitly, asking one concise question for each missing field. Never infer either from recommended defaults. Collect coach movement, maximum seat changes and lower-berth preference together, or apply same coach, one seat change and lower-berth preference enabled when the user accepts recommended defaults. Set preferences_confirmed=true only when traveller type and luggage were explicitly supplied and all remaining preferences were stated or defaulted. Then search and continue automatically unless the user explicitly asks only to view results.
 
 If the same prompt also specifies a selection rule and payment method, use selection_strategy/option_index and continue the journey_planner workflow. The validated memory already preserves the exact payment intent separately. Examples: “highest comfort and Visa” means highest_comfort with the remembered Visa; “cheapest and Mastercard” means lowest_fare with the remembered Mastercard. A generic “saved card” is not an exact choice when several cards exist, so list those choices only after reaching payment. An exact named or last-four-digits choice must never be asked again. Arrival on the payment page must prepare that remembered method immediately and present the mandatory approval—never execute the charge automatically.
 

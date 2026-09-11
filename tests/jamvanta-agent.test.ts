@@ -83,7 +83,7 @@ assert.equal(firstMemory.journey.from, 'DURG');
 assert.equal(firstMemory.journey.to, 'BRC');
 assert.equal(firstMemory.journey.date, '2026-09-29');
 assert.equal(firstMemory.journey.travelClass, '1A');
-assert.match(String(firstTurn.body.reply), /^I\b/);
+assert.match(String(firstTurn.body.reply), /traveller type/i);
 assert.equal(latestModelRequest, 'gpt-5.6-luna');
 assert.equal(latestReasoningEffort, 'medium');
 assert.equal(firstTurn.body.model, 'gpt-5.6-luna');
@@ -103,11 +103,43 @@ const defaultsMemory = defaultsTurn.body.memory;
 const defaultsAction = defaultsTurn.body.action ?? {};
 assert.equal(defaultsMemory.journey.from, 'DURG');
 assert.equal(defaultsMemory.journey.to, 'BRC');
-assert.equal(defaultsAction.search, true);
+assert.equal(defaultsAction.search, false);
 assert.equal(defaultsAction.from, 'DURG');
 assert.equal(defaultsAction.to, 'BRC');
 assert.equal(defaultsMemory.journey.lowerBerth, true);
 assert.equal(defaultsAction.lowerBerth, true);
+assert.equal(defaultsMemory.journey.profile, undefined);
+assert.equal(defaultsMemory.journey.luggage, undefined);
+assert.match(String(defaultsTurn.body.reply), /traveller type/i);
+
+const travellerTurn = await runTurn({
+  name: 'journey_planner',
+  arguments: {
+    say: 'I have saved that.', from: null, to: null, date: null, passenger_count: null,
+    travel_class: null, profile: 'elderly', coach_preference: null, luggage: null, lower_berth: null,
+    max_changes: null, preferences_confirmed: false, selection_strategy: 'best_fit', option_index: null, auto_continue: true,
+  },
+}, {
+  transcript: 'I am an elderly traveller', spokenLanguage: 'en-IN', pathname: '/planner', history: [],
+  memory: defaultsMemory, agentContext: { alternateTranscripts: [] },
+});
+assert.equal(travellerTurn.body.memory.journey.profile, 'elderly');
+assert.equal(travellerTurn.body.action?.search, false);
+assert.match(String(travellerTurn.body.reply), /luggage type/i);
+
+const luggageTurn = await runTurn({
+  name: 'journey_planner',
+  arguments: {
+    say: 'I have all your details and I am searching.', from: null, to: null, date: null, passenger_count: null,
+    travel_class: null, profile: null, coach_preference: null, luggage: 'heavy', lower_berth: null,
+    max_changes: null, preferences_confirmed: true, selection_strategy: 'best_fit', option_index: null, auto_continue: true,
+  },
+}, {
+  transcript: 'I have heavy luggage', spokenLanguage: 'en-IN', pathname: '/planner', history: [],
+  memory: travellerTurn.body.memory, agentContext: { alternateTranscripts: [] },
+});
+assert.equal(luggageTurn.body.memory.journey.luggage, 'heavy');
+assert.equal(luggageTurn.body.action?.search, true);
 
 const refusalTextWithValidAction = await runTurn({
   name: 'journey_planner',
@@ -118,7 +150,7 @@ const refusalTextWithValidAction = await runTurn({
   },
 }, {
   transcript: 'Search now', spokenLanguage: 'en-IN', pathname: '/planner', history: [],
-  memory: defaultsMemory, agentContext: { alternateTranscripts: [] },
+  memory: luggageTurn.body.memory, agentContext: { alternateTranscripts: [] },
 });
 assert.equal(refusalTextWithValidAction.status, 200);
 assert.doesNotMatch(String(refusalTextWithValidAction.body.reply), /can't fulfill|cannot fulfill|no action/i);
@@ -129,7 +161,7 @@ const refusalDuringSelection = await runTurn({
   arguments: { say: 'I cannot fulfill this request.', strategy: 'highest_comfort', option_index: null, continue_to_payment: false },
 }, {
   transcript: 'Choose the option with the highest comfort score', spokenLanguage: 'en-IN', pathname: '/planner', history: [],
-  memory: defaultsMemory, agentContext: { alternateTranscripts: [] },
+  memory: luggageTurn.body.memory, agentContext: { alternateTranscripts: [] },
 });
 assert.equal(refusalDuringSelection.status, 200);
 assert.equal(refusalDuringSelection.body.action?.type, 'select_journey');
