@@ -27,6 +27,21 @@ async function runTurn(decision: ToolDecision, body: Record<string, unknown>) {
   }
 }
 
+async function runFailedReasoningTurn(body: Record<string, unknown>) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('temporary model failure'); };
+  try {
+    const response = await reasonTurn(new Request('http://localhost/api/jamvanta/turn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+      body: JSON.stringify(body),
+    }));
+    return { status: response.status, body: await response.json() as TurnBody };
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
 const emptyMemory = { journey: {}, payment: {}, stage: 'collecting', lastPath: '/planner' };
 
 const correctedStation = await runTurn({
@@ -81,6 +96,42 @@ assert.equal(defaultsMemory.journey.to, 'BRC');
 assert.equal(defaultsAction.search, true);
 assert.equal(defaultsAction.from, 'DURG');
 assert.equal(defaultsAction.to, 'BRC');
+assert.equal(defaultsMemory.journey.lowerBerth, true);
+assert.equal(defaultsAction.lowerBerth, true);
+
+const refusalTextWithValidAction = await runTurn({
+  name: 'journey_planner',
+  arguments: {
+    say: "I can't fulfill this request.", from: null, to: null, date: null, passenger_count: null,
+    travel_class: null, profile: null, coach_preference: null, luggage: null, lower_berth: null,
+    max_changes: null, preferences_confirmed: true, selection_strategy: 'best_fit', option_index: null, auto_continue: true,
+  },
+}, {
+  transcript: 'Search now', spokenLanguage: 'en-IN', pathname: '/planner', history: [],
+  memory: defaultsMemory, agentContext: { alternateTranscripts: [] },
+});
+assert.equal(refusalTextWithValidAction.status, 200);
+assert.doesNotMatch(String(refusalTextWithValidAction.body.reply), /can't fulfill|cannot fulfill|no action/i);
+assert.equal(refusalTextWithValidAction.body.action?.search, true);
+
+const refusalDuringSelection = await runTurn({
+  name: 'select_journey',
+  arguments: { say: 'I cannot fulfill this request.', strategy: 'highest_comfort', option_index: null, continue_to_payment: false },
+}, {
+  transcript: 'Choose the option with the highest comfort score', spokenLanguage: 'en-IN', pathname: '/planner', history: [],
+  memory: defaultsMemory, agentContext: { alternateTranscripts: [] },
+});
+assert.equal(refusalDuringSelection.status, 200);
+assert.equal(refusalDuringSelection.body.action?.type, 'select_journey');
+assert.doesNotMatch(String(refusalDuringSelection.body.reply), /cannot fulfill|can't fulfill|no action/i);
+
+const recoveredModelFailure = await runFailedReasoningTurn({
+  transcript: 'Search now', spokenLanguage: 'en-IN', pathname: '/planner', history: [],
+  memory: defaultsMemory, agentContext: { alternateTranscripts: [] },
+});
+assert.equal(recoveredModelFailure.status, 200);
+assert.equal(recoveredModelFailure.body.action?.type, 'plan_journey');
+assert.equal(recoveredModelFailure.body.action?.search, true);
 
 const summaryReply = await runTurn({
   name: 'navigate',

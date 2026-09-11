@@ -130,6 +130,31 @@ type AgentContext = {
   paymentAmount?: number;
 };
 
+const DEFAULT_PREFERENCES = {
+  profile: 'standard' as const,
+  luggage: 'light' as const,
+  coachPreference: 'same' as const,
+  maxChanges: 1,
+  lowerBerth: true,
+};
+
+function acceptsRecommendedDefaults(transcript: string) {
+  const normalized = normalizePhrase(transcript);
+  const mentionsDefaults = /\b(default|defaults|recommended|recommendation|standard preferences?)\b/.test(normalized)
+    || /डिफॉल्ट|सुझाई हुई|मानक/.test(normalized);
+  const accepts = /\b(yes|yeah|yep|ok|okay|sure|apply|accept|proceed|continue|use|go ahead|do it)\b/.test(normalized)
+    || /हाँ|ठीक|लगा|अपन|आगे/.test(normalized);
+  return mentionsDefaults && accepts;
+}
+
+function applyRecommendedDefaults(memory: JamvantaMemory) {
+  memory.journey = {
+    ...memory.journey,
+    ...DEFAULT_PREFERENCES,
+    preferencesConfirmed: true,
+  };
+}
+
 function cleanAgentContext(value: unknown): AgentContext {
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const alternateTranscripts = Array.isArray(raw.alternateTranscripts)
@@ -170,6 +195,10 @@ function firstPersonReply(value: string) {
     .replace(/\bI has\b/g, 'I have')
     .replace(/\bI does\b/g, 'I do');
   return /\b(?:I|me|my)\b/i.test(normalized) ? normalized : `I understand. ${normalized}`;
+}
+
+function usefulReply(reply: string, fallback: string) {
+  return /\b(?:can(?:not|'t)|unable to|could(?: not|n't)|cannot fulfill|no action)\b/i.test(reply) ? fallback : reply;
 }
 
 function clarificationTurn(memory: JamvantaMemory, pathname: string, spokenLanguage: string, detail?: string): JamvantaTurn {
@@ -217,14 +246,15 @@ function mergeJourney(memory: JamvantaMemory, args: Record<string, unknown>) {
   memory.journey.preferencesConfirmed = args.preferences_confirmed === true && missingPreferences(memory).length === 0;
 }
 
-function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string, spokenLanguage: string, context: AgentContext): JamvantaTurn {
+function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string, spokenLanguage: string, context: AgentContext, defaultsAccepted = false): JamvantaTurn {
   const args = call.arguments;
-  const reply = firstPersonReply(plainText(args.say, 360).trim());
+  let reply = firstPersonReply(plainText(args.say, 360).trim());
   if (!reply) throw new Error('The agent response was empty.');
   const language = languageFor(reply, spokenLanguage);
   const base = { reply, language, memory } satisfies Pick<JamvantaTurn, 'reply' | 'language' | 'memory'>;
   if (call.name === 'journey_planner') {
     mergeJourney(memory, args);
+    if (defaultsAccepted) applyRecommendedDefaults(memory);
     const missing = missingJourneyField(memory);
     const missingPreferenceFields = missingPreferences(memory);
     if (missing) {
@@ -240,7 +270,8 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
       return { ...base, reply: prompt, action: journeyAction(memory, false), clarification: true };
     }
     memory.stage = 'searching';
-    return { ...base, action: journeyAction(memory, args.auto_continue !== false) };
+    reply = usefulReply(reply, 'I have all your journey details and preferences. I’m searching for confirmed options now.');
+    return { ...base, reply, action: journeyAction(memory, args.auto_continue !== false) };
   }
   if (call.name === 'select_journey') {
     const strategy = selectionStrategies.has(String(args.strategy) as JamvantaSelectionStrategy) ? String(args.strategy) as JamvantaSelectionStrategy : memory.journey.selectionStrategy ?? 'best_fit';
@@ -248,7 +279,7 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
     memory.journey.selectionStrategy = strategy;
     if (Number.isInteger(index) && index >= 1 && index <= 4) memory.journey.optionIndex = index;
     memory.stage = 'selecting';
-    return { ...base, action: { type: 'select_journey', strategy, optionIndex: memory.journey.optionIndex, autoContinue: args.continue_to_payment !== false } };
+    return { ...base, reply: usefulReply(reply, 'I found the matching journey option and I’m selecting it now.'), action: { type: 'select_journey', strategy, optionIndex: memory.journey.optionIndex, autoContinue: args.continue_to_payment !== false } };
   }
   if (call.name === 'payment_gateway') {
     if (pathname !== '/payment') throw new Error('Payment tools are available only on the payment page.');
@@ -259,12 +290,12 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
     if (intent === 'add' && methodType && methodType !== 'wallet') {
       memory.payment = { methodType };
       memory.stage = 'payment';
-      return { ...base, action: { type: 'add_payment_method', methodType } };
+      return { ...base, reply: usefulReply(reply, `I’m opening the ${methodType} setup now.`), action: { type: 'add_payment_method', methodType } };
     }
     if ((intent === 'pay' || intent === 'select') && methodType === 'wallet') {
       memory.payment = { methodType: 'wallet', mode: 'wallet', label: 'RailSetu Wallet' };
       memory.stage = 'approval';
-      return { ...base, action: { type: 'pay_with_wallet', approvalId: crypto.randomUUID() }, requiresApproval: true, approvalLabel: 'Approve wallet payment' };
+      return { ...base, reply: usefulReply(reply, 'I have prepared the wallet payment. Please approve this exact transaction to continue.'), action: { type: 'pay_with_wallet', approvalId: crypto.randomUUID() }, requiresApproval: true, approvalLabel: 'Approve wallet payment' };
     }
     if ((intent === 'pay' || intent === 'select') && (methodType === 'upi' || methodType === 'card') && mode && label) {
       const savedChoice = context.paymentChoices.find((choice) => choice.mode === mode);
@@ -273,24 +304,24 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
       const validatedLabel = savedChoice ? `${savedChoice.label} ${savedChoice.detail}` : label;
       memory.payment = { methodType, mode, label: validatedLabel };
       memory.stage = 'approval';
-      return { ...base, action: { type: 'pay_with_method', mode, label: validatedLabel, approvalId: crypto.randomUUID() }, requiresApproval: true, approvalLabel: `Approve ${methodType} payment` };
+      return { ...base, reply: usefulReply(reply, `I have prepared the ${methodType} payment. Please approve this exact transaction to continue.`), action: { type: 'pay_with_method', mode, label: validatedLabel, approvalId: crypto.randomUUID() }, requiresApproval: true, approvalLabel: `Approve ${methodType} payment` };
     }
     if (methodType === 'upi' || methodType === 'card') {
       memory.payment = { methodType };
       memory.stage = 'payment';
-      return { ...base, action: { type: 'list_payment_methods', methodType } };
+      return { ...base, reply: usefulReply(reply, `I’m showing your available ${methodType} options now.`), action: { type: 'list_payment_methods', methodType } };
     }
-    return { ...base, clarification: true };
+    return { ...base, reply: usefulReply(reply, 'Which payment method would you like to use?'), clarification: true };
   }
   if (call.name === 'download_ticket') {
     if (pathname !== '/ticket') throw new Error('A ticket can be downloaded only after it is issued.');
     memory.stage = 'ticket';
-    return { ...base, action: { type: 'download_ticket' } };
+    return { ...base, reply: usefulReply(reply, 'I’m downloading your issued ticket now.'), action: { type: 'download_ticket' } };
   }
   if (call.name === 'navigate') {
     const path = args.path === '/' || args.path === '/about' || args.path === '/planner' ? args.path : undefined;
     if (!path) throw new Error('The requested page is not available to Jamvanta.');
-    return { ...base, action: { type: 'navigate', path } };
+    return { ...base, reply: usefulReply(reply, 'I’m opening that RailSetu page now.'), action: { type: 'navigate', path } };
   }
   if (call.name === 'ask_user') {
     const field = plainText(args.missing_field, 80).trim().toLowerCase();
@@ -308,9 +339,36 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
       return { ...base, reply: language === 'hi-IN' ? 'मेरे पास आपकी सारी जानकारी है। मैं अभी खोज रहा हूँ।' : 'I have all your details. I’m searching now.', action: journeyAction(memory, true) };
     }
     if (pathname === '/planner' && !field) return clarificationTurn(memory, pathname, spokenLanguage);
-    return { ...base, clarification: true };
+    return clarificationTurn(memory, pathname, spokenLanguage);
   }
   throw new Error('The selected tool is not available.');
+}
+
+function safeRecoveryTurn(memory: JamvantaMemory, pathname: string, spokenLanguage: string, context: AgentContext): JamvantaTurn {
+  const language = spokenLanguage === 'hi-IN' ? 'hi-IN' : 'en-IN';
+  if (pathname === '/planner') {
+    const missing = missingJourneyField(memory);
+    const preferences = missingPreferences(memory);
+    if (missing || preferences.length || memory.journey.preferencesConfirmed !== true) {
+      return clarificationTurn(memory, pathname, spokenLanguage);
+    }
+    memory.stage = 'searching';
+    return {
+      reply: language === 'hi-IN' ? 'मेरे पास आपकी सारी जानकारी है। मैं अभी confirmed विकल्प खोज रहा हूँ।' : 'I have all your details. I’m searching for confirmed options now.',
+      language,
+      memory,
+      action: journeyAction(memory, true),
+    };
+  }
+  if (pathname === '/payment' && context.paymentChoices.length) {
+    return {
+      reply: language === 'hi-IN' ? 'मैं उपलब्ध भुगतान विकल्प दिखा रहा हूँ। भुगतान से पहले आपकी स्पष्ट मंज़ूरी हमेशा ज़रूरी होगी।' : 'I’m showing the available payment options. I will still require your explicit approval before any payment.',
+      language,
+      memory,
+      action: { type: 'list_payment_methods', methodType: memory.payment.methodType === 'card' ? 'card' : 'upi' },
+    };
+  }
+  return clarificationTurn(memory, pathname, spokenLanguage, 'I need one clearer instruction to continue safely');
 }
 
 const tools = [
@@ -334,7 +392,7 @@ Your toolkit:
 
 Reason about every user turn before choosing exactly one tool. Every tool's say field is the exact sentence spoken to the user, so write it as a natural first-person response—not an internal summary such as “User asked…”. Treat validated persistent memory and page context as the source of truth. Copy every remembered journey value into journey_planner arguments unless the user explicitly corrects it. Never ask for information already present. If anything is genuinely missing or ambiguous, clearly name that exact gap and ask one direct question; never say only “no action was taken”. Compare the primary transcript, alternate transcripts, recent conversation, station hints, and memory before deciding. Treat a plausible station name from one recognizer as stronger evidence than an ordinary translated word from another. Understand natural railway language rather than demanding exact UI wording: “third AC”, “3A”, “three AC”, “AC three tier”, and likely speech-recognition variants mean 3A; “second AC”, “2A”, “two AC” mean 2A; “first AC” means 1A; “executive” means EC; “chair car” means CC; “sleeper” means SL. Interpret equivalent Hindi and Hinglish naturally.
 
-First collect departure, destination, date, class and passenger count. Then collect traveller type, luggage, coach movement, maximum seat changes and lower-berth preference together, or apply standard traveller, light luggage, same coach, one seat change and no lower-berth requirement when the user accepts recommended defaults. Set preferences_confirmed=true only when all five preferences were stated or defaults were accepted. Then search and continue automatically unless the user explicitly asks only to view results.
+First collect departure, destination, date, class and passenger count. Then collect traveller type, luggage, coach movement, maximum seat changes and lower-berth preference together, or apply standard traveller, light luggage, same coach, one seat change and lower-berth preference enabled when the user accepts recommended defaults. Set preferences_confirmed=true only when all five preferences were stated or defaults were accepted. Then search and continue automatically unless the user explicitly asks only to view results.
 
 When the planner proposes a revised constraint and page context contains suggestedAction, understand natural acceptance or rejection. On acceptance, apply that exact suggestion in one journey_planner call without asking again. On rejection, ask what they want changed.
 
@@ -381,17 +439,31 @@ export async function POST(request: Request) {
     const memory = cleanMemory(body.memory, pathname);
     const context = cleanAgentContext(body.agentContext);
     reconcileStationMemory(memory, transcript, context, history);
+    const defaultsAccepted = acceptsRecommendedDefaults(transcript);
+    if (defaultsAccepted) applyRecommendedDefaults(memory);
     const payload = { currentPage: pathname, primaryTranscript: transcript, alternateTranscripts: context.alternateTranscripts, stationCatalog: stationOptions, persistentMemory: memory, recentConversation: history, pageContext: { paymentChoices: context.paymentChoices, paymentFlow: context.paymentFlow, suggestedAction: context.suggestedAction, paymentAmount: context.paymentAmount } };
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8_500);
     try {
-      const call = await requestToolDecision(payload, controller.signal);
+      let call: ToolCall;
       try {
-        return secureJson({ ...validatedTurn(call, memory, pathname, spokenLanguage, context), mode: 'openai-agent' });
+        call = await requestToolDecision(payload, controller.signal);
+      } catch (reasoningError) {
+        console.warn('[jamvanta-agent] reasoning unavailable; using state-aware recovery', reasoningError instanceof Error ? reasoningError.message : 'unknown error');
+        return secureJson({ ...safeRecoveryTurn(memory, pathname, spokenLanguage, context), mode: 'openai-agent-recovery' });
+      }
+      try {
+        return secureJson({ ...validatedTurn(call, memory, pathname, spokenLanguage, context, defaultsAccepted), mode: 'openai-agent' });
       } catch (validationError) {
         const detail = validationError instanceof Error ? validationError.message : 'Invalid tool decision.';
-        console.warn('[jamvanta-agent] decision guardrail supplied clarification', detail);
-        return secureJson({ ...clarificationTurn(memory, pathname, spokenLanguage, detail), mode: 'openai-agent' });
+        console.warn('[jamvanta-agent] repairing invalid tool decision', detail);
+        try {
+          const repairedCall = await requestToolDecision(payload, controller.signal, detail);
+          return secureJson({ ...validatedTurn(repairedCall, memory, pathname, spokenLanguage, context, defaultsAccepted), mode: 'openai-agent' });
+        } catch (repairError) {
+          console.warn('[jamvanta-agent] repair failed; using state-aware recovery', repairError instanceof Error ? repairError.message : 'unknown error');
+          return secureJson({ ...safeRecoveryTurn(memory, pathname, spokenLanguage, context), mode: 'openai-agent-recovery' });
+        }
       }
     } finally {
       clearTimeout(timeout);
