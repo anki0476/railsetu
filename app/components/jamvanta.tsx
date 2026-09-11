@@ -459,7 +459,7 @@ export default function Jamvanta() {
       requestTimeout = window.setTimeout(() => {
         requestTimedOut = true;
         controller.abort();
-      }, 18_000);
+      }, 28_000);
       const response = await fetch('/api/jamvanta/turn', {
         method: 'POST',
         signal: controller.signal,
@@ -479,7 +479,7 @@ export default function Jamvanta() {
           },
         }),
       });
-      const turn = await response.json() as JamvantaTurn & { mode?: string; error?: string };
+      const turn = await response.json() as JamvantaTurn & { mode?: string; model?: string; error?: string };
       if (interactionSequence.current !== turnSequence) return;
       if (!response.ok) throw new Error(turn.error ?? 'I could not understand that. I kept your journey details—please try once more.');
       if (suggestion) rememberSuggestion(null);
@@ -487,7 +487,7 @@ export default function Jamvanta() {
         memoryRef.current = mergeMemory(memoryRef.current, turn.memory);
         try { persistMemory(memoryRef.current); } catch { /* In-memory agent context remains authoritative. */ }
       }
-      setNotice(turn.mode === 'openai-agent' ? 'Jamvanta agent · GPT-5 Mini reasoning' : 'Jamvanta reasoning unavailable');
+      setNotice(turn.mode === 'openai-agent' ? 'Jamvanta agent · GPT-5.6 Luna reasoning' : 'Jamvanta reasoning unavailable');
       const safeReply = turn.action?.type === 'list_payment_methods'
         ? paymentChoicePrompt(turn.action.methodType, savedPaymentChoices(turn.action.methodType))
         : plainText(turn.reply);

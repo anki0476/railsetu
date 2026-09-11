@@ -17,7 +17,7 @@ const majorUpdates = [
     eyebrow: 'Hands-free booking agent',
     summary: 'A bilingual voice agent that can carry a passenger’s intent from the first journey request to an issued, downloadable ticket.',
     details: [
-      'GPT-5 Mini interprets English, Hindi and Hinglish requests, while structured tools—not free-form browser guesses—control the planner, journey comparison and payment gateway.',
+      'GPT-5.6 Luna reasons over English, Hindi and Hinglish requests, persistent journey memory and current page state before structured tools—not free-form browser guesses—control the planner, journey comparison and payment gateway.',
       'Session memory retains stations, date, class, passenger count, comfort preferences and payment progress across RailSetu pages.',
       'Sarvam speech models improve Indian-language transcription and voice output, with continuous listening and a four-second silence window.',
       'Every payment mode requires a fresh, visible approval. Jamvanta cannot reuse consent, change the approved amount or silently complete another transaction.',

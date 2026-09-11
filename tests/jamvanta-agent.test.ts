@@ -6,15 +6,22 @@ process.env.OPENAI_API_KEY = 'test-key';
 type ToolDecision = { name: string; arguments: Record<string, unknown> };
 type TurnBody = {
   reply?: unknown;
+  model?: unknown;
   memory: { journey: Record<string, unknown> };
   action?: Record<string, unknown>;
 };
 
+let latestModelRequest = '';
+let latestReasoningEffort = '';
+
 async function runTurn(decision: ToolDecision, body: Record<string, unknown>) {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({
-    output: [{ type: 'function_call', name: decision.name, arguments: JSON.stringify(decision.arguments) }],
-  });
+  globalThis.fetch = async (_input, init) => {
+    const requestBody = JSON.parse(String(init?.body ?? '{}')) as { model?: string; reasoning?: { effort?: string } };
+    latestModelRequest = String(requestBody.model ?? '');
+    latestReasoningEffort = String(requestBody.reasoning?.effort ?? '');
+    return Response.json({ output: [{ type: 'function_call', name: decision.name, arguments: JSON.stringify(decision.arguments) }] });
+  };
   try {
     const response = await reasonTurn(new Request('http://localhost/api/jamvanta/turn', {
       method: 'POST',
@@ -77,6 +84,9 @@ assert.equal(firstMemory.journey.to, 'BRC');
 assert.equal(firstMemory.journey.date, '2026-09-29');
 assert.equal(firstMemory.journey.travelClass, '1A');
 assert.match(String(firstTurn.body.reply), /^I\b/);
+assert.equal(latestModelRequest, 'gpt-5.6-luna');
+assert.equal(latestReasoningEffort, 'medium');
+assert.equal(firstTurn.body.model, 'gpt-5.6-luna');
 
 const defaultsTurn = await runTurn({
   name: 'journey_planner',
@@ -130,8 +140,8 @@ const recoveredModelFailure = await runFailedReasoningTurn({
   memory: defaultsMemory, agentContext: { alternateTranscripts: [] },
 });
 assert.equal(recoveredModelFailure.status, 200);
-assert.equal(recoveredModelFailure.body.action?.type, 'plan_journey');
-assert.equal(recoveredModelFailure.body.action?.search, true);
+assert.equal(recoveredModelFailure.body.action, undefined);
+assert.match(String(recoveredModelFailure.body.reply), /not taken any action/i);
 
 const recoveredFirstPrompt = await runFailedReasoningTurn({
   transcript: 'Book me a train from New Delhi to Patna in Tier 1 AC for one passenger on 18th of September.',
@@ -144,7 +154,8 @@ assert.equal(recoveredFirstPrompt.body.memory.journey.to, 'PNBE');
 assert.equal(recoveredFirstPrompt.body.memory.journey.date, '2026-09-18');
 assert.equal(recoveredFirstPrompt.body.memory.journey.travelClass, '1A');
 assert.equal(recoveredFirstPrompt.body.memory.journey.passengerCount, 1);
-assert.match(String(recoveredFirstPrompt.body.reply), /traveller type|preferences/i);
+assert.equal(recoveredFirstPrompt.body.action, undefined);
+assert.match(String(recoveredFirstPrompt.body.reply), /not taken any action/i);
 
 const genericRouteCases = [
   {
