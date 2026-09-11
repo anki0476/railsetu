@@ -58,7 +58,7 @@ const correctedReply = String(correctedStation.body.reply);
 assert.equal(correctedMemory.journey.from, 'DURG');
 assert.equal(correctedMemory.journey.to, 'BRC');
 assert.doesNotMatch(correctedReply, /Jamvanta|departure station/i);
-assert.match(correctedReply, /journey date/i);
+assert.match(correctedReply, /traveller type|preferences/i);
 
 const firstTurn = await runTurn({
   name: 'journey_planner',
@@ -132,6 +132,44 @@ const recoveredModelFailure = await runFailedReasoningTurn({
 assert.equal(recoveredModelFailure.status, 200);
 assert.equal(recoveredModelFailure.body.action?.type, 'plan_journey');
 assert.equal(recoveredModelFailure.body.action?.search, true);
+
+const recoveredFirstPrompt = await runFailedReasoningTurn({
+  transcript: 'Book me a train from New Delhi to Patna in Tier 1 AC for one passenger on 18th of September.',
+  spokenLanguage: 'en-IN', pathname: '/planner', history: [], memory: emptyMemory,
+  agentContext: { alternateTranscripts: [] },
+});
+assert.equal(recoveredFirstPrompt.status, 200);
+assert.equal(recoveredFirstPrompt.body.memory.journey.from, 'NDLS');
+assert.equal(recoveredFirstPrompt.body.memory.journey.to, 'PNBE');
+assert.equal(recoveredFirstPrompt.body.memory.journey.date, '2026-09-18');
+assert.equal(recoveredFirstPrompt.body.memory.journey.travelClass, '1A');
+assert.equal(recoveredFirstPrompt.body.memory.journey.passengerCount, 1);
+assert.match(String(recoveredFirstPrompt.body.reply), /traveller type|preferences/i);
+
+const genericRouteCases = [
+  {
+    transcript: 'Find a train between Bengaluru and Chennai on October 3 for two passengers in second AC.',
+    expected: { from: 'SBC', to: 'MAS', date: '2026-10-03', travelClass: '2A', passengerCount: 2 },
+  },
+  {
+    transcript: 'Book Durg se Vadodara on 22 November for three passengers in sleeper.',
+    expected: { from: 'DURG', to: 'BRC', date: '2026-11-22', travelClass: 'SL', passengerCount: 3 },
+  },
+  {
+    transcript: 'I want to travel to Howrah from Mumbai on December 5 for one passenger in 3A.',
+    expected: { from: 'CSMT', to: 'HWH', date: '2026-12-05', travelClass: '3A', passengerCount: 1 },
+  },
+];
+for (const routeCase of genericRouteCases) {
+  const turn = await runFailedReasoningTurn({
+    transcript: routeCase.transcript, spokenLanguage: 'en-IN', pathname: '/planner', history: [],
+    memory: emptyMemory, agentContext: { alternateTranscripts: [] },
+  });
+  assert.equal(turn.status, 200);
+  for (const [field, expected] of Object.entries(routeCase.expected)) {
+    assert.equal(turn.body.memory.journey[field], expected, `${routeCase.transcript}: ${field}`);
+  }
+}
 
 const summaryReply = await runTurn({
   name: 'navigate',

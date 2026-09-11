@@ -17,6 +17,12 @@ const spokenAliases: Record<string, string[]> = {
 };
 
 const normalizePhrase = (value: string) => value.toLowerCase().replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
+const numberWords: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, एक: 1, दो: 2, तीन: 3, चार: 4, पांच: 5, छह: 6 };
+const monthNumbers: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
+  may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8, september: 9, sep: 9, sept: 9,
+  october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12,
+};
 const stationAliases = stationOptions.flatMap((station) => {
   const simplified = station.name.replace(/\b(junction|terminus|deccan|central)\b/gi, '').replace(/\s+/g, ' ').trim();
   return [...new Set([station.name, simplified, ...(station.code.length > 1 ? [station.code] : []), ...(spokenAliases[station.code] ?? [])])]
@@ -32,9 +38,28 @@ function stationIn(fragment: string) {
 
 function stationsFromRoutePhrase(value: string) {
   const normalized = normalizePhrase(value);
-  const match = normalized.match(/(?:^|\s)from\s+(.+?)\s+to\s+(.+?)(?=\s+(?:on|for|with|in|by|travelling|traveling)\b|$)/i);
-  if (!match) return {};
-  return { from: stationIn(match[1]), to: stationIn(match[2]) };
+  const boundary = '(?=\\s+(?:on|for|with|in|by|travelling|traveling|leaving|departing)\\b|$)';
+  const fromTo = normalized.match(new RegExp(`(?:^|\\s)from\\s+(.+?)\\s+to\\s+(.+?)${boundary}`, 'i'));
+  if (fromTo) return { from: stationIn(fromTo[1]), to: stationIn(fromTo[2]) };
+  const between = normalized.match(new RegExp(`(?:^|\\s)between\\s+(.+?)\\s+and\\s+(.+?)${boundary}`, 'i'));
+  if (between) return { from: stationIn(between[1]), to: stationIn(between[2]) };
+  const seRoute = normalized.match(new RegExp(`(?:^|\\s)(.+?)\\s+(?:se|से)\\s+(.+?)${boundary}`, 'i'));
+  if (seRoute) return { from: stationIn(seRoute[1]), to: stationIn(seRoute[2]) };
+  const toFrom = normalized.match(new RegExp(`(?:^|\\s)to\\s+(.+?)\\s+from\\s+(.+?)${boundary}`, 'i'));
+  if (toFrom) return { from: stationIn(toFrom[2]), to: stationIn(toFrom[1]) };
+
+  // Natural speech often drops connector words. As a final catalogue-wide
+  // fallback, use the first two distinct station mentions in spoken order.
+  const mentions = stationAliases.flatMap(({ code, alias }) => {
+    const index = ` ${normalized} `.indexOf(` ${alias} `);
+    return index >= 0 ? [{ code, index, length: alias.length }] : [];
+  }).sort((a, b) => a.index - b.index || b.length - a.length);
+  const codes: string[] = [];
+  for (const mention of mentions) {
+    if (!codes.includes(mention.code)) codes.push(mention.code);
+    if (codes.length === 2) break;
+  }
+  return codes.length === 2 ? { from: codes[0], to: codes[1] } : {};
 }
 
 function reconcileStationMemory(memory: JamvantaMemory, transcript: string, context: AgentContext, history: ConversationMessage[]) {
@@ -57,6 +82,88 @@ function reconcileStationMemory(memory: JamvantaMemory, transcript: string, cont
     memory.journey.to ??= route.to;
     if (memory.journey.from && memory.journey.to) return;
   }
+}
+
+function validFutureDate(year: number, month: number, day: number) {
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (candidate.getUTCFullYear() !== year || candidate.getUTCMonth() !== month - 1 || candidate.getUTCDate() !== day) return undefined;
+  const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  return formatted >= today ? formatted : undefined;
+}
+
+function dateIn(value: string) {
+  const normalized = normalizePhrase(value).replace(/\b(\d{1,2})(?:st|nd|rd|th)\b/g, '$1');
+  const iso = normalized.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  if (iso) return validFutureDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  const dayFirst = normalized.match(/\b(\d{1,2})\s+(?:of\s+)?(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)(?:\s+(20\d{2}))?\b/);
+  const monthFirst = normalized.match(/\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\s+(\d{1,2})(?:\s+(20\d{2}))?\b/);
+  const match = dayFirst ?? monthFirst;
+  if (!match) return undefined;
+  const day = Number(dayFirst ? match[1] : match[2]);
+  const month = monthNumbers[String(dayFirst ? match[2] : match[1])];
+  const suppliedYear = Number(dayFirst ? match[3] : match[3]);
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  let year = Number.isInteger(suppliedYear) && suppliedYear >= 2020 ? suppliedYear : now.getFullYear();
+  let candidate = validFutureDate(year, month, day);
+  if (!candidate && !suppliedYear) candidate = validFutureDate(++year, month, day);
+  return candidate;
+}
+
+function classIn(value: string) {
+  const normalized = normalizePhrase(value).replace(/\btier\s+/g, '');
+  if (/\b(?:1a|first ac|1st ac|ac first|ac 1|1 ac|first class ac)\b/.test(normalized)) return '1A';
+  if (/\b(?:2a|second ac|2nd ac|ac second|ac 2|2 ac)\b/.test(normalized)) return '2A';
+  if (/\b(?:3a|third ac|3rd ac|ac third|ac 3|3 ac|three ac)\b/.test(normalized)) return '3A';
+  if (/\b(?:3e|third economy|ac economy)\b/.test(normalized)) return '3E';
+  if (/\b(?:executive|ec)\b/.test(normalized)) return 'EC';
+  if (/\b(?:chair car|cc)\b/.test(normalized)) return 'CC';
+  if (/\b(?:sleeper|sl)\b/.test(normalized)) return 'SL';
+  return undefined;
+}
+
+function countIn(value: string) {
+  const normalized = normalizePhrase(value);
+  const match = normalized.match(/\b(?:for\s+)?(one|two|three|four|five|six|[1-6]|एक|दो|तीन|चार|पांच|छह)\s+(?:adult\s+|travell?er\s+|railway\s+)?passengers?\b/);
+  if (!match) return undefined;
+  return Number(match[1]) || numberWords[match[1]];
+}
+
+function changesIn(value: string) {
+  const normalized = normalizePhrase(value);
+  if (/\b(?:no|zero|0)\s+(?:seat\s+)?changes?\b/.test(normalized)) return 0;
+  const match = normalized.match(/\b(?:max(?:imum)?(?:\s+of)?|allow(?:\s+a)?(?:\s+maximum\s+of)?)\s+(one|two|three|four|five|six|[1-6])\s+(?:seat\s+)?changes?\b/);
+  return match ? Number(match[1]) || numberWords[match[1]] : undefined;
+}
+
+function reconcileJourneyMemory(memory: JamvantaMemory, transcript: string, context: AgentContext, history: ConversationMessage[]) {
+  const current = [transcript, ...context.alternateTranscripts].filter(Boolean);
+  for (const candidate of current) {
+    const normalized = normalizePhrase(candidate);
+    memory.journey.date = dateIn(candidate) ?? memory.journey.date;
+    memory.journey.travelClass = classIn(candidate) ?? memory.journey.travelClass;
+    memory.journey.passengerCount = countIn(candidate) ?? memory.journey.passengerCount;
+    if (/\b(?:elderly|senior citizen|limited mobility)\b/.test(normalized)) memory.journey.profile = 'elderly';
+    else if (/\b(?:family|children|child)\b/.test(normalized)) memory.journey.profile = 'family';
+    if (/\b(?:light|manageable)\s+luggage\b/.test(normalized)) memory.journey.luggage = 'light';
+    else if (/\bheavy\s+luggage\b/.test(normalized)) memory.journey.luggage = 'heavy';
+    else if (/\b(?:no|without)\s+luggage\b/.test(normalized)) memory.journey.luggage = 'none';
+    if (/\b(?:same coach|no coach changes?|remain in the same coach)\b/.test(normalized)) memory.journey.coachPreference = 'same';
+    else if (/\b(?:nearby coach|adjacent coach)\b/.test(normalized)) memory.journey.coachPreference = 'nearby';
+    else if (/\b(?:any coach|coach does not matter)\b/.test(normalized)) memory.journey.coachPreference = 'any';
+    const maxChanges = changesIn(candidate);
+    if (typeof maxChanges === 'number') memory.journey.maxChanges = maxChanges;
+    if (/\b(?:prefer|need|want)(?:\s+a)?\s+lower berth\b/.test(normalized)) memory.journey.lowerBerth = true;
+    else if (/\b(?:no|do not|don't)\s+(?:need|want|prefer)?\s*(?:a\s+)?lower berth\b/.test(normalized)) memory.journey.lowerBerth = false;
+  }
+  const prior = history.filter((message) => message.role === 'user').map((message) => message.text).reverse();
+  for (const candidate of prior) {
+    memory.journey.date ??= dateIn(candidate);
+    memory.journey.travelClass ??= classIn(candidate);
+    memory.journey.passengerCount ??= countIn(candidate);
+    if (memory.journey.date && memory.journey.travelClass && memory.journey.passengerCount) break;
+  }
+  if (missingPreferences(memory).length === 0) memory.journey.preferencesConfirmed = true;
 }
 
 function cleanMemory(value: unknown, pathname: string): JamvantaMemory {
@@ -439,11 +546,12 @@ export async function POST(request: Request) {
     const memory = cleanMemory(body.memory, pathname);
     const context = cleanAgentContext(body.agentContext);
     reconcileStationMemory(memory, transcript, context, history);
+    reconcileJourneyMemory(memory, transcript, context, history);
     const defaultsAccepted = acceptsRecommendedDefaults(transcript);
     if (defaultsAccepted) applyRecommendedDefaults(memory);
     const payload = { currentPage: pathname, primaryTranscript: transcript, alternateTranscripts: context.alternateTranscripts, stationCatalog: stationOptions, persistentMemory: memory, recentConversation: history, pageContext: { paymentChoices: context.paymentChoices, paymentFlow: context.paymentFlow, suggestedAction: context.suggestedAction, paymentAmount: context.paymentAmount } };
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8_500);
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
       let call: ToolCall;
       try {

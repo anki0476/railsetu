@@ -459,7 +459,7 @@ export default function Jamvanta() {
       requestTimeout = window.setTimeout(() => {
         requestTimedOut = true;
         controller.abort();
-      }, 12_000);
+      }, 18_000);
       const response = await fetch('/api/jamvanta/turn', {
         method: 'POST',
         signal: controller.signal,
@@ -508,7 +508,9 @@ export default function Jamvanta() {
       if (error instanceof DOMException && error.name === 'AbortError' && !requestTimedOut) return;
       const message = requestTimedOut ? 'That took too long to process. I kept your journey details—please try that last instruction once more.' : error instanceof Error ? error.message : 'I am temporarily unavailable, but I kept your journey details.';
       updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
-      listenAfterReply = true;
+      // Infrastructure failures should never create an automatic listen/retry loop.
+      // The user can explicitly press the orb after reading the recovery message.
+      listenAfterReply = false;
       const sequence = ++speechSequence.current;
       await speak(message, 'en-IN', providers.sarvam);
       if (speechSequence.current !== sequence) listenAfterReply = false;
