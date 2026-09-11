@@ -7,7 +7,7 @@ type ToolDecision = { name: string; arguments: Record<string, unknown> };
 type TurnBody = {
   reply?: unknown;
   model?: unknown;
-  memory: { journey: Record<string, unknown> };
+  memory: { journey: Record<string, unknown>; payment: Record<string, unknown> };
   action?: Record<string, unknown>;
 };
 
@@ -134,6 +134,30 @@ const refusalDuringSelection = await runTurn({
 assert.equal(refusalDuringSelection.status, 200);
 assert.equal(refusalDuringSelection.body.action?.type, 'select_journey');
 assert.doesNotMatch(String(refusalDuringSelection.body.reply), /cannot fulfill|can't fulfill|no action/i);
+
+const singlePromptWorkflow = await runTurn({
+  name: 'journey_planner',
+  arguments: {
+    say: 'I have everything I need and I am continuing to payment.', from: 'New Delhi', to: 'Patna', date: '2026-09-18', passenger_count: 1,
+    travel_class: '3A', profile: 'elderly', coach_preference: 'same', luggage: 'light', lower_berth: true,
+    max_changes: 1, preferences_confirmed: true, selection_strategy: 'highest_comfort', option_index: null,
+    auto_continue: false,
+  },
+}, {
+  transcript: 'Book New Delhi to Patna on 18 September for one elderly passenger in third AC, light luggage, same coach, maximum one seat change, lower berth, highest comfort, and pay with my Visa card.',
+  spokenLanguage: 'en-IN', pathname: '/planner', history: [], memory: emptyMemory,
+  agentContext: { alternateTranscripts: [], paymentChoices: [
+    { mode: 'visa', label: 'Visa', detail: 'Ending 6756' },
+    { mode: 'mastercard', label: 'Mastercard', detail: 'Ending 4632' },
+  ] },
+});
+assert.equal(singlePromptWorkflow.status, 200);
+assert.equal(singlePromptWorkflow.body.action?.type, 'plan_journey');
+assert.equal(singlePromptWorkflow.body.action?.autoContinue, true);
+assert.equal(singlePromptWorkflow.body.action?.selectionStrategy, 'highest_comfort');
+assert.equal(singlePromptWorkflow.body.memory.payment.methodType, 'card');
+assert.equal(singlePromptWorkflow.body.memory.payment.mode, 'visa');
+assert.match(String(singlePromptWorkflow.body.memory.payment.label), /Visa.*6756/i);
 
 const recoveredModelFailure = await runFailedReasoningTurn({
   transcript: 'Search now', spokenLanguage: 'en-IN', pathname: '/planner', history: [],

@@ -286,11 +286,40 @@ export default function Jamvanta() {
     if (window.location.pathname === '/payment' && params.get('jamvanta') === '1') {
       params.delete('jamvanta');
       window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
-      const message = 'I found the best complete route and brought you to payment. Would you like to use UPI, a saved card, or your RailSetu Wallet?';
+      const rememberedPayment = memoryRef.current.payment;
+      const requestedType = rememberedPayment.methodType;
+      const availableChoices = requestedType === 'upi' || requestedType === 'card' ? savedPaymentChoices(requestedType) : [];
+      const exactChoice = rememberedPayment.mode
+        ? availableChoices.find((choice) => choice.mode === rememberedPayment.mode)
+        : requestedType === 'upi' ? availableChoices[0] : undefined;
+      const preparedLabel = requestedType === 'wallet'
+        ? 'RailSetu Wallet'
+        : exactChoice ? `${exactChoice.label} ${exactChoice.detail}` : '';
+      const message = preparedLabel
+        ? `I found the best complete route and prepared ${preparedLabel}. Please approve this exact transaction to continue.`
+        : requestedType === 'card'
+          ? paymentChoicePrompt('card', availableChoices)
+          : 'I found the best complete route and brought you to payment. Would you like to use UPI, a saved card, or your RailSetu Wallet?';
       const timer = window.setTimeout(() => {
         setOpen(true);
         updateMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', text: message }]);
-        void speak(message, 'en-IN', false).then(() => beginListeningRef.current());
+        if (requestedType === 'wallet') {
+          setPending({ action: { type: 'pay_with_wallet', approvalId: crypto.randomUUID() }, label: 'Approve wallet payment' });
+          memoryRef.current = { ...memoryRef.current, payment: { methodType: 'wallet', mode: 'wallet', label: preparedLabel }, stage: 'approval', lastPath: '/payment' };
+          persistMemory(memoryRef.current);
+        } else if (exactChoice) {
+          setPending({ action: { type: 'pay_with_method', mode: exactChoice.mode, label: preparedLabel, approvalId: crypto.randomUUID() }, label: `Approve ${exactChoice.label} payment` });
+          memoryRef.current = { ...memoryRef.current, payment: { methodType: requestedType, mode: exactChoice.mode, label: preparedLabel }, stage: 'approval', lastPath: '/payment' };
+          persistMemory(memoryRef.current);
+        } else if (requestedType === 'card') {
+          const flow: PaymentFlow = { methodType: 'card', choices: availableChoices, awaiting: 'choice' };
+          paymentFlow.current = flow;
+          setPaymentChoices(availableChoices);
+          window.sessionStorage.setItem(JAMVANTA_PAYMENT_FLOW_KEY, JSON.stringify(flow));
+        }
+        void speak(message, 'en-IN', false).then(() => {
+          if (!preparedLabel) void beginListeningRef.current();
+        });
       }, 350);
       return () => window.clearTimeout(timer);
     }
@@ -487,7 +516,11 @@ export default function Jamvanta() {
           agentContext: {
             alternateTranscripts: alternateTranscripts.map((candidate) => plainText(candidate)).filter((candidate) => candidate && candidate !== transcript).slice(0, 2),
             paymentFlow: activePaymentFlow ? { methodType: activePaymentFlow.methodType, awaiting: activePaymentFlow.awaiting } : undefined,
-            paymentChoices: activePaymentFlow?.choices ?? [],
+            paymentChoices: activePaymentFlow?.choices ?? [
+              { mode: 'wallet', label: 'RailSetu Wallet', detail: 'Wallet balance' },
+              ...savedPaymentChoices('upi'),
+              ...savedPaymentChoices('card'),
+            ],
             suggestedAction: suggestion,
             paymentAmount: paymentAmountValue,
           },

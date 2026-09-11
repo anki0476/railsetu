@@ -124,7 +124,7 @@ function classIn(value: string) {
 
 function countIn(value: string) {
   const normalized = normalizePhrase(value);
-  const match = normalized.match(/\b(?:for\s+)?(one|two|three|four|five|six|[1-6]|एक|दो|तीन|चार|पांच|छह)\s+(?:adult\s+|travell?er\s+|railway\s+)?passengers?\b/);
+  const match = normalized.match(/\b(?:for\s+)?(one|two|three|four|five|six|[1-6]|एक|दो|तीन|चार|पांच|छह)\s+(?:(?:elderly|senior(?:\s+citizen)?|adult|child|children|travell?er|railway)\s+){0,3}passengers?\b/);
   if (!match) return undefined;
   return Number(match[1]) || numberWords[match[1]];
 }
@@ -289,6 +289,29 @@ function cleanAgentContext(value: unknown): AgentContext {
   return { alternateTranscripts, paymentChoices, paymentFlow, suggestedAction, paymentAmount: Number.isFinite(amount) && amount >= 0 ? amount : undefined };
 }
 
+function reconcilePaymentMemory(memory: JamvantaMemory, transcript: string, context: AgentContext) {
+  const normalized = normalizePhrase(transcript);
+  const route = stationsFromRoutePhrase(transcript);
+  // A complete new journey request starts a fresh checkout intent. This prevents
+  // a payment choice from an older booking being silently reused.
+  if (route.from && route.to) memory.payment = {};
+
+  const exactChoice = context.paymentChoices.find((choice) => {
+    const detailDigits = choice.detail.match(/\d{4}/)?.[0];
+    return normalized.includes(normalizePhrase(choice.label))
+      || normalized.includes(normalizePhrase(choice.mode))
+      || Boolean(detailDigits && normalized.includes(detailDigits));
+  });
+  if (exactChoice) {
+    const methodType = exactChoice.mode === 'wallet' ? 'wallet' : exactChoice.mode.startsWith('upi') || exactChoice.detail.includes('@') ? 'upi' : 'card';
+    memory.payment = { methodType, mode: exactChoice.mode, label: `${exactChoice.label} ${exactChoice.detail}`.trim() };
+    return;
+  }
+  if (/\b(?:railsetu\s+)?wallet\b/.test(normalized)) memory.payment = { methodType: 'wallet', mode: 'wallet', label: 'RailSetu Wallet' };
+  else if (/\bupi\b|यूपीआई/.test(normalized)) memory.payment = { methodType: 'upi', mode: 'upi', label: 'RailSetu UPI railsetu@upi' };
+  else if (/\b(?:saved\s+)?cards?\b/.test(normalized)) memory.payment = { methodType: 'card' };
+}
+
 function languageFor(reply: string, spokenLanguage: string): JamvantaTurn['language'] {
   return /[\u0900-\u097f]/.test(reply) || spokenLanguage === 'hi-IN' ? 'hi-IN' : 'en-IN';
 }
@@ -350,7 +373,8 @@ function mergeJourney(memory: JamvantaMemory, args: Record<string, unknown>) {
     ...(selectionStrategies.has(strategy) ? { selectionStrategy: strategy } : {}),
     ...(Number.isInteger(index) && index >= 1 && index <= 4 ? { optionIndex: index } : {}),
   };
-  memory.journey.preferencesConfirmed = args.preferences_confirmed === true && missingPreferences(memory).length === 0;
+  memory.journey.preferencesConfirmed = missingPreferences(memory).length === 0
+    && (args.preferences_confirmed === true || memory.journey.preferencesConfirmed === true);
 }
 
 function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string, spokenLanguage: string, context: AgentContext, defaultsAccepted = false): JamvantaTurn {
@@ -479,7 +503,7 @@ function safeRecoveryTurn(memory: JamvantaMemory, pathname: string, spokenLangua
 }
 
 const tools = [
-  { type: 'function', name: 'journey_planner', description: 'Understand natural journey language, update remembered journey and comfort details, fill the planner, and search when complete.', parameters: { type: 'object', properties: { say: { type: 'string' }, from: { type: ['string','null'], description: 'Station name or code' }, to: { type: ['string','null'], description: 'Station name or code' }, date: { type: ['string','null'], description: 'YYYY-MM-DD' }, passenger_count: { type: ['integer','null'], minimum: 1, maximum: 6 }, travel_class: { type: ['string','null'], enum: ['1A','2A','3A','3E','CC','EC','SL',null] }, profile: { type: ['string','null'], enum: ['standard','elderly','family',null] }, coach_preference: { type: ['string','null'], enum: ['same','nearby','any',null] }, luggage: { type: ['string','null'], enum: ['none','light','heavy',null] }, lower_berth: { type: ['boolean','null'] }, max_changes: { type: ['integer','null'], minimum: 0, maximum: 8 }, preferences_confirmed: { type: 'boolean' }, selection_strategy: { type: ['string','null'], enum: ['best_fit','highest_comfort','lowest_fare','fastest',null] }, option_index: { type: ['integer','null'], minimum: 1, maximum: 4 }, auto_continue: { type: 'boolean' } }, required: ['say','from','to','date','passenger_count','travel_class','profile','coach_preference','luggage','lower_berth','max_changes','preferences_confirmed','selection_strategy','option_index','auto_continue'], additionalProperties: false }, strict: true },
+  { type: 'function', name: 'journey_planner', description: 'Capture the complete booking goal from natural language, including journey, comfort and selection intent; fill the planner, search and continue when complete. The server separately preserves any payment intent from the same prompt.', parameters: { type: 'object', properties: { say: { type: 'string' }, from: { type: ['string','null'], description: 'Station name or code' }, to: { type: ['string','null'], description: 'Station name or code' }, date: { type: ['string','null'], description: 'YYYY-MM-DD' }, passenger_count: { type: ['integer','null'], minimum: 1, maximum: 6 }, travel_class: { type: ['string','null'], enum: ['1A','2A','3A','3E','CC','EC','SL',null] }, profile: { type: ['string','null'], enum: ['standard','elderly','family',null] }, coach_preference: { type: ['string','null'], enum: ['same','nearby','any',null] }, luggage: { type: ['string','null'], enum: ['none','light','heavy',null] }, lower_berth: { type: ['boolean','null'] }, max_changes: { type: ['integer','null'], minimum: 0, maximum: 8 }, preferences_confirmed: { type: 'boolean' }, selection_strategy: { type: ['string','null'], enum: ['best_fit','highest_comfort','lowest_fare','fastest',null] }, option_index: { type: ['integer','null'], minimum: 1, maximum: 4 }, auto_continue: { type: 'boolean' } }, required: ['say','from','to','date','passenger_count','travel_class','profile','coach_preference','luggage','lower_berth','max_changes','preferences_confirmed','selection_strategy','option_index','auto_continue'], additionalProperties: false }, strict: true },
   { type: 'function', name: 'select_journey', description: 'Compare displayed journeys by comfort, fare, duration, recommendation, or option number and select one.', parameters: { type: 'object', properties: { say: { type: 'string' }, strategy: { type: 'string', enum: ['best_fit','highest_comfort','lowest_fare','fastest'] }, option_index: { type: ['integer','null'], minimum: 1, maximum: 4 }, continue_to_payment: { type: 'boolean' } }, required: ['say','strategy','option_index','continue_to_payment'], additionalProperties: false }, strict: true },
   { type: 'function', name: 'payment_gateway', description: 'List, select, add, or pay with a RailSetu payment method. Every payment needs a fresh approval.', parameters: { type: 'object', properties: { say: { type: 'string' }, intent: { type: 'string', enum: ['list','select','add','pay'] }, method_type: { type: ['string','null'], enum: ['wallet','upi','card',null] }, mode: { type: ['string','null'], description: 'An exact available mode, or upi-user@handle for a custom UPI ID' }, label: { type: ['string','null'] } }, required: ['say','intent','method_type','mode','label'], additionalProperties: false }, strict: true },
   { type: 'function', name: 'download_ticket', description: 'Download an issued ticket on the ticket page.', parameters: { type: 'object', properties: { say: { type: 'string' } }, required: ['say'], additionalProperties: false }, strict: true },
@@ -497,11 +521,13 @@ Your toolkit:
 - navigate moves only among allowed RailSetu pages.
 - ask_user asks one concise question only when a necessary fact is genuinely absent or ambiguous.
 
-Operate as a continuous Listen → Transcript → Reason → Tool → Verify → Question loop. Reason about every user turn before choosing exactly one tool, and keep advancing toward an issued and downloaded ticket whenever the next step is safe and the page supports it. Stop only for a genuinely missing fact, an explicit user stop, an unavailable page capability, or the mandatory fresh approval for the exact payment transaction.
+Operate as a continuous Listen → Transcript → Reason → Tool → Verify → Continue loop. A single user request may contain many sequential instructions. Capture the user's complete end goal in one reasoning pass, then use one goal-level tool call that can drive all safe downstream UI steps across pages. Never impose a one-step-per-prompt preset. Keep advancing through planner filling, search, comparison, selection, seat hold and payment-method preparation without asking the user to say “continue”. Pause only for a genuinely missing required fact, an explicit user stop, no available journey under the exact constraints, or the mandatory fresh approval for the exact payment transaction.
 
 Every tool's say field is the exact sentence spoken to the user, so write it as a natural first-person response—not an internal summary such as “User asked…”. Treat validated persistent memory and page context as the source of truth. Copy every remembered journey value into journey_planner arguments unless the user explicitly corrects it. Before using ask_user, re-read the primary transcript, alternate transcripts, recent conversation and persistent memory, then compare the requested missing field against derivedState. Never ask for information already present. If several preference fields are missing, ask for them together and offer recommended defaults; otherwise ask one concise question naming only the exact gap. Never say only “no action was taken”. Treat a plausible station name from one recognizer as stronger evidence than an ordinary translated word from another. Understand natural railway language rather than demanding exact UI wording: “third AC”, “3A”, “three AC”, “AC three tier”, and likely speech-recognition variants mean 3A; “second AC”, “2A”, “two AC” mean 2A; “first AC” means 1A; “executive” means EC; “chair car” means CC; “sleeper” means SL. Interpret equivalent Hindi and Hinglish naturally.
 
 First collect departure, destination, date, class and passenger count. Then collect traveller type, luggage, coach movement, maximum seat changes and lower-berth preference together, or apply standard traveller, light luggage, same coach, one seat change and lower-berth preference enabled when the user accepts recommended defaults. Set preferences_confirmed=true only when all five preferences were stated or defaults were accepted. Then search and continue automatically unless the user explicitly asks only to view results.
+
+If the same prompt also specifies a selection rule and payment method, use selection_strategy/option_index and continue the journey_planner workflow. The validated memory already preserves the exact payment intent separately. Examples: “highest comfort and Visa” means highest_comfort with the remembered Visa; “cheapest and Mastercard” means lowest_fare with the remembered Mastercard. A generic “saved card” is not an exact choice when several cards exist, so list those choices only after reaching payment. An exact named or last-four-digits choice must never be asked again. Arrival on the payment page must prepare that remembered method immediately and present the mandatory approval—never execute the charge automatically.
 
 When the planner proposes a revised constraint and page context contains suggestedAction, understand natural acceptance or rejection. On acceptance, apply that exact suggestion in one journey_planner call without asking again. On rejection, ask what they want changed.
 
@@ -577,6 +603,7 @@ export async function POST(request: Request) {
     const context = cleanAgentContext(body.agentContext);
     reconcileStationMemory(memory, transcript, context, history);
     reconcileJourneyMemory(memory, transcript, context, history);
+    reconcilePaymentMemory(memory, transcript, context);
     const defaultsAccepted = acceptsRecommendedDefaults(transcript);
     if (defaultsAccepted) applyRecommendedDefaults(memory);
     const missingField = missingJourneyField(memory);
@@ -609,6 +636,10 @@ export async function POST(request: Request) {
       try {
         if (call.name === 'ask_user') {
           call = await reasonWithRetry(payload, controller.signal, 'You were about to ask the user a question. Perform the required second-pass ambiguity check now. If memory or transcript already answers it, use the appropriate action tool instead. Otherwise ask only the genuinely missing information.');
+        }
+        if (call.name === 'journey_planner') {
+          const resultsOnly = /\b(?:only\s+)?(?:show|list|display)\b.{0,28}\b(?:options?|results?|journeys?)\b|\bdo not (?:book|continue|select)\b/i.test(transcript);
+          call.arguments.auto_continue = !resultsOnly;
         }
         return secureJson({ ...validatedTurn(call, memory, pathname, spokenLanguage, context, defaultsAccepted), mode: 'openai-agent', model: JAMVANTA_MODEL });
       } catch (validationError) {
