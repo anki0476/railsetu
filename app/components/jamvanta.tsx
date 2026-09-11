@@ -29,6 +29,11 @@ const JAMVANTA_LEGACY_MEMORY_KEY = 'railsetu.jamvanta-memory.v2';
 const JAMVANTA_PAYMENT_FLOW_KEY = 'railsetu.jamvanta-payment-flow.v1';
 const JAMVANTA_DOWNLOAD_AFTER_PAYMENT_KEY = 'railsetu.jamvanta-download-after-payment.v1';
 const JAMVANTA_SUGGESTED_ACTION_KEY = 'railsetu.jamvanta-suggested-action.v1';
+const FINAL_TRANSCRIPT_SETTLE_MS = 2_000;
+const INTERIM_TRANSCRIPT_SETTLE_MS = 2_000;
+const AUDIO_ONLY_SILENCE_MS = 2_000;
+const VOICE_START_TIMEOUT_MS = 8_000;
+const TRANSCRIPTION_TIMEOUT_MS = 6_500;
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 let activeProviderAudio: HTMLAudioElement | null = null;
 let activeSpeechFinish: (() => void) | null = null;
@@ -82,6 +87,15 @@ function storedMemoryValue() {
     ?? window.localStorage.getItem(JAMVANTA_MEMORY_KEY)
     ?? window.sessionStorage.getItem(JAMVANTA_LEGACY_MEMORY_KEY)
     ?? window.localStorage.getItem(JAMVANTA_LEGACY_MEMORY_KEY);
+}
+
+function createSpeechRecorder(stream: MediaStream) {
+  const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find((type) => MediaRecorder.isTypeSupported(type));
+  try {
+    return new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 24_000 });
+  } catch {
+    return new MediaRecorder(stream);
+  }
 }
 
 function stopJamvantaSpeech() {
@@ -601,12 +615,12 @@ export default function Jamvanta() {
                 lastVoiceAt.current = Date.now();
                 if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
                 silenceTimer.current = null;
-              } else if (heardVoice.current && Date.now() - lastVoiceAt.current >= 4000) stopListening();
-              else if (!heardVoice.current && Date.now() - lastVoiceAt.current >= 10_000) stopListening();
+              } else if (heardVoice.current && Date.now() - lastVoiceAt.current >= AUDIO_ONLY_SILENCE_MS) stopListening();
+              else if (!heardVoice.current && Date.now() - lastVoiceAt.current >= VOICE_START_TIMEOUT_MS) stopListening();
             }, 160);
           }
           audioChunks.current = [];
-          const mediaRecorder = new MediaRecorder(stream);
+          const mediaRecorder = createSpeechRecorder(stream);
           recorder.current = mediaRecorder;
           mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };
           mediaRecorder.onstop = async () => {
@@ -618,7 +632,7 @@ export default function Jamvanta() {
             try {
               const response = await fetch('/api/jamvanta/transcribe', {
                 method: 'POST',
-                signal: AbortSignal.timeout(8_000),
+                signal: AbortSignal.timeout(TRANSCRIPTION_TIMEOUT_MS),
                 headers: { 'content-type': audio.type || 'audio/webm' },
                 body: audio,
               });
@@ -636,14 +650,16 @@ export default function Jamvanta() {
             if (fallbackDraft.trim()) await send(fallbackDraft);
             else setNotice('I didn’t catch that. Press to speak and try again.');
           };
-          mediaRecorder.start();
+          // Small chunks let the recorder flush promptly when silence is detected;
+          // a speech-focused bitrate also reduces the upload without changing UI.
+          mediaRecorder.start(400);
         }
       }
       if (!recognitionConstructor) {
         if (recorder.current?.state === 'recording') {
           setListening(true);
           setNotice('Listening in English, Hindi or Hinglish…');
-          if (audioMonitorTimer.current === null) silenceTimer.current = window.setTimeout(() => stopListening(), 12_000);
+          if (audioMonitorTimer.current === null) silenceTimer.current = window.setTimeout(() => stopListening(), VOICE_START_TIMEOUT_MS);
         } else {
           wantsListening.current = false;
           setNotice('Voice recognition is unavailable here · type below instead');
@@ -659,7 +675,11 @@ export default function Jamvanta() {
       instance.onresult = (event) => {
         if (!wantsListening.current || recognition.current !== instance || interactionSequence.current !== listeningSequence) return;
         let next = '';
-        for (let index = 0; index < event.results.length; index += 1) next += `${event.results[index][0].transcript} `;
+        let latestResultIsFinal = false;
+        for (let index = 0; index < event.results.length; index += 1) {
+          next += `${event.results[index][0].transcript} `;
+          if (index === event.results.length - 1) latestResultIsFinal = event.results[index].isFinal === true;
+        }
         const batch = plainText(next.trim());
         const base = recognitionBaseTranscript.current;
         const normalized = base && batch.toLowerCase().startsWith(base.toLowerCase()) ? batch : plainText([base, batch].filter(Boolean).join(' '));
@@ -672,7 +692,10 @@ export default function Jamvanta() {
           }, 48);
         }
         if (silenceTimer.current !== null) window.clearTimeout(silenceTimer.current);
-        silenceTimer.current = window.setTimeout(() => stopListening(), 4000);
+        silenceTimer.current = window.setTimeout(
+          () => stopListening(),
+          latestResultIsFinal ? FINAL_TRANSCRIPT_SETTLE_MS : INTERIM_TRANSCRIPT_SETTLE_MS,
+        );
       };
       instance.onerror = (event) => {
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -699,11 +722,11 @@ export default function Jamvanta() {
       instance.start();
       setListening(true);
       setNotice('Listening in English, Hindi or Hinglish…');
-      silenceTimer.current = window.setTimeout(() => stopListening(), 10_000);
+      silenceTimer.current = window.setTimeout(() => stopListening(), VOICE_START_TIMEOUT_MS);
       voiceWatchdogTimer.current = window.setInterval(() => {
         if (!wantsListening.current || interactionSequence.current !== listeningSequence) return;
         const elapsed = Date.now() - lastVoiceAt.current;
-        if ((latestDraft.current.trim() && elapsed >= 4_250) || (!latestDraft.current.trim() && elapsed >= 12_000) || elapsed >= 60_000) stopListening();
+        if ((latestDraft.current.trim() && elapsed >= INTERIM_TRANSCRIPT_SETTLE_MS + 350) || (!latestDraft.current.trim() && elapsed >= VOICE_START_TIMEOUT_MS + 1_000) || elapsed >= 60_000) stopListening();
       }, 500);
     } catch {
       wantsListening.current = false;
