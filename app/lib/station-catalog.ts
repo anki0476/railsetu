@@ -40,6 +40,21 @@ export const stationDefinitions: readonly StationDefinition[] = [
   { code: 'SBC', name: 'KSR Bengaluru', latitude: 12.9784, longitude: 77.572 },
   { code: 'LDH', name: 'Ludhiana Junction', latitude: 30.912, longitude: 75.848 },
   { code: 'JAT', name: 'Jammu Tawi', latitude: 32.7069, longitude: 74.8806 },
+  { code: 'UMB', name: 'Ambala Cantt Junction', latitude: 30.3372, longitude: 76.8268 },
+  { code: 'CDG', name: 'Chandigarh Junction', latitude: 30.7016, longitude: 76.8221 },
+  { code: 'JP', name: 'Jaipur Junction', latitude: 26.9197, longitude: 75.7877 },
+  { code: 'KOTA', name: 'Kota Junction', latitude: 25.2235, longitude: 75.8809 },
+  { code: 'LKO', name: 'Lucknow Junction', latitude: 26.8315, longitude: 80.9195 },
+  { code: 'BSB', name: 'Varanasi Junction', latitude: 25.3261, longitude: 82.9862 },
+  { code: 'GKP', name: 'Gorakhpur Junction', latitude: 26.7596, longitude: 83.3816 },
+  { code: 'GAYA', name: 'Gaya Junction', latitude: 24.805, longitude: 84.9992 },
+  { code: 'BBS', name: 'Bhubaneswar', latitude: 20.2659, longitude: 85.843 },
+  { code: 'SC', name: 'Secunderabad Junction', latitude: 17.4344, longitude: 78.5013 },
+  { code: 'MAO', name: 'Madgaon Junction', latitude: 15.2674, longitude: 73.9704 },
+  { code: 'CBE', name: 'Coimbatore Junction', latitude: 10.9994, longitude: 76.9661 },
+  { code: 'CLT', name: 'Kozhikode', latitude: 11.2458, longitude: 75.7751 },
+  { code: 'ERS', name: 'Ernakulam Junction', latitude: 9.9689, longitude: 76.2918 },
+  { code: 'TVC', name: 'Thiruvananthapuram Central', latitude: 8.4875, longitude: 76.9525 },
 ];
 
 export const stationByCode = new Map(stationDefinitions.map((station) => [station.code, station]));

@@ -1,6 +1,6 @@
 import type { JamvantaAction, JamvantaMemory, JamvantaSelectionStrategy, JamvantaTurn } from '../../../lib/jamvanta';
 import { plainText } from '../../../lib/plain-text';
-import { stationOptions } from '../../../lib/journey-engine';
+import { JOURNEY_ENGINE_LIMITS, stationOptions } from '../../../lib/journey-engine';
 import { ApiRequestError, apiError, enforceRateLimit, readJsonBody, requireSameOrigin, secureJson } from '../../../lib/api-security';
 
 const MAX_BODY_BYTES = 32_000;
@@ -189,7 +189,7 @@ function cleanMemory(value: unknown, pathname: string): JamvantaMemory {
       maxChanges: Number.isInteger(Number(journey.maxChanges)) && Number(journey.maxChanges) >= 0 && Number(journey.maxChanges) <= 8 ? Number(journey.maxChanges) : undefined,
       preferencesConfirmed: journey.preferencesConfirmed === true,
       selectionStrategy: strategy,
-      optionIndex: Number.isInteger(index) && index >= 1 && index <= 4 ? index : undefined,
+      optionIndex: Number.isInteger(index) && index >= 1 && index <= JOURNEY_ENGINE_LIMITS.maxReturnedSolutions ? index : undefined,
     },
     payment: {
       methodType: payment.methodType === 'wallet' || payment.methodType === 'upi' || payment.methodType === 'card' ? payment.methodType : undefined,
@@ -389,7 +389,7 @@ function mergeJourney(memory: JamvantaMemory, args: Record<string, unknown>) {
     ...(typeof args.lower_berth === 'boolean' ? { lowerBerth: args.lower_berth } : {}),
     ...(Number.isInteger(maxChanges) && maxChanges >= 0 && maxChanges <= 8 ? { maxChanges } : {}),
     ...(selectionStrategies.has(strategy) ? { selectionStrategy: strategy } : {}),
-    ...(Number.isInteger(index) && index >= 1 && index <= 4 ? { optionIndex: index } : {}),
+    ...(Number.isInteger(index) && index >= 1 && index <= JOURNEY_ENGINE_LIMITS.maxReturnedSolutions ? { optionIndex: index } : {}),
   };
   memory.journey.preferencesConfirmed = missingPreferences(memory).length === 0
     && (args.preferences_confirmed === true || memory.journey.preferencesConfirmed === true);
@@ -440,7 +440,7 @@ function validatedTurn(call: ToolCall, memory: JamvantaMemory, pathname: string,
     const strategy = selectionStrategies.has(String(args.strategy) as JamvantaSelectionStrategy) ? String(args.strategy) as JamvantaSelectionStrategy : memory.journey.selectionStrategy ?? 'best_fit';
     const index = Number(args.option_index);
     memory.journey.selectionStrategy = strategy;
-    if (Number.isInteger(index) && index >= 1 && index <= 4) memory.journey.optionIndex = index;
+    if (Number.isInteger(index) && index >= 1 && index <= JOURNEY_ENGINE_LIMITS.maxReturnedSolutions) memory.journey.optionIndex = index;
     memory.stage = 'selecting';
     return { ...base, reply: usefulReply(reply, 'I found the matching journey option and I’m selecting it now.'), action: { type: 'select_journey', strategy, optionIndex: memory.journey.optionIndex, autoContinue: args.continue_to_payment !== false } };
   }
@@ -535,8 +535,8 @@ function safeRecoveryTurn(memory: JamvantaMemory, pathname: string, spokenLangua
 }
 
 const tools = [
-  { type: 'function', name: 'journey_planner', description: 'Capture the complete booking goal from natural language, including journey, comfort and selection intent; fill the planner, search and continue when complete. The server separately preserves any payment intent from the same prompt.', parameters: { type: 'object', properties: { say: { type: 'string' }, from: { type: ['string','null'], description: 'Station name or code' }, to: { type: ['string','null'], description: 'Station name or code' }, date: { type: ['string','null'], description: 'YYYY-MM-DD' }, passenger_count: { type: ['integer','null'], minimum: 1, maximum: 6 }, travel_class: { type: ['string','null'], enum: ['1A','2A','3A','3E','CC','EC','SL',null] }, profile: { type: ['string','null'], enum: ['standard','elderly','family',null] }, coach_preference: { type: ['string','null'], enum: ['same','nearby','any',null] }, luggage: { type: ['string','null'], enum: ['none','light','heavy',null] }, lower_berth: { type: ['boolean','null'] }, max_changes: { type: ['integer','null'], minimum: 0, maximum: 8 }, preferences_confirmed: { type: 'boolean' }, selection_strategy: { type: ['string','null'], enum: ['best_fit','highest_comfort','lowest_fare','fastest',null] }, option_index: { type: ['integer','null'], minimum: 1, maximum: 4 }, auto_continue: { type: 'boolean' } }, required: ['say','from','to','date','passenger_count','travel_class','profile','coach_preference','luggage','lower_berth','max_changes','preferences_confirmed','selection_strategy','option_index','auto_continue'], additionalProperties: false }, strict: true },
-  { type: 'function', name: 'select_journey', description: 'Compare displayed journeys by comfort, fare, duration, recommendation, or option number and select one.', parameters: { type: 'object', properties: { say: { type: 'string' }, strategy: { type: 'string', enum: ['best_fit','highest_comfort','lowest_fare','fastest'] }, option_index: { type: ['integer','null'], minimum: 1, maximum: 4 }, continue_to_payment: { type: 'boolean' } }, required: ['say','strategy','option_index','continue_to_payment'], additionalProperties: false }, strict: true },
+  { type: 'function', name: 'journey_planner', description: 'Capture the complete booking goal from natural language, including journey, comfort and selection intent; fill the planner, search and continue when complete. The server separately preserves any payment intent from the same prompt.', parameters: { type: 'object', properties: { say: { type: 'string' }, from: { type: ['string','null'], description: 'Station name or code' }, to: { type: ['string','null'], description: 'Station name or code' }, date: { type: ['string','null'], description: 'YYYY-MM-DD' }, passenger_count: { type: ['integer','null'], minimum: 1, maximum: 6 }, travel_class: { type: ['string','null'], enum: ['1A','2A','3A','3E','CC','EC','SL',null] }, profile: { type: ['string','null'], enum: ['standard','elderly','family',null] }, coach_preference: { type: ['string','null'], enum: ['same','nearby','any',null] }, luggage: { type: ['string','null'], enum: ['none','light','heavy',null] }, lower_berth: { type: ['boolean','null'] }, max_changes: { type: ['integer','null'], minimum: 0, maximum: 8 }, preferences_confirmed: { type: 'boolean' }, selection_strategy: { type: ['string','null'], enum: ['best_fit','highest_comfort','lowest_fare','fastest',null] }, option_index: { type: ['integer','null'], minimum: 1, maximum: 6 }, auto_continue: { type: 'boolean' } }, required: ['say','from','to','date','passenger_count','travel_class','profile','coach_preference','luggage','lower_berth','max_changes','preferences_confirmed','selection_strategy','option_index','auto_continue'], additionalProperties: false }, strict: true },
+  { type: 'function', name: 'select_journey', description: 'Compare displayed journeys by comfort, fare, duration, recommendation, or option number and select one.', parameters: { type: 'object', properties: { say: { type: 'string' }, strategy: { type: 'string', enum: ['best_fit','highest_comfort','lowest_fare','fastest'] }, option_index: { type: ['integer','null'], minimum: 1, maximum: 6 }, continue_to_payment: { type: 'boolean' } }, required: ['say','strategy','option_index','continue_to_payment'], additionalProperties: false }, strict: true },
   { type: 'function', name: 'payment_gateway', description: 'List, select, add, or pay with a RailSetu payment method. Every payment needs a fresh approval.', parameters: { type: 'object', properties: { say: { type: 'string' }, intent: { type: 'string', enum: ['list','select','add','pay'] }, method_type: { type: ['string','null'], enum: ['wallet','upi','card',null] }, mode: { type: ['string','null'], description: 'An exact available mode, or upi-user@handle for a custom UPI ID' }, label: { type: ['string','null'] } }, required: ['say','intent','method_type','mode','label'], additionalProperties: false }, strict: true },
   { type: 'function', name: 'download_ticket', description: 'Download an issued ticket on the ticket page.', parameters: { type: 'object', properties: { say: { type: 'string' } }, required: ['say'], additionalProperties: false }, strict: true },
   { type: 'function', name: 'navigate', description: 'Navigate only to a safe RailSetu page.', parameters: { type: 'object', properties: { say: { type: 'string' }, path: { type: 'string', enum: ['/','/about','/planner'] } }, required: ['say','path'], additionalProperties: false }, strict: true },

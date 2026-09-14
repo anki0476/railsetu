@@ -90,9 +90,9 @@ export type JourneyRecommendation = {
 // a substantially larger live feed.
 export const JOURNEY_ENGINE_LIMITS = Object.freeze({
   maxChanges: 8,
-  maxPathExpansions: 512,
+  maxPathExpansions: 4096,
   maxCandidateSolutions: 64,
-  maxReturnedSolutions: 4,
+  maxReturnedSolutions: 6,
   maxRecommendationCandidates: 48,
   maxRecommendations: 3,
 });
@@ -205,9 +205,10 @@ function buildSolution(train: TrainInventoryRecord, legs: JourneyLeg[], query: J
 export function solveJourneyFromInventory(query: JourneyQuery, snapshot: JourneyInventorySnapshot): JourneyOutcome {
   const solutions: JourneySolution[] = [];
   let direct: { label: string; fare: number } | null = null;
-  let pathExpansions = 0;
 
   snapshot.trains.forEach((train) => {
+    let pathExpansions = 0;
+    let trainSolutionCount = 0;
     const fromIndex = train.stations.findIndex((station) => station.code === query.from);
     const toIndex = train.stations.findIndex((station) => station.code === query.to);
     if (fromIndex < 0 || toIndex <= fromIndex) return;
@@ -224,13 +225,17 @@ export function solveJourneyFromInventory(query: JourneyQuery, snapshot: Journey
     const walk = (currentCode: string, path: JourneyLeg[]) => {
       if (
         pathExpansions >= JOURNEY_ENGINE_LIMITS.maxPathExpansions
+        || trainSolutionCount >= 8
         || solutions.length >= JOURNEY_ENGINE_LIMITS.maxCandidateSolutions
       ) return;
       pathExpansions += 1;
       const currentIndex = indexByCode.get(currentCode) ?? -1;
       if (currentCode === query.to) {
         const solution = buildSolution(train, path, query);
-        if (solution) solutions.push(solution);
+        if (solution) {
+          solutions.push(solution);
+          trainSolutionCount += 1;
+        }
         return;
       }
       if (path.length >= maxLegs) return;
@@ -238,6 +243,7 @@ export function solveJourneyFromInventory(query: JourneyQuery, snapshot: Journey
       inventory.forEach((leg) => {
         if (
           pathExpansions >= JOURNEY_ENGINE_LIMITS.maxPathExpansions
+          || trainSolutionCount >= 8
           || solutions.length >= JOURNEY_ENGINE_LIMITS.maxCandidateSolutions
         ) return;
         const legToIndex = indexByCode.get(leg.to) ?? -1;

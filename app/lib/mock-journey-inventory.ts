@@ -53,6 +53,23 @@ const services: readonly ServiceBlueprint[] = [
   { numbers: ['11703', '11704'], name: 'Rewa Itwari Express', route: ['REWA', 'BTC', 'NGP'], departures: ['17:20', '18:30'], classes: EXPRESS_CLASSES },
   { numbers: ['22955', '22956'], name: 'Kutch Express', route: ['BDTS', 'ST', 'BRC', 'ADI', 'BHUJ'], departures: ['17:45', '20:15'], classes: OVERNIGHT_CLASSES },
   { numbers: ['12843', '12844'], name: 'Puri Ahmedabad Express', route: ['PURI', 'R', 'DURG', 'RJN', 'NGP', 'BSL', 'ST', 'BRC', 'ADI'], departures: ['17:30', '18:40'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12045', '12046'], name: 'Chandigarh Shatabdi', route: ['NDLS', 'UMB', 'CDG'], departures: ['07:15', '12:05'], classes: ['CC', 'EC'] },
+  { numbers: ['12952', '12951'], name: 'Mumbai Rajdhani', route: ['NDLS', 'KOTA', 'BRC', 'ST', 'BDTS'], departures: ['16:55', '16:35'], classes: ['1A', '2A', '3A'] },
+  { numbers: ['12230', '12229'], name: 'Lucknow Mail', route: ['NDLS', 'ALJN', 'CNB', 'LKO'], departures: ['22:00', '22:00'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12556', '12555'], name: 'Gorakhdham Express', route: ['NDLS', 'CNB', 'LKO', 'GKP'], departures: ['21:25', '16:35'], classes: EXPRESS_CLASSES },
+  { numbers: ['12560', '12559'], name: 'Shiv Ganga Express', route: ['NDLS', 'CNB', 'PRYJ', 'BSB'], departures: ['20:05', '22:15'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12780', '12779'], name: 'Goa Express', route: ['NDLS', 'VGLJ', 'BPL', 'ET', 'PUNE', 'MAO'], departures: ['15:00', '15:15'], classes: EXPRESS_CLASSES },
+  { numbers: ['12626', '12625'], name: 'Kerala Express', route: ['NDLS', 'VGLJ', 'BPL', 'NGP', 'SC', 'BZA', 'CBE', 'ERS', 'TVC'], departures: ['20:10', '12:30'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12979', '12980'], name: 'Jaipur Superfast', route: ['BDTS', 'ST', 'BRC', 'ADI', 'JP'], departures: ['17:05', '20:25'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12821', '12822'], name: 'Dhauli Express', route: ['HWH', 'BBS', 'PURI'], departures: ['06:00', '10:25'], classes: ['CC', 'EC', '3A'] },
+  { numbers: ['12075', '12076'], name: 'Kerala Jan Shatabdi', route: ['CLT', 'ERS', 'TVC'], departures: ['13:45', '05:55'], classes: ['CC', 'EC'] },
+  { numbers: ['12129', '12130'], name: 'Azad Hind Express', route: ['CSMT', 'PUNE', 'NGP', 'R', 'BSP', 'HWH'], departures: ['22:10', '21:55'], classes: EXPRESS_CLASSES },
+  { numbers: ['22692', '22691'], name: 'Bengaluru Rajdhani', route: ['NDLS', 'VGLJ', 'BPL', 'NGP', 'SC', 'SBC'], departures: ['19:50', '20:00'], classes: ['1A', '2A', '3A'] },
+  { numbers: ['12394', '12393'], name: 'Sampoorna Kranti Express', route: ['NDLS', 'CNB', 'PNBE'], departures: ['17:30', '19:25'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12310', '12309'], name: 'Rajendra Nagar Rajdhani', route: ['NDLS', 'GAYA', 'PNBE'], departures: ['17:10', '19:10'], classes: ['1A', '2A', '3A'] },
+  { numbers: ['12368', '12367'], name: 'Vikramshila Express', route: ['NDLS', 'PRYJ', 'PNBE', 'HWH'], departures: ['13:15', '11:50'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12650', '12649'], name: 'Karnataka Sampark Kranti', route: ['NDLS', 'VGLJ', 'BPL', 'NGP', 'KJM', 'SBC'], departures: ['08:20', '13:50'], classes: OVERNIGHT_CLASSES },
+  { numbers: ['12214', '12213'], name: 'Bengaluru Duronto', route: ['NDLS', 'VGLJ', 'BPL', 'NGP', 'SC', 'SBC'], departures: ['22:10', '23:40'], classes: ['1A', '2A', '3A'] },
 ];
 
 function hash(value: string) {
@@ -434,7 +451,7 @@ export const mockInventoryCoverage = (() => {
 
 export const mockJourneyInventoryProvider: JourneyInventoryProvider = Object.freeze({
   id: 'railsetu-representative-india',
-  version: '2026.08.29.2',
+  version: '2026.09.15.1',
   listStations: () => stationDefinitions.map(({ code, name }) => ({ code, name })),
   getInventory: getMockInventory,
   diagnostics: () => ({

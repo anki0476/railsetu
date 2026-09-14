@@ -36,6 +36,7 @@ type PlannerForm = Omit<JourneyQuery, 'maxChanges'> & {
   customMaxChanges: number;
 };
 type SearchPhase = 'idle' | 'searching' | 'found' | 'empty';
+type SolutionSort = 'recommended' | 'price-asc' | 'price-desc' | 'comfort-desc' | 'comfort-asc';
 type SpeechStatus = 'listening' | 'ready' | 'unsupported' | 'denied' | 'unavailable';
 type SpeechResultEvent = Event & {
   resultIndex: number;
@@ -390,6 +391,7 @@ export default function JourneyPlanner() {
   const [importablePassengers, setImportablePassengers] = useState<ImportablePassenger[]>([]);
   const [selectedImportIds, setSelectedImportIds] = useState<string[]>([]);
   const [outcome, setOutcome] = useState(() => solveJourney(journeyQuery(initialForm)));
+  const [solutionSort, setSolutionSort] = useState<SolutionSort>('recommended');
   const searchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const searchSequence = useRef(0);
   const searchRequest = useRef<AbortController | null>(null);
@@ -402,6 +404,14 @@ export default function JourneyPlanner() {
   const speechRecognition = useRef<SpeechRecognitionInstance | null>(null);
   const speechBase = useRef('');
   const best = outcome.solutions[0];
+  const sortedSolutions = useMemo(() => {
+    const solutions = [...outcome.solutions];
+    if (solutionSort === 'price-asc') return solutions.sort((a, b) => a.fare - b.fare || b.comfort - a.comfort);
+    if (solutionSort === 'price-desc') return solutions.sort((a, b) => b.fare - a.fare || b.comfort - a.comfort);
+    if (solutionSort === 'comfort-desc') return solutions.sort((a, b) => b.comfort - a.comfort || a.fare - b.fare);
+    if (solutionSort === 'comfort-asc') return solutions.sort((a, b) => a.comfort - b.comfort || a.fare - b.fare);
+    return solutions;
+  }, [outcome.solutions, solutionSort]);
   const [minimumJourneyDate, setMinimumJourneyDate] = useState('');
   const currentFormIsSaved = useMemo(() => presets.some((preset) => presetMatchesForm(preset, form)), [presets, form]);
   const closeMap = useCallback(() => {
@@ -1161,13 +1171,28 @@ export default function JourneyPlanner() {
 
             {mapSolution ? <JourneyMapModal open={mapOpen} onClose={closeMap} solution={mapSolution} sharePath={mapSharePath(submitted, mapSolution)} /> : null}
 
+            <div className="planner-solution-toolbar">
+              <div><span>Ticket options</span><strong>Compare the journeys your way</strong></div>
+              <label>
+                <span>Sort by</span>
+                <select value={solutionSort} onChange={(event) => setSolutionSort(event.target.value as SolutionSort)} aria-label="Sort confirmed ticket options">
+                  <option value="recommended">Recommended</option>
+                  <option value="price-asc">Price: lowest to highest</option>
+                  <option value="price-desc">Price: highest to lowest</option>
+                  <option value="comfort-desc">Comfort: highest to lowest</option>
+                  <option value="comfort-asc">Comfort: lowest to highest</option>
+                </select>
+              </label>
+            </div>
+
             <div className="planner-solution-list">
-              {outcome.solutions.map((solution, solutionIndex) => {
+              {sortedSolutions.map((solution) => {
+                const originalRank = outcome.solutions.findIndex((candidate) => candidate.id === solution.id);
                 return (
                   <article className="planner-solution" key={solution.id}>
                     <div className="planner-solution-topline">
                       <div>
-                        <span className="planner-rank">{solutionIndex === 0 ? 'Best fit' : `Option ${solutionIndex + 1}`}</span>
+                        <span className="planner-rank">{originalRank === 0 ? 'Best fit' : `Option ${originalRank + 1}`}</span>
                         <h3>{solution.trainNumber} · {solution.trainName}</h3>
                         <p>{solution.duration} total train journey</p>
                       </div>
