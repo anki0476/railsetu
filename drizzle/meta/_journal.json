@@ -8,6 +8,20 @@
       "when": 1788785992517,
       "tag": "0000_aberrant_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789401600000,
+      "tag": "0001_whatsapp_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789405200000,
+      "tag": "0002_native_whatsapp",
+      "breakpoints": true
     }
   ]
 }

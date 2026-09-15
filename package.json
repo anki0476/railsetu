@@ -10,7 +10,8 @@
     "build": "vinext build",
     "start": "vinext start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "test:jamvanta": "tsx tests/jamvanta-agent.test.ts"
+    "test:jamvanta": "tsx tests/jamvanta-agent.test.ts",
+    "test:whatsapp": "tsx tests/whatsapp-gateway.test.ts"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.80",

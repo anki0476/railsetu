@@ -75,3 +75,89 @@ export const walletAccounts = sqliteTable('wallet_accounts', {
   balance: integer('balance').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+
+export const channelPrincipals = sqliteTable('channel_principals', {
+  id: text('id').primaryKey(),
+  browserSessionId: text('browser_session_id'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const channelIdentities = sqliteTable('channel_identities', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull(),
+  channelAccountId: text('channel_account_id').notNull(),
+  senderHash: text('sender_hash').notNull(),
+  senderCiphertext: text('sender_ciphertext'),
+  principalId: text('principal_id'),
+  verifiedAt: integer('verified_at'),
+  revokedAt: integer('revoked_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [uniqueIndex('idx_channel_identity_sender').on(table.provider, table.channelAccountId, table.senderHash)]);
+
+export const accountLinkTokens = sqliteTable('account_link_tokens', {
+  tokenHash: text('token_hash').primaryKey(),
+  channelIdentityId: text('channel_identity_id').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+  consumedAt: integer('consumed_at'),
+  createdAt: integer('created_at').notNull(),
+});
+
+export const agentConversations = sqliteTable('agent_conversations', {
+  id: text('id').primaryKey(),
+  channelIdentityId: text('channel_identity_id').notNull(),
+  stateJson: text('state_json').notNull(),
+  version: integer('version').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const channelEvents = sqliteTable('channel_events', {
+  id: text('id').primaryKey(),
+  channelIdentityId: text('channel_identity_id').notNull(),
+  direction: text('direction').notNull(),
+  eventType: text('event_type').notNull(),
+  payloadJson: text('payload_json').notNull(),
+  state: text('state').notNull(),
+  attempts: integer('attempts').notNull(),
+  availableAt: integer('available_at').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const checkoutSessions = sqliteTable('checkout_sessions', {
+  tokenHash: text('token_hash').primaryKey(),
+  principalId: text('principal_id').notNull(),
+  reservationId: text('reservation_id').notNull(),
+  operation: text('operation').notNull(),
+  paymentMethod: text('payment_method'),
+  state: text('state').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+  consumedAt: integer('consumed_at'),
+  createdAt: integer('created_at').notNull(),
+});
+
+export const serviceRequestNonces = sqliteTable('service_request_nonces', {
+  nonce: text('nonce').primaryKey(),
+  serviceId: text('service_id').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+});
+
+export const whatsappInboundMessages = sqliteTable('whatsapp_inbound_messages', {
+  id: text('id').primaryKey(),
+  channelIdentityId: text('channel_identity_id').notNull(),
+  state: text('state').notNull(),
+  attempts: integer('attempts').notNull(),
+  availableAt: integer('available_at').notNull(),
+  responseJson: text('response_json'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const whatsappConversationLocks = sqliteTable('whatsapp_conversation_locks', {
+  channelIdentityId: text('channel_identity_id').primaryKey(),
+  owner: text('owner').notNull(),
+  leaseUntil: integer('lease_until').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});

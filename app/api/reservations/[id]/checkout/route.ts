@@ -1,7 +1,9 @@
+import { waitUntil } from 'cloudflare:workers';
 import { ApiRequestError, apiError, enforceRateLimit, readJsonBody, requireSameOrigin, secureJson } from '../../../../lib/api-security';
 import { simulatedBookingProvider, simulatedPaymentProvider } from '../../../../lib/booking-providers';
 import { consumeApprovalToken } from '../../../../lib/jamvanta-approval';
 import { database, expireReservation, IDEMPOTENCY_TTL_MS, readReservation, sessionFromRequest, sha256, type StoredItinerary } from '../../../../lib/reservation-store';
+import { deliverPendingWhatsAppEvents } from '../../../../lib/native-whatsapp-service';
 
 const validId = (value: string) => /^res_[a-f0-9]{32}$/.test(value);
 const validMethod = (value: string) => /^(?:wallet|upi|visa|mastercard|added-[A-Za-z0-9-]{8,80})$/.test(value);
@@ -84,7 +86,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         db.prepare(`UPDATE inventory_offers SET active_reservation_id=NULL,held_until=NULL WHERE id=?1 AND active_reservation_id=?2`).bind(reservation.offer_id, id),
         db.prepare(`INSERT OR IGNORE INTO transaction_history(id,session_id,reservation_id,kind,amount,method,label,created_at) VALUES(?1,?2,?3,'payment',?4,?5,?6,?7)`).bind(`txn_${paymentId}`, sessionId, id, -reservation.fare, body.method, `Ticket · ${itinerary.train}`, completedAt),
         db.prepare(`INSERT OR REPLACE INTO idempotency_keys(key,operation,response_json,expires_at) VALUES(?1,'checkout',?2,?3)`).bind(idempotencyId, JSON.stringify(payload), completedAt + IDEMPOTENCY_TTL_MS),
+        db.prepare(`UPDATE checkout_sessions SET state='CONSUMED',consumed_at=?1 WHERE reservation_id=?2 AND operation='payment' AND state='PREPARED'`).bind(completedAt, id),
+        db.prepare(`INSERT OR IGNORE INTO channel_events(id,channel_identity_id,direction,event_type,payload_json,state,attempts,available_at,created_at,updated_at)
+          SELECT ?1,ci.id,'outbound','ticket_issued',?2,'PENDING',0,?3,?3,?3 FROM channel_identities ci WHERE ci.principal_id=?4 AND ci.revoked_at IS NULL`)
+          .bind(`evt_${bookingId}`, JSON.stringify({ bookingId, state:'TICKET_ISSUED', pnr:confirmed.pnr, ticketUrl:`${(process.env.RAILSETU_PUBLIC_URL??'').replace(/\/$/,'')}/ticket?booking=${bookingId}&token=${ticketToken}` }), completedAt, sessionId),
       ]);
+      waitUntil(deliverPendingWhatsAppEvents(sessionId).catch((error)=>console.warn('[railsetu-whatsapp] ticket notification deferred',error instanceof Error?error.name:'Error')));
       return secureJson(payload);
     } catch {
       const failedAt = Date.now();
